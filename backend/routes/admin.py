@@ -1,3 +1,7 @@
+import os
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -81,6 +85,88 @@ async def delete_automation(aid: int, user: dict = Depends(require_roles("admin"
 async def outbound_queue(user: dict = Depends(require_roles("admin", "manager"))):
     items = await db.outbound_queue.find({}, {"_id": 0}).sort("created_at", -1).limit(200).to_list(200)
     return items
+
+
+@router.get("/sync/status")
+async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
+    """Reconciliation snapshot: last record per entity, last sync, counts, and the window a new sync would cover."""
+    async def max_field(coll, field, match=None):
+        agg = await db[coll].aggregate([
+            {"$match": match or {}},
+            {"$group": {"_id": None, "m": {"$max": f"${field}"}}},
+        ]).to_list(1)
+        return agg[0]["m"] if agg and agg[0].get("m") else None
+
+    last_record = {
+        "leads_write_date": await max_field("leads", "write_date", {"migrated": True}),
+        "leads_create_date": await max_field("leads", "create_date", {"migrated": True}),
+        "lead_messages_date": await max_field("messages", "date", {"migrated": True}),
+        "wa_messages_date": await max_field("wa_messages", "date", {"migrated": True}),
+        "contacts_create_date": await max_field("contacts", "create_date", {"migrated": True}),
+    }
+    counts = {}
+    for coll in ["leads", "messages", "wa_channels", "wa_messages", "contacts", "users",
+                 "templates_email", "templates_whatsapp", "activities"]:
+        counts[coll] = await db[coll].estimated_document_count()
+    counts["leads_migrated"] = await db.leads.count_documents({"migrated": True})
+    counts["leads_created_in_crm"] = counts["leads"] - counts["leads_migrated"]
+
+    last_sync = await db.settings.find_one({"key": "last_sync"}, {"_id": 0})
+    running = await db.sync_runs.find_one({"status": "running"}, {"_id": 0})
+
+    # window a new sync would cover
+    if last_sync:
+        next_since = last_sync["until"]
+    else:
+        next_since = last_record["leads_write_date"]
+    if next_since:
+        try:
+            next_since = (datetime.strptime(next_since, "%Y-%m-%d %H:%M:%S") - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+    return {"last_record": last_record, "counts": counts, "last_sync": last_sync,
+            "running": running, "next_since": next_since, "now": now_utc_str(),
+            "mode": "delta" if next_since else "full"}
+
+
+@router.post("/sync/start")
+async def sync_start(user: dict = Depends(require_roles("admin"))):
+    running = await db.sync_runs.find_one({"status": "running"})
+    if running:
+        started = running.get("started_at", "")
+        # consider stale if running > 3h
+        stale = started < (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
+        if not stale:
+            raise HTTPException(status_code=409, detail="A sync is already running")
+        await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {"status": "error", "error": "stale - superseded"}})
+
+    status = await sync_status(user)
+    since = status["next_since"] or "1970-01-01 00:00:00"
+    until = now_utc_str()
+    rid = await next_id("sync_run")
+    await db.sync_runs.insert_one({"run_id": rid, "status": "running", "mode": status["mode"],
+                                   "since": since, "until": until, "started_at": now_utc_str(),
+                                   "started_by": user["name"], "progress": {}})
+    backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    logf = open("/var/log/odoo_sync.log", "a")
+    subprocess.Popen(
+        [sys.executable, "migration/odoo_sync.py", "--run-id", str(rid), "--since", since, "--until", until],
+        cwd=backend_dir, stdout=logf, stderr=logf, start_new_session=True,
+    )
+    return {"run_id": rid, "since": since, "until": until, "mode": status["mode"]}
+
+
+@router.get("/sync/runs/{run_id}")
+async def sync_run(run_id: int, user: dict = Depends(require_roles("admin", "manager"))):
+    run = await db.sync_runs.find_one({"run_id": run_id}, {"_id": 0})
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    return run
+
+
+@router.get("/sync/runs")
+async def sync_runs(user: dict = Depends(require_roles("admin", "manager"))):
+    return await db.sync_runs.find({}, {"_id": 0}).sort("run_id", -1).limit(10).to_list(10)
 
 
 @router.post("/migration/audit")

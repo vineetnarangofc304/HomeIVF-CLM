@@ -3,7 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { UsersThree, TrendUp, ClockCountdown, Warning, Trophy, Tag } from "@phosphor-icons/react";
-import { API, leadsUrl } from "../lib/api";
+import { API, leadsUrl, apiErr } from "../lib/api";
+import { toast } from "sonner";
 import { Spinner, StageBadge } from "../components/Bits";
 
 function Kpi({ icon: Icon, label, value, tone = "blue", testid, onClick }) {
@@ -31,7 +32,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    API.get("/reports/dashboard").then(({ data }) => setData(data)).catch(() => setData({}));
+    API.get("/reports/dashboard").then(({ data }) => setData(data)).catch((e) => { toast.error(apiErr(e)); setData({}); });
   }, []);
 
   if (!data) return <Spinner />;

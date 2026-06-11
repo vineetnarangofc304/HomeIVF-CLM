@@ -73,6 +73,7 @@ async def startup():
     await db.leads.create_index("id", unique=True)
     await db.leads.create_index([("create_date", -1)])
     await db.leads.create_index([("create_date_ist", -1)])
+    await db.leads.create_index([("write_date", -1)])
     await db.leads.create_index("user_id")
     await db.leads.create_index("tags")
     await db.leads.create_index("lead_stage")

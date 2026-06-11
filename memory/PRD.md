@@ -49,6 +49,14 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - All Emergent branding removed; title/meta = "HomeIVF CRM | Powered by TagQuest", HomeIVF logo favicon
 - Data-completeness facts (verified): all 10,936 WA channels have clean 10-digit phones; 99,532 leads have chatter; Odoo only stores OPEN activities (16) — done activities live in chatter (faithful migration)
 
+## Implemented (2026-06-11, batch 3) — Odoo Delta Sync + Production Audit (54/54 tests pass)
+- **Odoo Sync** (Admin > Migration): last-record timestamps (lead activity, chatter — IST), last sync run, full reconciliation counts; "Sync Now" → confirm modal stating exact window ("from X UTC → now") + rules (Odoo wins on conflicts, CRM-created leads untouched); background sync via migration/odoo_sync.py (subprocess, tracked in sync_runs, polled live in UI); completion shows per-entity new/updated + new totals; settings.last_sync persisted. Empty DB → auto FULL import mode (production bootstrap).
+- Live-verified delta sync: +93 leads, 95 updated, +454 chatter, +8 WA chats, +46 WA msgs, +68 contacts in 14s; post-sync audit = ALL ENTITIES MATCH (99,609 = 99,609 leads; 910,638 = 910,638 chatter).
+- Sync semantics: leads by write_date>=since (15-min overlap buffer); messages/wa_messages/contacts by id>checkpoint; users & templates INSERT-ONLY (CRM-side role/password/template edits preserved); catalogs upsert; open activities upsert.
+- **Production audit**: zero hardcoded URLs/dummy/mock/demo code (grep-verified); all config via env fail-fast; only intentional queue behaviors (WhatsApp/email sends pending API creds, clearly labeled); e2e flows (create lead, notes, activities, follow-ups, quick notes, bulk, webhook intake) covered by 54-test suite. Refactor: odoo_migrate.py now exposes get_lead_fields() + transform_lead() shared with sync.
+- New endpoints: GET /api/admin/sync/status, POST /api/admin/sync/start (admin-only, 409 if already running, stale-run recovery), GET /api/admin/sync/runs(+/{id}). New tests: tests/test_sync.py.
+- ⚠️ DEPLOYMENT NOTE: production (hi-connect-1687.emergent.host) has its OWN empty database — after redeploying these features, click "Sync Now" there once: it auto-detects empty DB and runs the full import into production.
+
 ## Backlog
 ### P0 (Phase 1.5 — needs user API credentials)
 - Meta WhatsApp Business API live send/receive (process outbound_queue, webhook for inbound)

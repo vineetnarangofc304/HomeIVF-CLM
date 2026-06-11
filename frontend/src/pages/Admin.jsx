@@ -396,11 +396,53 @@ function MigrationTab() {
   const [status, setStatus] = useState(null);
   const [audit, setAudit] = useState(null);
   const [auditing, setAuditing] = useState(false);
+  const [sync, setSync] = useState(null);
+  const [confirmSync, setConfirmSync] = useState(false);
+  const [activeRun, setActiveRun] = useState(null);
+  const [lastDone, setLastDone] = useState(null);
+
   const load = () => API.get("/admin/migration/status").then(({ data }) => setStatus(data));
+  const loadSync = () => API.get("/admin/sync/status").then(({ data }) => {
+    setSync(data);
+    if (data.running) setActiveRun(data.running);
+  });
   useEffect(() => {
     load();
+    loadSync();
     API.get("/admin/settings").then(({ data }) => data.last_audit && setAudit(data.last_audit));
   }, []);
+
+  // poll active run
+  useEffect(() => {
+    if (!activeRun || activeRun.status !== "running") return;
+    const t = setInterval(async () => {
+      const { data } = await API.get(`/admin/sync/runs/${activeRun.run_id}`);
+      setActiveRun(data);
+      if (data.status !== "running") {
+        clearInterval(t);
+        if (data.status === "done") {
+          setLastDone(data);
+          toast.success("Sync complete");
+        } else {
+          toast.error("Sync failed — see details below");
+        }
+        load();
+        loadSync();
+      }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [activeRun?.run_id, activeRun?.status]);
+
+  const startSync = async () => {
+    setConfirmSync(false);
+    try {
+      const { data } = await API.post("/admin/sync/start");
+      setActiveRun({ run_id: data.run_id, status: "running", since: data.since, until: data.until, progress: {} });
+      toast.info(`Sync started — fetching changes since ${data.since} UTC`);
+    } catch (e) {
+      toast.error(apiErr(e));
+    }
+  };
 
   const runAudit = async () => {
     setAuditing(true);
@@ -414,8 +456,104 @@ function MigrationTab() {
   };
 
   if (!status) return <Spinner />;
+  const fmtUtc = (s) => (s ? new Date(s.replace(" ", "T") + "Z").toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " IST" : "—");
+  const sumNew = (p) => Object.values(p || {}).reduce((a, v) => a + (v.new || 0), 0);
+  const sumUpd = (p) => Object.values(p || {}).reduce((a, v) => a + (v.updated || 0), 0);
+
   return (
     <div className="space-y-4">
+      {/* SYNC CARD */}
+      <div className="hivf-card p-4" data-testid="sync-card">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo Sync</h3>
+            <p className="text-xs text-slate-500">Pull everything new/changed in Odoo into this CRM — keep both in lockstep until cutover.</p>
+          </div>
+          <button data-testid="sync-now-button" onClick={() => setConfirmSync(true)}
+            disabled={activeRun?.status === "running"} className="hivf-btn-primary !py-1.5 text-xs">
+            {activeRun?.status === "running" ? "Sync in progress…" : "Sync Now"}
+          </button>
+        </div>
+        {sync && (
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="sync-info">
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last lead activity in CRM</p>
+              <p className="mt-1 text-sm font-bold text-slate-700" data-testid="last-record-date">{fmtUtc(sync.last_record?.leads_write_date)}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last chatter message</p>
+              <p className="mt-1 text-sm font-bold text-slate-700">{fmtUtc(sync.last_record?.lead_messages_date)}</p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last sync run</p>
+              <p className="mt-1 text-sm font-bold text-slate-700" data-testid="last-sync-date">
+                {sync.last_sync ? fmtUtc(sync.last_sync.finished_at) : "Never (initial migration only)"}
+              </p>
+            </div>
+            <div className="rounded-xl bg-slate-50 p-3">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next sync covers</p>
+              <p className="mt-1 text-sm font-bold text-[#357ABD]">{sync.next_since ? `${fmtUtc(sync.next_since)} → now` : "FULL import (empty database)"}</p>
+            </div>
+          </div>
+        )}
+
+        {/* live progress */}
+        {activeRun && (
+          <div className={`mt-3 rounded-xl border p-3 ${activeRun.status === "running" ? "border-amber-200 bg-amber-50/50" : activeRun.status === "done" ? "border-emerald-200 bg-emerald-50/50" : "border-rose-200 bg-rose-50/50"}`} data-testid="sync-progress">
+            <p className="text-xs font-bold text-slate-700">
+              {activeRun.status === "running" ? `⏳ Syncing… (window: ${activeRun.since} → ${activeRun.until} UTC)` :
+                activeRun.status === "done" ? `✅ Sync #${activeRun.run_id} complete — ${sumNew(activeRun.results || activeRun.progress)} new, ${sumUpd(activeRun.results || activeRun.progress)} updated` :
+                `❌ Sync failed: ${(activeRun.error || "").slice(0, 200)}`}
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {Object.entries(activeRun.results || activeRun.progress || {}).map(([k, v]) => (
+                <span key={k} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
+                  {k.replace(/_/g, " ")}: <b className="text-emerald-600">+{v.new}</b>{v.updated ? <span className="text-[#357ABD]"> / {v.updated} upd</span> : ""}
+                </span>
+              ))}
+            </div>
+            {activeRun.status === "done" && activeRun.totals && (
+              <p className="mt-2 text-[11px] text-slate-500">
+                New totals — {Object.entries(activeRun.totals).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.toLocaleString("en-IN")}`).join(" · ")}
+              </p>
+            )}
+          </div>
+        )}
+        {!activeRun && sync?.last_sync && (
+          <p className="mt-2 text-[11px] text-slate-400" data-testid="last-sync-summary">
+            Last sync ({fmtUtc(sync.last_sync.finished_at)}): {sumNew(sync.last_sync.results)} new, {sumUpd(sync.last_sync.results)} updated · window {sync.last_sync.since} → {sync.last_sync.until} UTC
+          </p>
+        )}
+      </div>
+
+      {/* confirm modal */}
+      {confirmSync && sync && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setConfirmSync(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="sync-confirm-modal">
+            <h3 className="font-display text-lg font-extrabold text-slate-900">Confirm Odoo Sync</h3>
+            <div className="mt-3 rounded-xl bg-[#4A90E2]/5 p-3 text-sm text-slate-700">
+              {sync.next_since ? (
+                <>I will fetch all records <b>created or updated in Odoo</b> between<br />
+                  <b className="text-[#357ABD]">{sync.next_since} UTC</b> ({fmtUtc(sync.next_since)})<br />
+                  and <b className="text-[#357ABD]">now</b>.</>
+              ) : (
+                <>This database is empty — I will run a <b>FULL import</b> of all Odoo data (leads, chatter, WhatsApp, contacts…). This can take 30–60 minutes.</>
+              )}
+            </div>
+            <ul className="mt-3 space-y-1 text-xs text-slate-500">
+              <li>• New Odoo records are added; changed records are updated.</li>
+              <li>• For migrated leads edited in BOTH systems, Odoo values win.</li>
+              <li>• Leads created directly in this CRM are never touched.</li>
+              <li>• Dashboards & reports reflect new data immediately after.</li>
+            </ul>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setConfirmSync(false)} className="hivf-btn-secondary" data-testid="sync-cancel-button">Cancel</button>
+              <button onClick={startSync} className="hivf-btn-primary" data-testid="sync-confirm-button">Yes, Sync Now</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="hivf-card p-4" data-testid="migration-audit">
         <div className="flex items-center justify-between">
           <div>

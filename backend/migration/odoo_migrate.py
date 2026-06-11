@@ -255,15 +255,69 @@ STD_FIELDS = ["name", "contact_name", "partner_id", "phone", "mobile", "email_fr
               "date_last_stage_update", "create_date", "write_date", "create_uid"]
 
 
+def get_lead_fields():
+    avail = call("crm.lead", "fields_get", [], attributes=["type"])
+    x_fields = [f for f in avail if f.startswith("x_") and avail[f]["type"] not in ("binary", "one2many", "many2many")]
+    std = [f for f in STD_FIELDS if f in avail]
+    return std + x_fields, x_fields
+
+
+def transform_lead(r, x_fields):
+    custom = {}
+    for f in x_fields:
+        v = r.get(f)
+        if v not in (False, None, "", []):
+            custom[f] = list(v) if isinstance(v, (list, tuple)) else v
+    doc = {
+        "id": r["id"],
+        "name": s(r.get("name")),
+        "contact_name": s(r.get("contact_name")),
+        "partner_id": m2o(r.get("partner_id")),
+        "phone": s(r.get("phone")),
+        "mobile": s(r.get("mobile")),
+        "email_from": s(r.get("email_from")),
+        "city": s(r.get("city")),
+        "street": s(r.get("street")),
+        "zip": s(r.get("zip")),
+        "country": m2o_name(r.get("country_id")),
+        "stage_id": m2o(r.get("stage_id")),
+        "tags": list(r.get("tag_ids") or []),
+        "user_id": m2o(r.get("user_id")),
+        "team_id": m2o(r.get("team_id")),
+        "active": bool(r.get("active")),
+        "type": s(r.get("type")),
+        "priority": s(r.get("priority")),
+        "probability": r.get("probability") if r.get("probability") is not False else None,
+        "lost_reason_id": m2o(r.get("lost_reason_id")),
+        "description": s(r.get("description")),
+        "referred": s(r.get("referred")),
+        "source_id": m2o_name(r.get("source_id")),
+        "medium_id": m2o_name(r.get("medium_id")),
+        "campaign_id": m2o_name(r.get("campaign_id")),
+        "date_open": s(r.get("date_open")),
+        "date_closed": s(r.get("date_closed")),
+        "date_last_stage_update": s(r.get("date_last_stage_update")),
+        "create_date": s(r.get("create_date")),
+        "create_date_ist": to_ist(s(r.get("create_date"))),
+        "write_date": s(r.get("write_date")),
+        "create_uid": m2o(r.get("create_uid")),
+        "custom": custom,
+        "phone_digits": phone_digits(r.get("phone") or r.get("mobile")),
+        "migrated": True,
+    }
+    doc["state_name"] = coalesce(r, ["x_studio_state_5"]) or m2o_name(r.get("state_id")) or coalesce(
+        r, ["x_studio_state", "x_studio_state_1", "x_studio_state_2", "x_studio_state_3",
+            "x_studio_state_4", "x_studio_state_6"])
+    for target, sources in COALESCE_MAP.items():
+        doc[target] = coalesce(r, sources)
+    return doc
+
+
 def migrate_leads():
     cp = get_checkpoint("leads")
     if cp.get("state") == "done":
         return
-    avail = call("crm.lead", "fields_get", [], attributes=["type"])
-    x_fields = [f for f in avail if f.startswith("x_") and avail[f]["type"] not in ("binary", "one2many", "many2many")]
-    x_o2m = [f for f in avail if f.startswith("x_") and avail[f]["type"] == "one2many"]
-    std = [f for f in STD_FIELDS if f in avail]
-    fields = std + x_fields
+    fields, x_fields = get_lead_fields()
     domain = [["active", "in", [True, False]]]
     total = call("crm.lead", "search_count", domain)
     last_id = cp.get("last_id", 0)
@@ -276,57 +330,7 @@ def migrate_leads():
                     fields=fields, limit=batch, order="id asc")
         if not recs:
             break
-        ops = []
-        for r in recs:
-            custom = {}
-            for f in x_fields:
-                v = r.get(f)
-                if v not in (False, None, "", []):
-                    custom[f] = list(v) if isinstance(v, (list, tuple)) else v
-            doc = {
-                "id": r["id"],
-                "name": s(r.get("name")),
-                "contact_name": s(r.get("contact_name")),
-                "partner_id": m2o(r.get("partner_id")),
-                "phone": s(r.get("phone")),
-                "mobile": s(r.get("mobile")),
-                "email_from": s(r.get("email_from")),
-                "city": s(r.get("city")),
-                "street": s(r.get("street")),
-                "zip": s(r.get("zip")),
-                "country": m2o_name(r.get("country_id")),
-                "stage_id": m2o(r.get("stage_id")),
-                "tags": list(r.get("tag_ids") or []),
-                "user_id": m2o(r.get("user_id")),
-                "team_id": m2o(r.get("team_id")),
-                "active": bool(r.get("active")),
-                "type": s(r.get("type")),
-                "priority": s(r.get("priority")),
-                "probability": r.get("probability") if r.get("probability") is not False else None,
-                "lost_reason_id": m2o(r.get("lost_reason_id")),
-                "description": s(r.get("description")),
-                "referred": s(r.get("referred")),
-                "source_id": m2o_name(r.get("source_id")),
-                "medium_id": m2o_name(r.get("medium_id")),
-                "campaign_id": m2o_name(r.get("campaign_id")),
-                "date_open": s(r.get("date_open")),
-                "date_closed": s(r.get("date_closed")),
-                "date_last_stage_update": s(r.get("date_last_stage_update")),
-                "create_date": s(r.get("create_date")),
-                "create_date_ist": to_ist(s(r.get("create_date"))),
-                "write_date": s(r.get("write_date")),
-                "create_uid": m2o(r.get("create_uid")),
-                "custom": custom,
-                "phone_digits": phone_digits(r.get("phone") or r.get("mobile")),
-                "migrated": True,
-            }
-            state_name = coalesce(r, ["x_studio_state_5"]) or m2o_name(r.get("state_id")) or coalesce(
-                r, ["x_studio_state", "x_studio_state_1", "x_studio_state_2", "x_studio_state_3",
-                    "x_studio_state_4", "x_studio_state_6"])
-            doc["state_name"] = state_name
-            for target, sources in COALESCE_MAP.items():
-                doc[target] = coalesce(r, sources)
-            ops.append(UpdateOne({"id": r["id"]}, {"$set": doc}, upsert=True))
+        ops = [UpdateOne({"id": r["id"]}, {"$set": transform_lead(r, x_fields)}, upsert=True) for r in recs]
         db.leads.bulk_write(ops)
         last_id = recs[-1]["id"]
         done += len(recs)
