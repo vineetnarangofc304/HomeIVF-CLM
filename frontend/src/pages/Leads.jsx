@@ -12,9 +12,15 @@ const FILTER_DEFS = [
   { key: "user_id", label: "Caller" },
   { key: "source_lead", label: "Source" },
   { key: "follow_up", label: "Follow-up" },
+  { key: "follow_up_tag", label: "FU Tag" },
   { key: "active", label: "Status" },
   { key: "date_from", label: "From" },
   { key: "date_to", label: "To" },
+  { key: "campaign_name", label: "Campaign" },
+  { key: "ads_platform", label: "Ads Platform" },
+  { key: "state_name", label: "State" },
+  { key: "city", label: "City" },
+  { key: "lost_reason_id", label: "Lost Reason" },
 ];
 
 const GROUP_OPTIONS = [
@@ -42,12 +48,16 @@ export default function Leads() {
 
   const filterParams = useMemo(() => {
     const obj = {};
-    ["search", "lead_stage", "tags", "user_id", "source_lead", "follow_up", "active", "date_from", "date_to", "stage_id"].forEach((k) => {
+    ["search", "lead_stage", "tags", "user_id", "source_lead", "follow_up", "active", "date_from", "date_to",
+      "stage_id", "follow_up_tag", "campaign_name", "ads_platform", "state_name", "city", "lost_reason_id"].forEach((k) => {
       const v = params.get(k);
       if (v) obj[k] = v;
     });
     return obj;
   }, [params]);
+
+  const sort = params.get("sort") || "create_date";
+  const order = params.get("order") || "desc";
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -71,7 +81,7 @@ export default function Leads() {
         setGroups(data);
         setData(null);
       } else {
-        const { data } = await API.get("/leads", { params: { ...filterParams, page, limit: 50 } });
+        const { data } = await API.get("/leads", { params: { ...filterParams, page, limit: 50, sort, order } });
         setData(data);
         setGroups(null);
       }
@@ -81,7 +91,7 @@ export default function Leads() {
     } finally {
       setLoading(false);
     }
-  }, [filterParams, page, view, groupBy]);
+  }, [filterParams, page, view, groupBy, sort, order]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -140,6 +150,21 @@ export default function Leads() {
 
   const activeChips = FILTER_DEFS.filter((f) => params.get(f.key));
 
+  const toggleSort = (field) => {
+    const next = new URLSearchParams(params);
+    if (sort === field) next.set("order", order === "desc" ? "asc" : "desc");
+    else { next.set("sort", field); next.set("order", "desc"); }
+    next.delete("page");
+    setParams(next);
+  };
+
+  const Th = ({ field, children }) => (
+    <th className={`px-2 py-2.5 ${field ? "cursor-pointer select-none hover:text-[#357ABD]" : ""}`}
+      onClick={field ? () => toggleSort(field) : undefined} data-testid={field ? `sort-${field}` : undefined}>
+      {children}{field && sort === field && <span className="ml-0.5">{order === "desc" ? "▾" : "▴"}</span>}
+    </th>
+  );
+
   const totalPages = data ? Math.max(1, Math.ceil(data.total / 50)) : 1;
 
   return (
@@ -181,6 +206,10 @@ export default function Leads() {
             <option value="overdue">Overdue</option>
             <option value="upcoming">Upcoming</option>
             <option value="set">Has follow-up</option>
+          </select>
+          <select data-testid="filter-followup-tag" className="hivf-select" value={params.get("follow_up_tag") || ""} onChange={(e) => setParam("follow_up_tag", e.target.value)}>
+            <option value="">FU Tag: All</option>
+            {(catalogs?.follow_up_tag || []).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
           <select data-testid="filter-active" className="hivf-select" value={params.get("active") || "true"} onChange={(e) => setParam("active", e.target.value)}>
             <option value="true">Active</option>
@@ -265,15 +294,15 @@ export default function Leads() {
                     checked={selected.length === data.items.length && data.items.length > 0}
                     onChange={(e) => setSelected(e.target.checked ? data.items.map((l) => l.id) : [])} />
                 </th>
-                <th className="px-2 py-2.5">Lead</th>
-                <th className="px-2 py-2.5">Phone</th>
-                <th className="px-2 py-2.5">Location</th>
-                <th className="px-2 py-2.5">Caller</th>
-                <th className="px-2 py-2.5">Lead Stage</th>
-                <th className="px-2 py-2.5">Tags</th>
-                <th className="px-2 py-2.5">Follow-up</th>
-                <th className="px-2 py-2.5">Source</th>
-                <th className="px-2 py-2.5">Created</th>
+                <Th field="contact_name">Lead</Th>
+                <Th field="phone">Phone</Th>
+                <Th field="city">Location</Th>
+                <Th field="user_id">Caller</Th>
+                <Th field="lead_stage">Lead Stage</Th>
+                <Th>Tags</Th>
+                <Th field="follow_up_date">Follow-up</Th>
+                <Th field="source_lead">Source</Th>
+                <Th field="create_date">Created</Th>
               </tr>
             </thead>
             <tbody>

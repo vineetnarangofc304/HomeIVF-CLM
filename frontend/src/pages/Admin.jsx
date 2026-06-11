@@ -394,11 +394,61 @@ function AssignmentTab() {
 
 function MigrationTab() {
   const [status, setStatus] = useState(null);
+  const [audit, setAudit] = useState(null);
+  const [auditing, setAuditing] = useState(false);
   const load = () => API.get("/admin/migration/status").then(({ data }) => setStatus(data));
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+    API.get("/admin/settings").then(({ data }) => data.last_audit && setAudit(data.last_audit));
+  }, []);
+
+  const runAudit = async () => {
+    setAuditing(true);
+    try {
+      const { data } = await API.post("/admin/migration/audit");
+      setAudit(data);
+      toast.success(data.all_match ? "Audit passed — everything matches Odoo ✓" : "Audit complete — review differences below");
+    } catch (e) {
+      toast.error(apiErr(e));
+    } finally { setAuditing(false); }
+  };
+
   if (!status) return <Spinner />;
   return (
-    <div className="hivf-card p-4" data-testid="migration-status">
+    <div className="space-y-4">
+      <div className="hivf-card p-4" data-testid="migration-audit">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo vs CRM — Live Audit</h3>
+            <p className="text-xs text-slate-500">Connects to your Odoo right now, counts every entity there, and compares with this CRM — your proof that nothing was missed.</p>
+          </div>
+          <button data-testid="run-audit-button" onClick={runAudit} disabled={auditing} className="hivf-btn-primary !py-1.5 text-xs">
+            {auditing ? "Auditing… (~20s)" : "Run Audit vs Odoo"}
+          </button>
+        </div>
+        {audit && (
+          <>
+            <p className="mt-3 text-xs text-slate-400">Last run: {audit.ran_at} UTC · {audit.all_match ? <span className="font-bold text-emerald-600">ALL ENTITIES MATCH ✓</span> : <span className="font-bold text-amber-600">differences found (see notes)</span>}</p>
+            <table className="mt-2 w-full text-sm" data-testid="audit-table">
+              <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                <th className="py-2">Entity</th><th className="py-2 text-right">In Odoo</th><th className="py-2 text-right">In CRM</th><th className="py-2 text-center">Status</th><th className="py-2">Note</th></tr></thead>
+              <tbody>
+                {audit.rows.map((r) => (
+                  <tr key={r.entity} className="border-b border-slate-50">
+                    <td className="py-1.5 font-semibold text-slate-700">{r.entity.replace(/_/g, " ")}</td>
+                    <td className="py-1.5 text-right text-slate-600">{r.odoo >= 0 ? r.odoo.toLocaleString("en-IN") : "n/a"}</td>
+                    <td className="py-1.5 text-right text-slate-600">{r.crm.toLocaleString("en-IN")}</td>
+                    <td className="py-1.5 text-center">{r.match ? <span className="font-bold text-emerald-500">✓</span> : <span className="font-bold text-rose-500">✗</span>}</td>
+                    <td className="py-1.5 text-[11px] text-slate-400">{r.note || ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>
+        )}
+      </div>
+
+      <div className="hivf-card p-4" data-testid="migration-status">
       <div className="flex items-center justify-between">
         <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo Data Migration</h3>
         <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs"><ArrowsClockwise size={14} /> Refresh</button>
@@ -427,6 +477,7 @@ function MigrationTab() {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }

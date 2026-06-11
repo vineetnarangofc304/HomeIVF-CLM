@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 2 testing of the new HomeIVF enhancements (drill-downs, full filters, sortable columns, clickable dashboard, follow-up quick-note modal, migration audit, Visual Analytics). Backend: 50/50 pytest passing (32 regression + 18 new in test_reports_v2.py) covering new pivot shape (col_keys as {key,label} objects, rows with key+label), /api/reports/trends (day/week/month + invalid 400), /api/reports/heatmap (dow_hour + caller_day + invalid 400), leads sort (asc/desc/by name), new leads filters (follow_up_tag works on real data, lost_reason_id filter accepts param), POST /api/admin/migration/audit (live XML-RPC ~14s, returns rows with odoo/crm/match/note and persists to settings.last_audit, caller forbidden). Frontend: Login OK; Dashboard kpi-converted-mtd click navigates to /leads?lead_stage=Converted&date_from=2026-06-01 with filter chips applied and table shows 233 Converted leads matching the KPI; sort-create_date and sort-contact_name data-testids present and clickable; filter-followup-tag dropdown present in leads filter bar. Reports Pivot Builder has all filters (date, status, caller, tag, lead stage, source, FU tag, ads platform, campaign, state, city); preset 'Caller × Lead Stage' runs and returns 26 rows × 5 columns with pivot-row-* and pivot-col-header-* testids; column header click sorts. Visual Analytics tab renders stacked area trend, Conversions & Conversion Rate line, Source donut, DOW×Hour heatmap, Caller×Day heatmap; granularity day/week/month toggles work. Follow-ups Quick Note modal opens with lead info, comments textarea, next follow-up date picker, FU Tag select, disposition tag select, Cancel/Save buttons — URL stays on /followups (does not navigate). Admin Migration tab shows persisted audit table with all 15 entities, status icons (✓/✗) and notes — matches documented expected behavior (Odoo grew slightly since migration, ✗ with explanation for leads/chatter/contacts is acceptable; whatsapp_messages match via 10% delta, all catalogs/templates/users ✓).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/leads/group_counts?group_by=lost_reason_id", "issue": "Returns 400 'Unsupported group_by' though lost_reason_id is a valid filter and pivot dim. Workaround in tests is to use /api/reports/pivot. Consider adding it to the allowed group_by list for symmetry."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Dashboard charts (Recharts) — pre-existing", "issues": ["Console warning at mount: 'width(-1) and height(-1) of chart should be greater than 0' — cosmetic, charts render fine after layout settles. Carried over from iteration 1."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_homeivf_api.py",
+    "/app/backend/tests/test_reports_v2.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iter2_reports_v2.xml",
+    "/app/test_reports/pytest/iter2_regression.xml"
+  ],
+  "action_items": [
+    "(Optional/minor) Add 'lost_reason_id' to allowed group_by values in /api/leads/group_counts for parity with pivot/filter — useful for the 'Lost Reasons' preset in Reports.",
+    "(Optional/cosmetic, pre-existing) Silence Recharts width(-1)/height(-1) warning by giving ResponsiveContainer a defined min-height."
+  ],
+  "critical_code_review_comments": [
+    "reports.py /trends — line 157 builds match['create_date_ist']['$gte'] using max(date_from, match.get(...).get('$gte', date_from)) — string-compares dates which works only for ISO format. Fine as-is for YYYY-MM-DD but document the assumption. Also the manual merge could be simplified since build_match already sets the floor when date_from is in filters.",
+    "reports.py pivot — when row dim is 'tags', $unwind happens BEFORE $group with preserveNullAndEmptyArrays=true, but it also unwinds when 'tags' is the COL dim. If a lead has multiple tags, its count is counted once per tag across the row — that is correct for tag breakdowns but means grand_total != total leads. UI should label totals as 'tagged occurrences' when tags is a dim, or document this.",
+    "admin.py migration_audit — XML-RPC password and login pulled via os.environ[...]; will KeyError 500 if any of ODOO_URL/DB/LOGIN/PASSWORD is missing. Wrap in try/except and return a 503 with a clean message instead of an unhandled crash for safer ops.",
+    "admin.py migration_audit — persisted via settings.update_one with {'$set': {**result, 'key': 'last_audit'}}. The 'rows' list is overwritten cleanly, but storing the full audit history would require a separate collection (audit_runs). Single 'last_audit' is sufficient per the spec.",
+    "reports.py heatmap caller_day — date_from default uses datetime.now(utc) + 5h30m to approximate IST; works but core.utils.today_ist() should be used here for consistency.",
+    "leads.py — sort param is passed straight into sort() — no whitelist of allowed sort fields. A malicious user could pass sort=_id or non-indexed fields causing slow queries. Add ALLOWED_SORT = {'create_date','contact_name','phone','user_id','lead_stage','follow_up_date'} guard."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_reports_v2.py (new — 18 tests)"
+  ],
+  "success_rate": {
+    "backend": "100% (50/50: 32 regression + 18 new)",
+    "frontend": "100% (all listed flows verified visually with data-testids: KPI drill, sortable columns, FU tag filter, pivot with full filters & preset, Visual Analytics charts/heatmaps/granularity, Follow-ups Quick Note modal, Admin Migration audit table persisted)"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (admin); caller1@homeivf.com / HomeIVF@123 (caller — Manish Verma)",
+  "seed_data_creation": "Only audit settings doc upserted by audit endpoint (key=last_audit). No new leads/users/tags created by iteration 2 tests beyond those from iteration 1.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Use /app/backend/tests/test_reports_v2.py + test_homeivf_api.py as full regression suite (cd /app/backend && pytest tests/ -v). Migration audit takes ~14-18s real time (live XML-RPC to Odoo). Pivot response shape: col_keys = list of {key,label} objects (NOT strings); rows have {key,label,cells,total,children}. /api/reports/trends takes granularity=day|week|month. /api/reports/heatmap takes type=dow_hour|caller_day. Leads sort uses ?sort=<field>&order=asc|desc. New leads filters: follow_up_tag (string), lost_reason_id (int). Audit may show ✗ for leads/chatter/contacts because the customer's Odoo is still in active use — this is expected per problem-statement notes, not a bug.",
+  "rca of the issue": "No bugs requiring RCA in iteration 2. The two initial test failures were script issues: (a) group_counts?group_by=lost_reason_id returns 400 because that dim is not whitelisted there (the actual leads?lost_reason_id= filter works fine — pivot showed only 3 lost leads, none with reason set, so the filter correctly returns 0 items); (b) migration audit shows leads ✗ because Odoo now has 99537 vs CRM 99516 — Odoo team kept adding leads after migration; this is the documented acceptable behavior in the request. Both tests were adjusted to use pivot for finding lost_reason_ids and to accept Odoo-growing-since-migration."
+}

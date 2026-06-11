@@ -34,6 +34,7 @@ def build_query(
     search=None, stage_id=None, lead_stage=None, tags=None, user_id=None,
     source_lead=None, campaign_name=None, ads_platform=None, city=None, state_name=None,
     active="true", date_from=None, date_to=None, follow_up=None, priority=None,
+    follow_up_tag=None, lost_reason_id=None,
     current_user=None,
 ):
     q = {}
@@ -64,6 +65,10 @@ def build_query(
         q["user_id"] = int(user_id)
     if source_lead:
         q["source_lead"] = source_lead
+    if follow_up_tag:
+        q["follow_up_tag"] = follow_up_tag
+    if lost_reason_id:
+        q["lost_reason_id"] = int(lost_reason_id)
     if campaign_name:
         q["campaign_name"] = {"$regex": re.escape(campaign_name), "$options": "i"}
     if ads_platform:
@@ -101,12 +106,13 @@ def query_params_dep(
     city: Optional[str] = None, state_name: Optional[str] = None,
     active: str = "true", date_from: Optional[str] = None, date_to: Optional[str] = None,
     follow_up: Optional[str] = None, priority: Optional[str] = None,
+    follow_up_tag: Optional[str] = None, lost_reason_id: Optional[str] = None,
 ):
     return dict(
         search=search, stage_id=stage_id, lead_stage=lead_stage, tags=tags, user_id=user_id,
         source_lead=source_lead, campaign_name=campaign_name, ads_platform=ads_platform,
         city=city, state_name=state_name, active=active, date_from=date_from, date_to=date_to,
-        follow_up=follow_up, priority=priority,
+        follow_up=follow_up, priority=priority, follow_up_tag=follow_up_tag, lost_reason_id=lost_reason_id,
     )
 
 
