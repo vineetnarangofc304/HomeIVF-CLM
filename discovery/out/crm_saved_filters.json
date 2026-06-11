@@ -1,0 +1,461 @@
+[
+ {
+  "id": 65,
+  "name": "Days",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 37,
+  "name": "Incoming",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 104,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 101,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'x_studio_lead_stage_5']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 100,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 99,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 81,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 80,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 79,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 78,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 77,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 73,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 72,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 69,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 62,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'tag_ids', 'user_id']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 61,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 60,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 59,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 58,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 57,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 56,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 55,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 54,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 53,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 48,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 40,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 21,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": true,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 20,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 19,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 16,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 15,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 12,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 6,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 4,
+  "name": "Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 66,
+  "name": "Month",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:month', 'x_studio_lead_stage_1']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 70,
+  "name": "Same Day Leads",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'x_studio_lead_stage']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 38,
+  "name": "incoming",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 64,
+  "name": "mll",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'x_studio_lead_stage_2']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 63,
+  "name": "mlt",
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:month', 'x_studio_lead_stage_4', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 102,
+  "name": "mtd",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 74,
+  "name": "mtd",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 68,
+  "name": "mtd",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 14,
+  "name": "mtd",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:month']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 13,
+  "name": "mtd",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:month']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 75,
+  "name": "mtd'",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids', 'create_date:month', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 103,
+  "name": "pp",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'x_studio_lead_stage_1', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 49,
+  "name": "salesperson",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 76,
+  "name": "slt",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 9,
+  "name": "tag 1",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 11,
+  "name": "tagged",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:day']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ },
+ {
+  "id": 10,
+  "name": "tags",
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "is_default": false,
+  "model_id": "crm.lead"
+ }
+]

@@ -1,0 +1,16 @@
+[
+ {
+  "id": 1,
+  "name": "Sales",
+  "member_ids": [
+   2,
+   5,
+   7,
+   6,
+   8
+  ],
+  "user_id": false,
+  "active": true,
+  "assignment_domain": "[(\"country_id\", \"in\", [])]"
+ }
+]

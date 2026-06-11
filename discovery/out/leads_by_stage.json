@@ -1,0 +1,98 @@
+[
+ {
+  "stage_id": [
+   1,
+   "New"
+  ],
+  "stage_id_count": 98781,
+  "__fold": false,
+  "__domain": [
+   "&",
+   [
+    "active",
+    "in",
+    [
+     true,
+     false
+    ]
+   ],
+   [
+    "stage_id",
+    "=",
+    1
+   ]
+  ]
+ },
+ {
+  "stage_id": [
+   2,
+   "Qualified"
+  ],
+  "stage_id_count": 98,
+  "__fold": false,
+  "__domain": [
+   "&",
+   [
+    "active",
+    "in",
+    [
+     true,
+     false
+    ]
+   ],
+   [
+    "stage_id",
+    "=",
+    2
+   ]
+  ]
+ },
+ {
+  "stage_id": [
+   3,
+   "Proposition"
+  ],
+  "stage_id_count": 1,
+  "__fold": false,
+  "__domain": [
+   "&",
+   [
+    "active",
+    "in",
+    [
+     true,
+     false
+    ]
+   ],
+   [
+    "stage_id",
+    "=",
+    3
+   ]
+  ]
+ },
+ {
+  "stage_id": [
+   4,
+   "Converted"
+  ],
+  "stage_id_count": 631,
+  "__fold": false,
+  "__domain": [
+   "&",
+   [
+    "active",
+    "in",
+    [
+     true,
+     false
+    ]
+   ],
+   [
+    "stage_id",
+    "=",
+    4
+   ]
+  ]
+ }
+]

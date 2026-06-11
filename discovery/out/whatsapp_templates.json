@@ -1,0 +1,442 @@
+[
+ {
+  "id": 115,
+  "name": "Review Consultation",
+  "body": "Dear {{1}},\n\nThis is a gentle reminder that your review consultation with {{2}} is coming up on {{3}}.\n\nPlease ensure you are available at the scheduled time and have a stable internet connection for the session. \n\nIf you have any questions or need help, our support team is available at +91-9958885250\n \nHave a great day ahead\ud83c\udf3b \nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 4,
+  "name": "New Lead - Message",
+  "body": "Dear {{1}},\nThank you for choosing HomeIVF by Dr. Gauri Agarwal\ud83d\udc69\u200d\u2695\ufe0f \n\nYou're now one step closer to beginning your journey to parenthood, and we\u2019re here to guide and support you through it.\n\nOur team will contact you soon to schedule your consultation with one of our fertility experts. Until then, you can learn more about our services and approach by visiting our website: https://homeivf.com/ \n\nHave a great day ahead\ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "crm.lead"
+ },
+ {
+  "id": 19,
+  "name": "Logistic Appointment",
+  "body": "Dear {{1}},\nYour Appointment request for Nursing Visit at {{2}} (Coordinated Universal Time) has been successfully recorded.\nWe will confirm the details of the clinician assigned to you shortly.\nYour patient ID is {{3}}, please use this in all your communication with HOMEIVF.",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 28,
+  "name": "Logistics Appointment Confirmation Campaign",
+  "body": "Dear {{1}},\nYour appointment request for a Nursing Visit at {{2}} (UTC) has been successfully recorded. \u2705\n\nWe will share the details of your assigned clinician shortly.\n\n\ud83c\udd94 Your Patient ID: {{3}}\n(Please use this ID for all communication with HOMEIVF.)",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 40,
+  "name": "OPD Reschedule",
+  "body": "Dear  {{1}}, \n\nYour tele-consultation is rescheduled with  {{2}} and  {{3}} on  {{4}}  at  {{5}} . \n\nYou can join the session using the following link:  \n\nhttps://homeivf.com/call/isSms?\n\nPlease ensure you are available at the scheduled time and have a stable internet connection for the session. \n\nIf you have any questions or need help, our support team is available at 99588 85250 \n\nHave a great day ahead\ud83c\udf3b \n\nWith care, \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 42,
+  "name": "Prescription Template New",
+  "body": "Hi  {{1}}, \ud83d\udc4b \n\nYour prescription from  {{2}}  is now ready! \ud83d\udc8a\u2728 \n\nView & download here:   {{3}}\n\n\u2705 Please follow the instructions shared by your doctor for the best results. \n\nIf you have any questions, you can reach us anytime at 99588 85250 \n\nHave a great day ahead\ud83c\udf3b \n\nWith care, \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 46,
+  "name": "Welcome Registration Template",
+  "body": "Dear {{1}},\nWe\u2019re glad you\u2019ve joined HomeIVF. Your registration is now complete, and your account is ready to use to help you access your fertility care, and stay connected with your care team. \n \nWith your HomeIVF account, you can: \n- Book appointments easily \n- Access your medical records anytime, anywhere \n- Receive health reminders and updates \n- Connect securely with your healthcare providers \n \nTo get started, log in here: https://homeivf.com/ \n \nIf you have any questions or need help, our support team is available at 99588 85250 \n \nHave a great day ahead\ud83c\udf3b \nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 51,
+  "name": "Appointment Booking 3",
+  "body": "Dear  {{1}},\n\n \nGreetings from HomeIVF by Dr. Gauri Agarwal\ud83d\udc69\u200d\u2695\ufe0f  \n \nThis is to confirm your tele-consultation with  {{2}}  and  {{3}}  on  {{4}}  at  {{5}}. \n \nYou can join the session using the following link:  \nhttps://homeivf.com/call/isSms?\n\nPlease ensure you are available at the scheduled time and have a stable internet connection for the session. \n \nIf you have any questions or need help, our support team is available at 99588 85250 \n \nHave a great day ahead\ud83c\udf3b \nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 54,
+  "name": "media_send_2",
+  "body": "Hello  {{1}},\n\nYour appointment has been successfully booked with  {{2}} on  {{3}}.\n\nYou can join the session using the following link: https://homeivf.com/call/isSms?\n \nIf you have any questions, please contact us at +91-9958885250 or support@homeivf.com .\n \nWe look forward to seeing you!\n \nThank you, \nHOMEIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 55,
+  "name": "opd booking amount confirmation",
+  "body": "Dear  {{1}}, \n\nYour OPD appointment booking amount  {{2}}  has been successfully received for your upcoming online consultation. \u2705 \n\nOur team will share the consultation details (date, time, and joining link) with you shortly. \n\nThank you for choosing our services. Wishing you good health! \n\n Thank you,  \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 56,
+  "name": "opd booking template reminder",
+  "body": "Hi {{1}}, \n \nThis is a reminder for your upcoming online consultation with  {{2}}. To help the consultation go smoothly, please keep the following documents ready: \n \n \nPrevious medical reports and test results \nCurrent prescriptions and list of medications \nAny relevant scans or X-rays (if applicable) \nID proof (if required) \u2013 Aadhar or marriage certificate for KYC \n \nIf you have any questions or need help, our support team is available at 99588 85250 \n \nHave a great day ahead\ud83c\udf3b \nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 57,
+  "name": "Contact Attempt - Not Picked",
+  "body": "Dear {{1}},\nGreetings from HomeIVF by Dr. Gauri Agarwal \ud83d\udc69\u200d\u2695\n\nHumne aapko call karne ki koshish ki, lekin aap se connect nahin kar paye.\nAap humein apna available time bata dijiye taaki hum aapki consultation IVF specialist ke saath schedule kar saken.\n\nYa phir aap directly humein 99588 85250 par call kar sakte hain.\n\nHave a great day ahead \ud83c\udf3b\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "crm.lead"
+ },
+ {
+  "id": 58,
+  "name": "Contact Attempt - Night - English",
+  "body": "Hey {{1}},\nWe\u2019ve just received your query about HomeIVF, thank you for reaching out.\n\nWe know it\u2019s a little late, but if you\u2019re available right now, our team would be happy to call you and guide you with the next step in your parenthood journey.\n\n\ud83c\udf3b Team HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "crm.lead"
+ },
+ {
+  "id": 60,
+  "name": "Who Are We 2",
+  "body": "Hi  {{1}}, \n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey. \n\nFor a better understanding of our services and how we can assist you, we\u2019re sharing this PDF with all the details. \ud83d\udcc4 \n\nhttps://gauralife-videos.s3.ap-south-1.amazonaws.com/WhoAreWe.pdf\n\nIf you have any questions, you can reach us anytime at 99588 85250 \n\nHave a great day ahead\ud83c\udf3b \n\nWith care, \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 62,
+  "name": "Opd Feeback",
+  "body": "Hi  {{1}}, \n\nThank you for choosing HomeIVF for your first consultation \ud83d\udc99 \n\nOn a scale of 1\u201310, how would you rate your consultation with us?  \n\nFrom 1 being the lowest, and 10 the highest. Your feedback helps us care for you better \ud83c\udf38 \n\nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 64,
+  "name": "Financial Counselling Completion",
+  "body": "Dear {{1}},\n \nThank you for attending the financial counselling session today.\n \nThis message is to confirm that your financial counselling for the IVF treatment has been successfully completed.\n \nIf you have any questions about the inclusions, exclusions, or estimated costs, please feel free to reach out.\n \nWe are here to support you throughout your treatment journey.\n \nWarm regards,\n{{2}}\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 65,
+  "name": "TestingTemplate",
+  "body": "Dear {{1}},\n \nThank you for attending the financial counselling session today.\n \nThis message is to confirm that your financial counselling for the IVF treatment has been successfully completed.\n \nIf you have any questions about the inclusions, exclusions, or estimated costs, please feel free to reach out.\n \nWe are here to support you throughout your treatment journey.\n \nWarm regards,\n{{2}}\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 66,
+  "name": "Testing",
+  "body": "Dear {{1}},\n \nThank you for attending the financial counselling session today.\n \nThis message is to confirm that your financial counselling for the IVF treatment has been successfully completed.\n \nIf you have any questions about the inclusions, exclusions, or estimated costs, please feel free to reach out.\n \nWe are here to support you throughout your treatment journey.\n \nWarm regards,\n{{2}}\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 67,
+  "name": "Financial_Counselling_Done_And_Registration_Amount_Received",
+  "body": "Dear {{1}},\n \nThis is to inform you that your financial counselling has been successfully completed. We have also received the registration amount submitted by you.\n \nIf you have any further questions or need assistance with the next steps, please feel free to contact us at 88266 90035. \n \nWarm regards,\n{{2}}\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 68,
+  "name": "Opd Appointment Booking",
+  "body": "Hello {{1}},\n\nThis is to inform you that a new OPD appointment has been booked.\n\nAppointment Details:\n\u2022 Patient Name: {{2}}\n\u2022 Counsellor Name: {{3}}\n\u2022 Age / Gender: {{4}}\n\u2022 Appointment Date & Time: {{5}}\n\u2022 City : {{6}}\n\nPlease let us know if any additional preparation or documentation is required.\n\nThank you.\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 70,
+  "name": "POST OPU Instructions",
+  "body": "Dear {{1}},\n\nHope you are doing well. Please follow the post Ovum Pick-Up (OPU) instructions\nbelow:\n\n* You may experience abdominal bloating for 2\u20133 days, which is common after the\nprocedure.\n\n* You may notice light brown\u2013coloured vaginal discharge; however, if the discharge\nbecomes excessive, please contact the health facility immediately.\n\n* You can start with tea and biscuits 2\u20133 hours after the procedure.\n\n* Please keep dinner light on the same day (e.g., dal, porridge).\n\n* Take the discharge medicines as prescribed.\n\n* Please follow up with the doctor on the given date.\n\nIf you have any concerns, feel free to contact us.\n\nRegards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 71,
+  "name": "Patient L2 Appointment Notification",
+  "body": "Dear {{1}},\n\nThis is a reminder of your upcoming appointment at {{2}}.\n \n\ud83d\udccd Address: {{3}},\n\n\ud83d\udd58 Reporting Time: {{4}},\n \n\u23f1\ufe0f Procedure Time: {{5}},\n \nKindly bring any relevant medical reports and a valid ID.\nWe look forward to seeing you.\n \nWarm regards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 72,
+  "name": "Appointment SMS to Anesthetist",
+  "body": "Hello {{1}},\nThis is to inform you that a new PAC appointment has been booked.\nPAC Appointment Details:\n \n* Patient Name: {{2}}\n* Counsellor Name: {{3}}\n* Age / Gender: {{4}}\n* Appointment Date & Time: {{5}}\n* City : {{6}}\nPlease let us know if any additional preparation or documentation is required.\nThank you\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 73,
+  "name": "Zoom Webinar Link - New Lead",
+  "body": "Hi {{1}},\nThank you for registering for our IVF Myth-Busting Webinar. We\u2019re excited to have you join us!\n\nThe webinar will cover essential insights on IVF, addressing common myths and clearing doubts, so you can make informed decisions.\n\nJoin Zoom Meeting\nhttps://us06web.zoom.us/j/86931188778?pwd=XIryeycCrubrioNFzjIwoMv2Ch8WOt.1\n\nMeeting ID: 869 3118 8778\nPasscode: 146766\nDate: 31st January, 2026\nTime: 5 PM - 7 PM\nWe look forward to seeing you there!\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "crm.lead"
+ },
+ {
+  "id": 79,
+  "name": "attachment_pdf_update",
+  "body": "Hi {{1}},\n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey.\n\nPlease find attached our detailed brochure with complete information about our services.\n\nIf you have any questions, feel free to contact us anytime at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 81,
+  "name": "OPD Rescheduled By The Patient",
+  "body": "Hi {{1}},\n\nGreetings from HomeIVF by Dr. Gauri Agarwal \ud83d\udc69\u200d\u2695\ufe0f\n\nThis is to confirm that your tele-consultation with {{2}} and {{3}} has been rescheduled to {{4}} at {{5}}.\n\nYou can join the session using the following link:\nhttps://homeivf.com/call/isSms?\n\nPlease ensure you are available at the scheduled time and have a stable internet connection for the session.\n\nIf you have any questions or need help, our support team is available at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 83,
+  "name": "OPD Rescheduled By The Counsellor",
+  "body": "Hi {{1}},\n\nGreetings from HomeIVF by Dr. Gauri Agarwal \ud83d\udc69\u200d\u2695\ufe0f\n\nDue to unforeseen circumstances, your tele-consultation with {{2}} and {{3}} has been rescheduled from {{4}} at {{5}} to {{6}} at {{7}}.\n\nWe truly regret any disruption this may cause to your schedule.\n\nYou can join the session using the following link:\nhttps://homeivf.com/call/isSms?\n\nPlease ensure you are available at the scheduled time and have a stable internet connection for the session.\n\nIf you have any questions or need help, our support team is available at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 84,
+  "name": "Test_PDF",
+  "body": "Hi {{1}},\n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey.\n\nPlease find attached our detailed brochure with complete information about our services.\n\nIf you have any questions, feel free to contact us anytime at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 86,
+  "name": "OPD Appointment Reschedule",
+  "body": "Hello {{1}},\n\nThis is to inform you that an OPD appointment has been rescheduled under your name.\n\nAppointment Details:\n\n\u2022 Patient Name: {{2}}\n\u2022 Counsellor Name: {{3}}\n\u2022 Age / Gender: {{4}}\n\u2022 Appointment Date & Time: {{5}}\n\u2022 City: {{6}}\n\nPlease let us know if any additional preparation or documentation is required.\n\nThank you.\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 90,
+  "name": "PRE OPU Instructions-V3",
+  "body": "Dear {{1}},\n\nPlease review the following instructions before your Ovum Pick-Up (OPU) procedure:\n\n\u2022 Maintain complete fasting (no food or water) for at least 6\u20138 hours before the procedure.\n\u2022 Carry all medical documents and valid ID proof of the couple.\n\u2022 Report to the centre at least 3 hours before the scheduled OPU time.\n\u2022 Any delay in arrival will not be the responsibility of the centre.\n\u2022 If the semen sample has not been frozen, the husband must accompany the patient as a fresh sample may be required.\n\u2022 Do not apply makeup or nail polish on the day of the procedure.\n\u2022 Medications: Essential medicines (such as anti-hypertensive or cardiac medicines) may be taken with small sips of water.\n\nPlease follow the anaesthesiologist\u2019s instructions if provided.\nThe patient will be discharged 4\u20136 hours after the procedure depending on her condition.\nIf you have any concerns, feel free to contact us\n\n\nRegards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 94,
+  "name": "Trigger Injection Alert",
+  "body": "Dear {{1}},\n\nThis is a reminder that your trigger injection is scheduled to be administered on {{2}}.\n\nPlease ensure you are available at the scheduled time and follow any instructions provided by your aligned gynaecologist or clinic.\n\nIf you have any questions, please contact the clinic at [99588 85250]\n\nHave a great day ahead\ud83c\udf3b \nWith care, \nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 95,
+  "name": "who are we - PDF",
+  "body": "Hi {{1}},\n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey.\n\nFor a better understanding of our services and how we can assist you, we\u2019re sharing this document with all the details. \ud83d\udcc4\n\nIf you have any questions, you can reach us anytime at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 96,
+  "name": "POST ET INSTRUCTIONS",
+  "body": "Dear {{1}},\n \nFollow the prescribed medicines strictly as per schedule.\n \n1. Do not start or stop medication without consulting your doctor.\n \n2. Avoid lifting heavy weights and strenuous exercise.\n \n3. Normal routine activities are allowed.\n \n4. Avoid outside food; prefer fresh, home cooked meals.\n \n5. Focus on light activity and self-care. Full bed rest is not recommended.\n \n6. Do not panic in case of spotting, mild bleeding, or light abdominal cramps. Contact the hospital immediately if needed.\n \nFor any other query, please contact the team\n \nRegards\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 97,
+  "name": "PRE ET Instructions",
+  "body": "Dear {{1}},\n\nKindly follow the instructions as given below:\n\n1. Please take all your medicines as prescribed on the day of transfer.\n2. Kindly reach the center on time to avoid any delay with the lab.\n3. Do not stop or start any medication without informing the concerned staff.\n4. Please visit along with your spouse for consent formalities.\n5. Do not apply nail polish, mehndi, perfume etc.\n6. Wear comfortable, loose clothing.\n\nWishing you all the best.\nRegards\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 98,
+  "name": "Pre Opu Instructions V2",
+  "body": "Dear {{1}},\n\nPlease review the following instructions before your Ovum Pick-Up (OPU) procedure:\n\n\u2022 Maintain complete fasting (no food or water) for at least 6\u20138 hours before the procedure.\n\u2022 Carry all medical documents and valid ID proof of the couple.\n\u2022 Report to the centre at least 3 hours before the scheduled OPU time.\n\u2022 Any delay in arrival will not be the responsibility of the centre.\n\u2022 If the semen sample has not been frozen, the husband must accompany the patient as a fresh sample may be required.\n\u2022 Do not apply makeup or nail polish on the day of the procedure.\n\nMedications:\nEssential medicines (such as anti-hypertensive or cardiac medicines) may be taken with small sips of water.\n\nPlease follow the anaesthesiologist\u2019s instructions if provided.\nThe patient will be discharged 4\u20136 hours after the procedure depending on her condition.\nFor any queries or clarifications, please feel free to contact us.\n\nRegards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 99,
+  "name": "Pre Opu",
+  "body": "Dear {{1}},\n\nPlease review the following instructions before your Ovum Pick-Up (OPU) procedure:\n\n\u2022 Maintain complete fasting (no food or water) for at least 6\u20138 hours before the procedure.\n\u2022 Carry all medical documents and valid ID proof of the couple.\n\u2022 Report to the centre at least 3 hours before the scheduled OPU time.\n\u2022 Any delay in arrival will not be the responsibility of the centre.\n\u2022 If the semen sample has not been frozen, the husband must accompany the patient as a fresh sample may be required.\n\u2022 Do not apply makeup or nail polish on the day of the procedure.\n\nMedications:\nEssential medicines (such as anti-hypertensive or cardiac medicines) may be taken with small sips of water.\n\nPlease follow the anaesthesiologist\u2019s instructions if provided.\nThe patient will be discharged 4\u20136 hours after the procedure depending on her condition.\nFor any queries or clarifications, please feel free to contact us.\n\nRegards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 100,
+  "name": "Patient Done By The Counsellor",
+  "body": "Hello {{1}},\n\nThis is to inform you that an OPD appointment has been rescheduled against your name.\n\nAppointment Details:\n\n\u2022 Patient Name: {{2}}\n\u2022 Counsellor Name: {{3}}\n\u2022 Age / Gender: {{4}}\n\u2022 Appointment Date & Time: {{5}}\n\u2022 City: {{6}}\n\nPlease let us know if any additional preparation or documentation is required.\n\nThank you.\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 101,
+  "name": "Attachment Pdf",
+  "body": "Hi {{1}},\n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey.\n\nPlease find attached our detailed brochure with complete information about our services.\n\nIf you have any questions, feel free to contact us anytime at 99588 85250.\n\nHave a great day ahead \ud83c\udf3b\n\nWith care,\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 102,
+  "name": "Pre Opu Instructions",
+  "body": "Dear {{1}},\n \nPlease review the following instructions prior to your scheduled Ovum Pick-Up (OPU) procedure:\n \n\u2022  Maintain complete fasting (no food or water) for at least 6\u20138 hours before the procedure.\n\u2022  Carry all available medical documents and valid ID proof of couple.\n\u2022  Please report to the centre at least 3 hours before the scheduled OPU time.\n\u2022  Any delay in arrival will not be the responsibility of the centre.\n\u2022  If the semen sample has not been frozen, the husband must accompany the patient, as a fresh sample will be required.\n\u2022  Please do not apply makeup or nail polish on the day of the procedure.\n \nMedications:\n\u2022  Essential medications (such as antihypertensive or cardiac medicines) may be taken with sips of water.\n \nPlease follow the anaesthesiologist\u2019s specific instructions.\nThe patient will be discharged 4\u20136 hours after the procedure, depending on her condition.\nFor any queries or clarifications, please feel free to contact us.\n \nWarm regards,\nHomeIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 103,
+  "name": "Opd Feedback",
+  "body": "Hi  {{1}}, \n\nThank you for choosing HomeIVF for your first consultation \ud83d\udc99 \n\nOn a scale of 1\u201310, how would you rate your consultation with us?  \n\nFrom 1 being the lowest, and 10 the highest. Your feedback helps us care for you better \ud83c\udf38 \n\nWith care, \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 104,
+  "name": "Who Are We",
+  "body": "Hi  {{1}} , \n\nAt HomeIVF, we\u2019re here to support you at every step of your parenthood journey. \n\nFor a better understanding of our services and how we can assist you, we\u2019re sharing this PDF with all the details. \ud83d\udcc4 \n\nhttps://drive.google.com/file/d/12sGdH6Lbw96KMS1Ny1Uf10q0b3vCrJC2/view?usp=drive_link \n\nIf you have any questions, you can reach us anytime at 99588 85250 \n\nHave a great day ahead\ud83c\udf3b \n\nWith care, \n\nTeam HomeIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 105,
+  "name": "Send Media",
+  "body": "Hello  {{1}},\n\nYour appointment has been successfully booked with  {{2}} on  {{3}}.\n\nYou can join the session using the following link: https://homeivf.com/call/isSms?\n \nIf you have any questions, please contact us at +91-9958885250 or support@homeivf.com .\n \nWe look forward to seeing you!\n \nThank you, \nHOMEIVF",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 106,
+  "name": "Appointment Booking 2",
+  "body": "Hello  {{1}},\n\nYour appointment has been successfully booked with  {{2}} on  {{3}}.\n\nYou can join the session using the following link: https://homeivf.com/call/isSms?\n \nIf you have any questions, please contact us at +91-9958885250 or support@homeivf.com .\n \nWe look forward to seeing you!\n \nThank you, \nHOMEIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 107,
+  "name": "Send Image",
+  "body": "Hello  {{1}},\n\nYour appointment has been successfully booked with  {{2}} on  {{3}}.\n\nYou can join the session using the following link: https://homeivf.com/call/isSms?\n \nIf you have any questions, please contact us at +91-9958885250 or support@homeivf.com .\n \nWe look forward to seeing you!\n \nThank you, \nHOMEIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 108,
+  "name": "Appointment Booking",
+  "body": "Hello  {{1}},\n\nYour appointment has been successfully booked with  {{2}} on  {{3}}.\n \nIf you have any questions, please contact us at +91-9958885250 or support@homeivf.com .\n \nWe look forward to seeing you!\n \nThank you, \nHOMEIVF",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 109,
+  "name": "Registration Message Template",
+  "body": "Dear {{1}},  \n\nYour HOMEIVF registration is successfully completed.  \n\nWith your account, you can:  \n- Book appointments easily  \n- Access your medical records anytime  \n- Receive timely health reminders  \n- Connect securely with your healthcare providers  \n\nLog in here: https://homeivf.com/  \n\nIf you need assistance, contact our support team at +91 99588 85250.  \n\n\u2014 The HOMEIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 110,
+  "name": "Welcome Message Template",
+  "body": "Dear {{1}},\nYour HOMEIVF registration is successfully completed. \u2705\n\nWith your account, you can now:\n\nBook appointments easily\n\nAccess your medical records anytime\n\nReceive timely health reminders\n\nConnect securely with your healthcare providers\n\n\ud83d\udc49 Log in here: https://homeivf.com/\n\nFor assistance, contact our support team at +91 99588 85250.\n\n\u2014 The HOMEIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 111,
+  "name": "Welcome Homeivf 2",
+  "body": "\ud83d\udc4b Dear {{1}},\nWelcome to HOMEIVF! \ud83c\udf89\n\u2705 Your registration is complete. You can now:\n1\ufe0f\u20e3 Book appointments with ease\n2\ufe0f\u20e3 Access medical records anytime, anywhere\n3\ufe0f\u20e3 Get timely health reminders & updates\n4\ufe0f\u20e3 Connect securely with your healthcare providers\n\ud83d\udc49 Log in here: https://homeivf.com/\n\ud83d\udcde Need help? Call us at +91 99588 85250.\nThank you for choosing HOMEIVF. We look forward to supporting your healthcare journey! \ud83d\udc99\n\u2014 The HOMEIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 112,
+  "name": "Prescription Template",
+  "body": "Hello {{1}},\n \nYour prescription from your recent teleconsultation with  {{2}} is now available.  \nYou can access it using the link below:\n \n\ud83d\udcdd Prescription Details:  \n {{3}}\n \nPlease ensure that you follow the instructions provided by your healthcare provider.  \nIf you have any questions or need clarification, you can reach out to us anytime through the HOMEIVF app or simply reply to this message.\n \nWishing you good health and a smooth recovery,  \n \nBest regards,  \n\ud83d\udc68\u200d\u2695\ufe0f  {{4}}\n\ud83c\udfe0  HOMEIVF Team  \n\ud83d\udcde +91 99588 85250\n\ud83d\udce7 support@homeivf.com",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 113,
+  "name": "Homeivf Welcome Template",
+  "body": "Dear {{1}} ,\n \nWelcome to HOMEIVF\n \nWe are glad to have you on board. Your registration is now complete, and you can start accessing all the features designed to support your health and wellness journey.\n \nWith your HOMEIVF account, you can now:\n \n1.Book appointments with ease\n \n2.Access your medical records anytime anywhere\n \n3.Receive timely health reminders and updates\n \n4.Connect securely with your aligned healthcare providers\n \nTo get started, simply log in to your account here: https://homeivf.com/\n \nIf you have any questions or need help, our support team is here for you at 919958885250.\n \nThank you for choosing HOMEIVF. We look forward to being part of your healthcare journey!\n \nStay healthy,\nThe HOMEIVF Team",
+  "status": "approved",
+  "template_type": "marketing",
+  "model": "res.partner"
+ },
+ {
+  "id": 114,
+  "name": "Hello World",
+  "body": "Welcome and congratulations!! This message demonstrates your ability to send a WhatsApp message notification from the Cloud API, hosted by Meta. Thank you for taking the time to test with us.",
+  "status": "approved",
+  "template_type": "utility",
+  "model": "res.partner"
+ },
+ {
+  "id": 91,
+  "name": "Sign Request",
+  "body": "Hello {{1}},\n\n{{2}} has requested your signature on the document {{3}}.\n\nTo sign the document open the following link: {{4}}\n\nAdditional details (if any) are shown below:\n{{5}}\n\nYou have until *{{6}}* to sign the document.\n\n*This link is personal to you, do not share it with others.*\n*If you receive this message by mistake, please ignore it.*\n\nAttachments (if any): {{7}}\n\nThank you.",
+  "status": "draft",
+  "template_type": "utility",
+  "model": "sign.request.item"
+ },
+ {
+  "id": 92,
+  "name": "Sign Request Completion",
+  "body": "Hello {{1}},\n\nThe document {{2}} has been completed and signed by {{3}}.\n\nDocument link:\n{{4}}\n\n*Warning do not forward this message to other people!*",
+  "status": "draft",
+  "template_type": "utility",
+  "model": "sign.request.item"
+ },
+ {
+  "id": 93,
+  "name": "Sign Request Refusal",
+  "body": "Hello {{1}},\n\n{{2}} declined to sign the document {{3}} for the following reason: *\"{{4}}\"*.\n\nDocument link:\n{{5}}\n\n*Warning do not forward this message to other people!*",
+  "status": "draft",
+  "template_type": "utility",
+  "model": "sign.request.item"
+ },
+ {
+  "id": 1,
+  "name": "Conversation Reviver",
+  "body": "Hello there,\n\nJust a quick note to let you know that we're here to help with anything you might need. If you have any questions, please don't hesitate to send us a message.\n\nWe're always happy to assist!\n        ",
+  "status": "draft",
+  "template_type": "marketing",
+  "model": "discuss.channel"
+ }
+]

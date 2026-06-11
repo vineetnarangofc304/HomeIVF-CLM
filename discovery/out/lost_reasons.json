@@ -1,0 +1,17 @@
+[
+ {
+  "id": 1,
+  "name": "Too expensive",
+  "active": true
+ },
+ {
+  "id": 2,
+  "name": "We don't have people/skills",
+  "active": true
+ },
+ {
+  "id": 3,
+  "name": "Not enough stock",
+  "active": true
+ }
+]

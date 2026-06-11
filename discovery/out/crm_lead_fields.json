@@ -1,0 +1,2167 @@
+{
+ "id": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "ID",
+  "type": "integer"
+ },
+ "display_name": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Display Name",
+  "type": "char"
+ },
+ "has_call_in_queue": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Is in the Call Queue",
+  "type": "boolean"
+ },
+ "message_is_follower": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Is Follower",
+  "type": "boolean"
+ },
+ "message_follower_ids": {
+  "readonly": false,
+  "relation": "mail.followers",
+  "required": false,
+  "store": true,
+  "string": "Followers",
+  "type": "one2many"
+ },
+ "message_partner_ids": {
+  "readonly": false,
+  "relation": "res.partner",
+  "required": false,
+  "store": false,
+  "string": "Followers (Partners)",
+  "type": "many2many"
+ },
+ "message_ids": {
+  "readonly": false,
+  "relation": "mail.message",
+  "required": false,
+  "store": true,
+  "string": "Messages",
+  "type": "one2many"
+ },
+ "has_message": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Has Message",
+  "type": "boolean"
+ },
+ "message_needaction": {
+  "help": "If checked, new messages require your attention.",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Action Needed",
+  "type": "boolean"
+ },
+ "message_needaction_counter": {
+  "help": "Number of messages requiring action",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Number of Actions",
+  "type": "integer"
+ },
+ "message_has_error": {
+  "help": "If checked, some messages have a delivery error.",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Message Delivery error",
+  "type": "boolean"
+ },
+ "message_has_error_counter": {
+  "help": "Number of messages with delivery error",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Number of errors",
+  "type": "integer"
+ },
+ "message_attachment_count": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Attachment Count",
+  "type": "integer"
+ },
+ "rating_ids": {
+  "readonly": false,
+  "relation": "rating.rating",
+  "required": false,
+  "store": true,
+  "string": "Ratings",
+  "type": "one2many"
+ },
+ "website_message_ids": {
+  "help": "Website communication history",
+  "readonly": false,
+  "relation": "mail.message",
+  "required": false,
+  "store": true,
+  "string": "Website Messages",
+  "type": "one2many"
+ },
+ "message_has_sms_error": {
+  "help": "If checked, some messages have a delivery error.",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "SMS Delivery error",
+  "type": "boolean"
+ },
+ "duration_tracking": {
+  "help": "JSON that maps ids from a many2one field to seconds spent",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Status time",
+  "type": "json"
+ },
+ "rotting_days": {
+  "help": "Day count since this resource was last updated",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Days Rotting",
+  "type": "integer"
+ },
+ "is_rotting": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Rotting",
+  "type": "boolean"
+ },
+ "campaign_id": {
+  "help": "This is a name that helps you keep track of your different campaign efforts, e.g. Fall_Drive, Christmas_Special",
+  "readonly": false,
+  "relation": "utm.campaign",
+  "required": false,
+  "store": true,
+  "string": "Campaign",
+  "type": "many2one"
+ },
+ "source_id": {
+  "help": "This is the source of the link, e.g. Search Engine, another domain, or name of email list",
+  "readonly": false,
+  "relation": "utm.source",
+  "required": false,
+  "store": true,
+  "string": "Source",
+  "type": "many2one"
+ },
+ "medium_id": {
+  "help": "This is the method of delivery, e.g. Postcard, Email, or Banner Ad",
+  "readonly": false,
+  "relation": "utm.medium",
+  "required": false,
+  "store": true,
+  "string": "Medium",
+  "type": "many2one"
+ },
+ "activity_ids": {
+  "readonly": false,
+  "relation": "mail.activity",
+  "required": false,
+  "store": true,
+  "string": "Activities",
+  "type": "one2many"
+ },
+ "activity_state": {
+  "help": "Status based on activities\nOverdue: Due date is already passed\nToday: Activity date is today\nPlanned: Future activities.",
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "overdue",
+    "Overdue"
+   ],
+   [
+    "today",
+    "Today"
+   ],
+   [
+    "planned",
+    "Planned"
+   ]
+  ],
+  "store": false,
+  "string": "Activity State",
+  "type": "selection"
+ },
+ "activity_user_id": {
+  "readonly": true,
+  "relation": "res.users",
+  "required": false,
+  "store": false,
+  "string": "Responsible User",
+  "type": "many2one"
+ },
+ "activity_type_id": {
+  "readonly": false,
+  "relation": "mail.activity.type",
+  "required": false,
+  "store": false,
+  "string": "Next Activity Type",
+  "type": "many2one"
+ },
+ "activity_type_icon": {
+  "help": "Font awesome icon e.g. fa-tasks",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Activity Type Icon",
+  "type": "char"
+ },
+ "activity_date_deadline": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Next Activity Deadline",
+  "type": "date"
+ },
+ "my_activity_date_deadline": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "My Activity Deadline",
+  "type": "date"
+ },
+ "activity_summary": {
+  "readonly": false,
+  "required": false,
+  "store": false,
+  "string": "Next Activity Summary",
+  "type": "char"
+ },
+ "activity_exception_decoration": {
+  "help": "Type of the exception activity on record.",
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "warning",
+    "Alert"
+   ],
+   [
+    "danger",
+    "Error"
+   ]
+  ],
+  "store": false,
+  "string": "Activity Exception Decoration",
+  "type": "selection"
+ },
+ "activity_exception_icon": {
+  "help": "Icon to indicate an exception activity.",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Icon",
+  "type": "char"
+ },
+ "activity_calendar_event_id": {
+  "readonly": true,
+  "relation": "calendar.event",
+  "required": false,
+  "store": false,
+  "string": "Next Activity Calendar Event",
+  "type": "many2one"
+ },
+ "phone_sanitized": {
+  "help": "Field used to store sanitized phone number. Helps speeding up searches and comparisons.",
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Sanitized Number",
+  "type": "char"
+ },
+ "phone_sanitized_blacklisted": {
+  "help": "If the sanitized phone number is on the blacklist, the contact won't receive mass mailing sms anymore, from any list",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Phone Blacklisted",
+  "type": "boolean"
+ },
+ "phone_blacklisted": {
+  "help": "Indicates if a blacklisted sanitized phone number is a phone number. Helps distinguish which number is blacklisted             when there is both a mobile and phone field in a model.",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Blacklisted Phone is Phone",
+  "type": "boolean"
+ },
+ "phone_mobile_search": {
+  "readonly": false,
+  "required": false,
+  "store": false,
+  "string": "Phone Number",
+  "type": "char"
+ },
+ "email_normalized": {
+  "help": "This field is used to search on email address as the primary email field can contain more than strictly an email address.",
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Normalized Email",
+  "type": "char"
+ },
+ "is_blacklisted": {
+  "help": "If the email address is on the blacklist, the contact won't receive mass mailing anymore, from any list",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Blacklist",
+  "type": "boolean"
+ },
+ "message_bounce": {
+  "help": "Counter of the number of bounced emails for this contact",
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Bounce",
+  "type": "integer"
+ },
+ "email_cc": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Email cc",
+  "type": "char"
+ },
+ "name": {
+  "readonly": false,
+  "required": true,
+  "store": true,
+  "string": "Opportunity",
+  "type": "char"
+ },
+ "user_id": {
+  "readonly": false,
+  "relation": "res.users",
+  "required": false,
+  "store": true,
+  "string": "Salesperson",
+  "type": "many2one"
+ },
+ "user_company_ids": {
+  "help": "UX: Limit to lead company or all if no company",
+  "readonly": true,
+  "relation": "res.company",
+  "required": false,
+  "store": false,
+  "string": "User Company",
+  "type": "many2many"
+ },
+ "team_id": {
+  "readonly": false,
+  "relation": "crm.team",
+  "required": false,
+  "store": true,
+  "string": "Sales Team",
+  "type": "many2one"
+ },
+ "lead_properties": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Properties",
+  "type": "properties"
+ },
+ "company_id": {
+  "readonly": false,
+  "relation": "res.company",
+  "required": false,
+  "store": true,
+  "string": "Company",
+  "type": "many2one"
+ },
+ "referred": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Referred By",
+  "type": "char"
+ },
+ "description": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Notes",
+  "type": "html"
+ },
+ "active": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Active",
+  "type": "boolean"
+ },
+ "type": {
+  "readonly": false,
+  "required": true,
+  "selection": [
+   [
+    "lead",
+    "Lead"
+   ],
+   [
+    "opportunity",
+    "Opportunity"
+   ]
+  ],
+  "store": true,
+  "string": "Type",
+  "type": "selection"
+ },
+ "priority": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "0",
+    "Low"
+   ],
+   [
+    "1",
+    "Medium"
+   ],
+   [
+    "2",
+    "High"
+   ],
+   [
+    "3",
+    "Very High"
+   ]
+  ],
+  "store": true,
+  "string": "Priority",
+  "type": "selection"
+ },
+ "stage_id": {
+  "readonly": false,
+  "relation": "crm.stage",
+  "required": false,
+  "store": true,
+  "string": "Stage",
+  "type": "many2one"
+ },
+ "stage_id_color": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Stage Color",
+  "type": "integer"
+ },
+ "tag_ids": {
+  "help": "Classify and analyze your lead/opportunity categories like: Training, Service",
+  "readonly": false,
+  "relation": "crm.tag",
+  "required": false,
+  "store": true,
+  "string": "Tags",
+  "type": "many2many"
+ },
+ "color": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Color Index",
+  "type": "integer"
+ },
+ "expected_revenue": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Expected Revenue",
+  "type": "monetary"
+ },
+ "prorated_revenue": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Prorated Revenue",
+  "type": "monetary"
+ },
+ "recurring_revenue": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Recurring Revenues",
+  "type": "monetary"
+ },
+ "recurring_plan": {
+  "readonly": false,
+  "relation": "crm.recurring.plan",
+  "required": false,
+  "store": true,
+  "string": "Recurring Plan",
+  "type": "many2one"
+ },
+ "recurring_revenue_monthly": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Expected MRR",
+  "type": "monetary"
+ },
+ "recurring_revenue_monthly_prorated": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Prorated MRR",
+  "type": "monetary"
+ },
+ "recurring_revenue_prorated": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Prorated Recurring Revenues",
+  "type": "monetary"
+ },
+ "company_currency": {
+  "readonly": true,
+  "relation": "res.currency",
+  "required": false,
+  "store": false,
+  "string": "Currency",
+  "type": "many2one"
+ },
+ "date_closed": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Closed Date",
+  "type": "datetime"
+ },
+ "date_automation_last": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Last Action",
+  "type": "datetime"
+ },
+ "date_open": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Assignment Date",
+  "type": "datetime"
+ },
+ "day_open": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Days to Assign",
+  "type": "float"
+ },
+ "day_close": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Days to Close",
+  "type": "float"
+ },
+ "date_last_stage_update": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Last Stage Update",
+  "type": "datetime"
+ },
+ "date_conversion": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Conversion Date",
+  "type": "datetime"
+ },
+ "date_deadline": {
+  "help": "Estimate of the date on which the opportunity will be won.",
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Expected Closing",
+  "type": "date"
+ },
+ "commercial_partner_id": {
+  "readonly": false,
+  "relation": "res.partner",
+  "required": false,
+  "store": false,
+  "string": "Customer Company",
+  "type": "many2one"
+ },
+ "partner_id": {
+  "help": "Linked partner (optional). Usually created when converting the lead. You can find a partner by its Name, TIN, Email or Internal Reference.",
+  "readonly": false,
+  "relation": "res.partner",
+  "required": false,
+  "store": true,
+  "string": "Contact",
+  "type": "many2one"
+ },
+ "partner_is_blacklisted": {
+  "help": "If the email address is on the blacklist, the contact won't receive mass mailing anymore, from any list",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Partner is blacklisted",
+  "type": "boolean"
+ },
+ "contact_name": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Contact Name",
+  "type": "char"
+ },
+ "partner_name": {
+  "help": "The name of the future partner company that will be created while converting the lead into opportunity",
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Company Name",
+  "type": "char"
+ },
+ "function": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Job Position",
+  "type": "char"
+ },
+ "email_from": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Email",
+  "type": "char"
+ },
+ "email_domain_criterion": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Email Domain Criterion",
+  "type": "char"
+ },
+ "phone": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Phone",
+  "type": "char"
+ },
+ "phone_state": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "correct",
+    "Correct"
+   ],
+   [
+    "incorrect",
+    "Incorrect"
+   ]
+  ],
+  "store": true,
+  "string": "Phone Quality",
+  "type": "selection"
+ },
+ "email_state": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "correct",
+    "Correct"
+   ],
+   [
+    "incorrect",
+    "Incorrect"
+   ]
+  ],
+  "store": true,
+  "string": "Email Quality",
+  "type": "selection"
+ },
+ "website": {
+  "help": "Website of the contact",
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Website",
+  "type": "char"
+ },
+ "lang_id": {
+  "readonly": false,
+  "relation": "res.lang",
+  "required": false,
+  "store": true,
+  "string": "Language",
+  "type": "many2one"
+ },
+ "lang_code": {
+  "help": "This field is used to set/get locales for user",
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Locale Code",
+  "type": "char"
+ },
+ "lang_active_count": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Lang Active Count",
+  "type": "integer"
+ },
+ "street": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Street",
+  "type": "char"
+ },
+ "street2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Street2",
+  "type": "char"
+ },
+ "zip": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Zip",
+  "type": "char"
+ },
+ "city": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "City",
+  "type": "char"
+ },
+ "state_id": {
+  "readonly": false,
+  "relation": "res.country.state",
+  "required": false,
+  "store": true,
+  "string": "State",
+  "type": "many2one"
+ },
+ "country_id": {
+  "readonly": false,
+  "relation": "res.country",
+  "required": false,
+  "store": true,
+  "string": "Country",
+  "type": "many2one"
+ },
+ "probability": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Probability",
+  "type": "float"
+ },
+ "automated_probability": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Automated Probability",
+  "type": "float"
+ },
+ "is_automated_probability": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Is automated probability?",
+  "type": "boolean"
+ },
+ "won_status": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "won",
+    "Won"
+   ],
+   [
+    "lost",
+    "Lost"
+   ],
+   [
+    "pending",
+    "Pending"
+   ]
+  ],
+  "store": true,
+  "string": "Won/Lost",
+  "type": "selection"
+ },
+ "lost_reason_id": {
+  "readonly": false,
+  "relation": "crm.lost.reason",
+  "required": false,
+  "store": true,
+  "string": "Lost Reason",
+  "type": "many2one"
+ },
+ "calendar_event_ids": {
+  "readonly": false,
+  "relation": "calendar.event",
+  "required": false,
+  "store": true,
+  "string": "Meetings",
+  "type": "one2many"
+ },
+ "duplicate_lead_ids": {
+  "readonly": true,
+  "relation": "crm.lead",
+  "required": false,
+  "store": false,
+  "string": "Potential Duplicate Lead",
+  "type": "many2many"
+ },
+ "duplicate_lead_count": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Potential Duplicate Lead Count",
+  "type": "integer"
+ },
+ "meeting_display_date": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Meeting Display Date",
+  "type": "date"
+ },
+ "meeting_display_label": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Meeting Display Label",
+  "type": "char"
+ },
+ "partner_email_update": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Partner Email will Update",
+  "type": "boolean"
+ },
+ "partner_phone_update": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Partner Phone will Update",
+  "type": "boolean"
+ },
+ "is_partner_visible": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Is Partner Visible",
+  "type": "boolean"
+ },
+ "create_uid": {
+  "readonly": true,
+  "relation": "res.users",
+  "required": false,
+  "store": true,
+  "string": "Created by",
+  "type": "many2one"
+ },
+ "create_date": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Created on",
+  "type": "datetime"
+ },
+ "write_uid": {
+  "readonly": true,
+  "relation": "res.users",
+  "required": false,
+  "store": true,
+  "string": "Last Updated by",
+  "type": "many2one"
+ },
+ "write_date": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Last Updated on",
+  "type": "datetime"
+ },
+ "days_to_convert": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Days To Convert",
+  "type": "float"
+ },
+ "days_exceeding_closing": {
+  "readonly": true,
+  "required": false,
+  "store": true,
+  "string": "Exceeded Closing Days",
+  "type": "float"
+ },
+ "reveal_id": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Reveal ID",
+  "type": "char"
+ },
+ "origin_survey_id": {
+  "readonly": false,
+  "relation": "survey.survey",
+  "required": false,
+  "store": true,
+  "string": "Survey",
+  "type": "many2one"
+ },
+ "visitor_ids": {
+  "readonly": false,
+  "relation": "website.visitor",
+  "required": false,
+  "store": true,
+  "string": "Web Visitors",
+  "type": "many2many"
+ },
+ "visitor_page_count": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "# Page Views",
+  "type": "integer"
+ },
+ "iap_enrich_done": {
+  "help": "Whether IAP service for lead enrichment based on email has been performed on this lead.",
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Enrichment done",
+  "type": "boolean"
+ },
+ "show_enrich_button": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Allow manual enrich",
+  "type": "boolean"
+ },
+ "lead_mining_request_id": {
+  "readonly": false,
+  "relation": "crm.iap.lead.mining.request",
+  "required": false,
+  "store": true,
+  "string": "Lead Mining Request",
+  "type": "many2one"
+ },
+ "reveal_ip": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "IP Address",
+  "type": "char"
+ },
+ "reveal_iap_credits": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "IAP Credits",
+  "type": "integer"
+ },
+ "reveal_rule_id": {
+  "readonly": false,
+  "relation": "crm.reveal.rule",
+  "required": false,
+  "store": true,
+  "string": "Lead Generation Rule",
+  "type": "many2one"
+ },
+ "x_studio_source_lead": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "landing_page",
+    "landing_page"
+   ],
+   [
+    "chatbot",
+    "chatbot"
+   ],
+   [
+    "website",
+    "website"
+   ]
+  ],
+  "store": true,
+  "string": "source_lead",
+  "type": "selection"
+ },
+ "x_studio_are_you_a_working_couple": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Are you a working couple?",
+  "type": "char"
+ },
+ "x_studio_state": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio State",
+  "type": "char"
+ },
+ "x_studio_ivf_": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "IVF \u0915\u0940 \u0915\u094b\u0936\u093f\u0936 \u0915\u092c \u0938\u0947 \u0915\u0930 \u0930\u0939\u0947 \u0939\u0948?",
+  "type": "char"
+ },
+ "x_studio_lead_stage": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": true,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_have_you_tried_ivf_before": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Have You Tried IVF Before",
+  "type": "char"
+ },
+ "x_studio_related_field_5pa_1iv2rkfaq": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "char"
+ },
+ "x_studio_related_field_1si_1j0qqskvg": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "char"
+ },
+ "x_studio_have_you_tried_ivf_before_1": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Have You Tried IVF Before",
+  "type": "char"
+ },
+ "x_studio_have_you_tried_ivf_before_2": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Have You Tried IVF Before",
+  "type": "char"
+ },
+ "x_studio_ads_platform_1": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Ads Platform",
+  "type": "char"
+ },
+ "x_studio_other_info": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Other Info",
+  "type": "char"
+ },
+ "x_studio_other_information": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Have You Tried IVF Before",
+  "type": "char"
+ },
+ "x_studio_ads_platform": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Ads Platform",
+  "type": "char"
+ },
+ "x_studio_ads_campaign_name": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Ads Campaign Name",
+  "type": "char"
+ },
+ "x_studio_ads_campaign_name_1": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Ads Campaign Name",
+  "type": "char"
+ },
+ "x_studio_related_field_7pj_1iv3qbuct": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Campaign Name",
+  "type": "char"
+ },
+ "x_studio_ads_name": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Ads Name",
+  "type": "char"
+ },
+ "x_studio_age": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Age",
+  "type": "integer"
+ },
+ "x_studio_state_2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "State",
+  "type": "char"
+ },
+ "x_studio_related_field_5ec_1j182jh8o": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Ads Name",
+  "type": "char"
+ },
+ "x_studio_source": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Chatbot",
+    "Chatbot"
+   ],
+   [
+    "Website",
+    "Website"
+   ],
+   [
+    "App",
+    "App"
+   ],
+   [
+    "Callback_Request",
+    "Callback_Request"
+   ]
+  ],
+  "store": true,
+  "string": "X Studio Source",
+  "type": "selection"
+ },
+ "x_studio_related_field_9av_1j2gvjd8i": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Notes",
+  "type": "html"
+ },
+ "x_studio_gender_2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio Gender",
+  "type": "char"
+ },
+ "x_studio_gender_6": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Male",
+    "Male"
+   ],
+   [
+    "Female",
+    "Female"
+   ]
+  ],
+  "store": true,
+  "string": "Gender",
+  "type": "selection"
+ },
+ "x_studio_male_age": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio Male Age",
+  "type": "char"
+ },
+ "x_studio_female_age": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio Female Age",
+  "type": "char"
+ },
+ "x_studio_gender_4": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Gender",
+  "type": "boolean"
+ },
+ "x_studio_pre_conditions": {
+  "readonly": false,
+  "relation": "x_crm_lead_line_7cae5",
+  "required": false,
+  "store": true,
+  "string": "Pre Conditions",
+  "type": "one2many"
+ },
+ "x_studio_gender_5": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Male",
+    "Male"
+   ],
+   [
+    "Female",
+    "Female"
+   ]
+  ],
+  "store": true,
+  "string": "Gender",
+  "type": "selection"
+ },
+ "x_studio_follow_up_date_1": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Follow Up Date",
+  "type": "date"
+ },
+ "x_studio_spouse_name": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Spouse Name ",
+  "type": "char"
+ },
+ "x_studio_state_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "State",
+  "type": "char"
+ },
+ "x_studio_sex": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": true,
+  "string": "X Studio Sex",
+  "type": "selection"
+ },
+ "x_studio_follow_up_date": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Follow Up Date",
+  "type": "date"
+ },
+ "x_studio_spouse_age": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Spouse Age",
+  "type": "integer"
+ },
+ "x_studio_gender_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Gender",
+  "type": "char"
+ },
+ "x_studio_spouse_alternate_no": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Spouse / Alternate No",
+  "type": "integer"
+ },
+ "x_studio_gender_3": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Gender",
+  "type": "boolean"
+ },
+ "x_studio_appointment_date": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Appointment Date",
+  "type": "date"
+ },
+ "x_studio_query": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio Query",
+  "type": "char"
+ },
+ "x_studio_gender": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "X Studio Gender",
+  "type": "char"
+ },
+ "x_studio_related_field_4t_1ivv4crsa": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "date"
+ },
+ "x_studio_query_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Query",
+  "type": "char"
+ },
+ "x_studio_doctor_name": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Doctor Name",
+  "type": "char"
+ },
+ "x_studio_male_age_2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "male_age",
+  "type": "char"
+ },
+ "x_studio_sex_1": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": true,
+  "string": "gender",
+  "type": "selection"
+ },
+ "x_studio_follow_up_date_2": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Follow up Date",
+  "type": "date"
+ },
+ "x_studio_source_1": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Chatbot",
+    "Chatbot"
+   ],
+   [
+    "Website",
+    "Website"
+   ],
+   [
+    "App",
+    "App"
+   ],
+   [
+    "Callback_Request",
+    "Callback_Request"
+   ]
+  ],
+  "store": true,
+  "string": "Source",
+  "type": "selection"
+ },
+ "x_studio_male_age_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "male_age",
+  "type": "char"
+ },
+ "x_studio_lead_stage_1": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_female_age_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "female _age",
+  "type": "char"
+ },
+ "x_studio_female_age_2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "female_age",
+  "type": "char"
+ },
+ "x_studio_male_age_3": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "male_age",
+  "type": "char"
+ },
+ "x_studio_female_age_4": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Female Age",
+  "type": "char"
+ },
+ "x_studio_query_info": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "query",
+  "type": "char"
+ },
+ "x_studio_sex_type": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "gender",
+  "type": "char"
+ },
+ "x_studio_source_type": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "source_type",
+  "type": "char"
+ },
+ "x_studio_has_your_ivf_failed_before": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Has your IVF failed before?",
+  "type": "char"
+ },
+ "x_studio_female_age_6": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "X studio female age",
+  "type": "char"
+ },
+ "x_studio_female_age_5": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Female Age",
+  "type": "char"
+ },
+ "x_studio_female_age_3": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "female_age",
+  "type": "char"
+ },
+ "x_studio_pre_conditions_1": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "PCOD",
+    "PCOD / PCOS"
+   ],
+   [
+    "Low AMH",
+    "Low AMH"
+   ],
+   [
+    "Sperm Count Low",
+    "Sperm Count Low"
+   ],
+   [
+    "Fallopian Tube Blockage",
+    "Fallopian Tube Blockage"
+   ],
+   [
+    "Thyroid Issue",
+    "Thyroid Issue"
+   ],
+   [
+    "NIL Sperm Count",
+    "NIL Sperm Count"
+   ],
+   [
+    "Unexplained Fertility",
+    "Unexplained Fertility"
+   ],
+   [
+    "Recurrent Miscarriage",
+    "Recurrent Miscarriage"
+   ],
+   [
+    "No Test Done",
+    "No Test Done"
+   ],
+   [
+    "Cyst",
+    "Cyst"
+   ]
+  ],
+  "store": true,
+  "string": "Pre Conditions",
+  "type": "selection"
+ },
+ "x_studio_char_field_9mt_1j046mc8o": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "remarks",
+  "type": "char"
+ },
+ "x_studio_source_3": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Chatbot",
+    "Chatbot"
+   ],
+   [
+    "Website",
+    "Website"
+   ],
+   [
+    "App",
+    "App"
+   ],
+   [
+    "Callback_Request",
+    "Callback_Request"
+   ]
+  ],
+  "store": false,
+  "string": "X Studio Source",
+  "type": "selection"
+ },
+ "x_studio_male_age_4": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "male_age",
+  "type": "char"
+ },
+ "x_studio_source_type_1": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Website",
+    "Website"
+   ],
+   [
+    "App",
+    "App"
+   ],
+   [
+    "Callback_Request",
+    "Callback_Request"
+   ],
+   [
+    "Chatbot",
+    "Chatbot"
+   ]
+  ],
+  "store": true,
+  "string": "source_type",
+  "type": "selection"
+ },
+ "x_studio_lead_stage_2": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_query_2": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Query",
+  "type": "char"
+ },
+ "x_studio_lead_stage_3": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_male_age_6": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "X Studio Male Age",
+  "type": "char"
+ },
+ "x_studio_gender_7": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": true,
+  "string": "gender",
+  "type": "selection"
+ },
+ "x_studio_source_2": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Website",
+    "Website"
+   ],
+   [
+    "App",
+    "App"
+   ],
+   [
+    "Chatbot",
+    "Chatbot"
+   ],
+   [
+    "Callback_Request",
+    "Callback_Request"
+   ]
+  ],
+  "store": true,
+  "string": "Source",
+  "type": "selection"
+ },
+ "x_studio_gender_8": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": true,
+  "string": "X Studio Help",
+  "type": "selection"
+ },
+ "x_studio_related_field_3f4_1j0qramj8": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "char"
+ },
+ "x_studio_remark_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Remark",
+  "type": "char"
+ },
+ "x_studio_related_field_86a_1j0qrbaji": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "char"
+ },
+ "x_studio_are_you_trying_for_a_child_but_cant_conceive": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Are you trying for a child but can't conceive?",
+  "type": "char"
+ },
+ "x_studio_state_3": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "State",
+  "type": "char"
+ },
+ "x_studio_lead_stage_4": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_sex_3": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": false,
+  "string": "X Studio Sex",
+  "type": "selection"
+ },
+ "x_studio_female_age_7": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "X Studio Female Age",
+  "type": "char"
+ },
+ "x_studio_sex_2": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "male",
+    "male"
+   ],
+   [
+    "female",
+    "female"
+   ]
+  ],
+  "store": true,
+  "string": "Sex",
+  "type": "selection"
+ },
+ "x_studio_follow_up_tag": {
+  "readonly": false,
+  "required": false,
+  "selection": [
+   [
+    "Follow UP 1",
+    "Follow UP 1"
+   ],
+   [
+    "Follow UP 2",
+    "Follow UP 2"
+   ],
+   [
+    "Follow UP 3",
+    "Follow UP 3"
+   ],
+   [
+    "Follow UP 4",
+    "Follow UP 4"
+   ],
+   [
+    "Follow UP 5",
+    "Follow UP 5"
+   ]
+  ],
+  "store": true,
+  "string": "Follow Up Tag",
+  "type": "selection"
+ },
+ "x_studio_zip": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "ZIP",
+  "type": "char"
+ },
+ "x_studio_are_you_trying_for_a_child_but_cant_conceive_2": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Are you trying for a child but can't conceive?",
+  "type": "char"
+ },
+ "x_studio_male_age_5": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Male Age",
+  "type": "char"
+ },
+ "x_studio_state_4": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "X Studio State",
+  "type": "char"
+ },
+ "x_studio_are_you_trying_for_a_child_but_cant_conceive_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Are you trying for a child but can't conceive?",
+  "type": "char"
+ },
+ "x_studio_want_to_consult_an_ivf_expert_at_home": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Want to Consult an IVF Expert at Home?",
+  "type": "char"
+ },
+ "x_studio_query_3": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "X Studio Query",
+  "type": "char"
+ },
+ "x_studio_has_your_ivf_failed_before_1": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Has your IVF failed before?",
+  "type": "char"
+ },
+ "x_studio_state_6": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "",
+  "type": "char"
+ },
+ "x_studio_campaign_name": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "Campaign Name",
+  "type": "char"
+ },
+ "x_studio_remark_info": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "remark_info",
+  "type": "char"
+ },
+ "x_studio_related_field_51t_1j4mq7t6e": {
+  "readonly": true,
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "char"
+ },
+ "x_studio_lead_stage_5": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_state_5": {
+  "readonly": true,
+  "relation": "res.country.state",
+  "required": false,
+  "store": false,
+  "string": "State",
+  "type": "many2one"
+ },
+ "x_studio_lead_stage_6": {
+  "readonly": true,
+  "required": false,
+  "selection": [
+   [
+    "Contact Attempt",
+    "Contact Attempt"
+   ],
+   [
+    "Contacted",
+    "Contacted"
+   ],
+   [
+    "Converted",
+    "Converted"
+   ],
+   [
+    "Closed",
+    "Closed"
+   ]
+  ],
+  "store": false,
+  "string": "Lead Stage",
+  "type": "selection"
+ },
+ "x_studio_have_you_gone_through_any_ivf_treatment_before": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Have you gone through any IVF treatment before?",
+  "type": "char"
+ },
+ "x_studio_for_how_many_years_have_you_been_trying_to_conceive": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "For how many years have you been trying to conceive?",
+  "type": "char"
+ },
+ "x_studio_language_prefer_to_talk_with_our_fertility_expert_1": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Language Prefer to Talk With Our Fertility Expert",
+  "type": "char"
+ },
+ "x_studio_have_you_tried_any_ivf_fertility_treatment_before": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Have you tried any IVF fertility treatment before?",
+  "type": "char"
+ },
+ "x_studio_how_long_have_you_been_trying_to_conceive": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "How long have you been trying to conceive?",
+  "type": "char"
+ },
+ "x_studio_ivf_fertility_": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "IVF Fertility \u0909\u092a\u091a\u093e\u0930 \u0915\u0930\u0935\u093e\u092f\u093e \u0939\u0948?",
+  "type": "char"
+ },
+ "x_studio_related_field_7ce_1j4mq72k8": {
+  "readonly": true,
+  "relation": "crm.stage",
+  "required": false,
+  "store": false,
+  "string": "New Related Field",
+  "type": "many2one"
+ },
+ "x_studio_how_long_have_you_been_trying_to_have_a_baby": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "How long have you been trying to have a baby?",
+  "type": "char"
+ },
+ "x_studio_have_you_had_any_past_fertility_treatments": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Have you had any past fertility treatments?",
+  "type": "char"
+ },
+ "x_studio_text_field_6o2_1jpmsosod": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "New Multiline Text",
+  "type": "text"
+ },
+ "x_studio_has_the_male_partner_ever_done_a_sperm_test_before": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Has the male partner ever done a sperm test before?",
+  "type": "char"
+ },
+ "x_studio_anyone_in_your_family_have_a_genetic_condition": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Anyone in your family have a genetic condition?",
+  "type": "char"
+ },
+ "x_studio_any_health_issues_like_pcos_endometriosis_or_thyroid": {
+  "readonly": false,
+  "required": false,
+  "store": true,
+  "string": "Any Health issues like PCOS, endometriosis, or thyroid?",
+  "type": "char"
+ }
+}

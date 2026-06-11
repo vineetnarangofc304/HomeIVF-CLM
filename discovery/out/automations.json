@@ -1,0 +1,178 @@
+[
+ {
+  "id": 1,
+  "name": "Stage is set to \"New\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_stage_set",
+  "filter_domain": "[('stage_id', '=', 1)]",
+  "active": true
+ },
+ {
+  "id": 2,
+  "name": "Webhook OBD Trigger Action",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_webhook",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 3,
+  "name": "leads",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_create_or_write",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 4,
+  "name": "lead capture test",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_webhook",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 5,
+  "name": "Stage is set to \"New\" - Send Welcome Email",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_stage_set",
+  "filter_domain": "[('stage_id', '=', 1)]",
+  "active": true
+ },
+ {
+  "id": 7,
+  "name": "HomeIVF",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_webhook",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 9,
+  "name": "Lead HomeIVF",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_webhook",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 10,
+  "name": "Stage is set to \"New\" - Whatsapp",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_stage_set",
+  "filter_domain": "[('stage_id', '=', 1)]",
+  "active": true
+ },
+ {
+  "id": 11,
+  "name": "Stage is set to \"not picked\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_tag_set",
+  "filter_domain": "[('tag_ids', 'in', [26])]",
+  "active": true
+ },
+ {
+  "id": 12,
+  "name": "Stage is set to \"Not Picked\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_tag_set",
+  "filter_domain": "[('tag_ids', 'in', [26])]",
+  "active": true
+ },
+ {
+  "id": 13,
+  "name": "Stage is set to \"Not Picked\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_tag_set",
+  "filter_domain": "[('tag_ids', 'in', [26])]",
+  "active": true
+ },
+ {
+  "id": 14,
+  "name": "Stage is set to \"New\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_time",
+  "filter_domain": "['&', ('create_date', '>=', datetime.datetime.combine(context_today(), datetime.time(0, 0, 0)).to_utc().strftime('%Y-%m-%d %H:%M:%S')), ('create_date', '<=', 'today +1m')]",
+  "active": true
+ },
+ {
+  "id": 16,
+  "name": "Stage is set for Webinar",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_tag_set",
+  "filter_domain": "[('tag_ids', 'in', [116])]",
+  "active": true
+ },
+ {
+  "id": 17,
+  "name": "Tag is set to \"Webinar\"",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_tag_set",
+  "filter_domain": "[('tag_ids', 'in', [116])]",
+  "active": true
+ },
+ {
+  "id": 18,
+  "name": "Stage is set for Webinar",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_message_received",
+  "filter_domain": false,
+  "active": true
+ },
+ {
+  "id": 19,
+  "name": "consult form webhook",
+  "model_id": [
+   550,
+   "Lead"
+  ],
+  "trigger": "on_webhook",
+  "filter_domain": false,
+  "active": true
+ }
+]

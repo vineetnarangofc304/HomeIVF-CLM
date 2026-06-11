@@ -1,0 +1,172 @@
+[
+ {
+  "id": 26,
+  "name": "Ringing",
+  "color": 4
+ },
+ {
+  "id": 27,
+  "name": "Busy",
+  "color": 6
+ },
+ {
+  "id": 28,
+  "name": "Phone Switched Off",
+  "color": 2
+ },
+ {
+  "id": 29,
+  "name": "Not Reachable",
+  "color": 7
+ },
+ {
+  "id": 30,
+  "name": "Call back for first pitch",
+  "color": 10
+ },
+ {
+  "id": 31,
+  "name": "Call back for appointment",
+  "color": 9
+ },
+ {
+  "id": 32,
+  "name": "OPD Booked",
+  "color": 1
+ },
+ {
+  "id": 33,
+  "name": "OPD Done",
+  "color": 8
+ },
+ {
+  "id": 34,
+  "name": "Unmarried",
+  "color": 10
+ },
+ {
+  "id": 35,
+  "name": "Not looking for treatment",
+  "color": 11
+ },
+ {
+  "id": 36,
+  "name": "Sperm/Egg Donor",
+  "color": 10
+ },
+ {
+  "id": 37,
+  "name": "Not Interested(Competition)",
+  "color": 5
+ },
+ {
+  "id": 38,
+  "name": "Junk",
+  "color": 5
+ },
+ {
+  "id": 39,
+  "name": "Not Contactable",
+  "color": 3
+ },
+ {
+  "id": 40,
+  "name": "Gender Selection",
+  "color": 3
+ },
+ {
+  "id": 41,
+  "name": "Wrong Number",
+  "color": 1
+ },
+ {
+  "id": 42,
+  "name": "Not Interested (Fund Issue)",
+  "color": 11
+ },
+ {
+  "id": 43,
+  "name": "Job Enquiry",
+  "color": 6
+ },
+ {
+  "id": 47,
+  "name": "Relative Related Enquiry",
+  "color": 9
+ },
+ {
+  "id": 48,
+  "name": "Invalid Number",
+  "color": 3
+ },
+ {
+  "id": 49,
+  "name": "Already Have kid",
+  "color": 7
+ },
+ {
+  "id": 50,
+  "name": "Already Pregnant",
+  "color": 1
+ },
+ {
+  "id": 51,
+  "name": "Registration Done",
+  "color": 10
+ },
+ {
+  "id": 56,
+  "name": "Age Issue",
+  "color": 5
+ },
+ {
+  "id": 57,
+  "name": "Clinic Not Available",
+  "color": 1
+ },
+ {
+  "id": 61,
+  "name": "Valid Not Interested",
+  "color": 5
+ },
+ {
+  "id": 62,
+  "name": "Incoming Not Available",
+  "color": 1
+ },
+ {
+  "id": 63,
+  "name": "Language Barrier",
+  "color": 8
+ },
+ {
+  "id": 79,
+  "name": "Treatment Started",
+  "color": 8
+ },
+ {
+  "id": 116,
+  "name": "Webinar Lead",
+  "color": 5
+ },
+ {
+  "id": 269,
+  "name": "not cont",
+  "color": 3
+ },
+ {
+  "id": 270,
+  "name": "valid n",
+  "color": 7
+ },
+ {
+  "id": 271,
+  "name": "cn",
+  "color": 3
+ },
+ {
+  "id": 272,
+  "name": "not look",
+  "color": 10
+ }
+]

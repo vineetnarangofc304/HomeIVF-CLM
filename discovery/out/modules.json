@@ -1,0 +1,737 @@
+[
+ {
+  "id": 111,
+  "name": "crm",
+  "shortdesc": "CRM"
+ },
+ {
+  "id": 1243,
+  "name": "website",
+  "shortdesc": "Website"
+ },
+ {
+  "id": 914,
+  "name": "project",
+  "shortdesc": "Project"
+ },
+ {
+  "id": 1239,
+  "name": "web_studio",
+  "shortdesc": "Studio"
+ },
+ {
+  "id": 210,
+  "name": "hr",
+  "shortdesc": "Employees"
+ },
+ {
+  "id": 298,
+  "name": "knowledge",
+  "shortdesc": "Knowledge"
+ },
+ {
+  "id": 1329,
+  "name": "whatsapp",
+  "shortdesc": "WhatsApp Messaging"
+ },
+ {
+  "id": 1053,
+  "name": "sign",
+  "shortdesc": "Sign"
+ },
+ {
+  "id": 838,
+  "name": "planning",
+  "shortdesc": "Planning"
+ },
+ {
+  "id": 759,
+  "name": "mail",
+  "shortdesc": "Discuss"
+ },
+ {
+  "id": 109,
+  "name": "contacts",
+  "shortdesc": "Contacts"
+ },
+ {
+  "id": 103,
+  "name": "calendar",
+  "shortdesc": "Calendar"
+ },
+ {
+  "id": 65,
+  "name": "appointment",
+  "shortdesc": "Appointments"
+ },
+ {
+  "id": 1124,
+  "name": "survey",
+  "shortdesc": "Surveys"
+ },
+ {
+  "id": 945,
+  "name": "project_todo",
+  "shortdesc": "To-Do"
+ },
+ {
+  "id": 265,
+  "name": "hr_skills",
+  "shortdesc": "Skills Management"
+ },
+ {
+  "id": 1225,
+  "name": "voip",
+  "shortdesc": "Phone"
+ },
+ {
+  "id": 1251,
+  "name": "website_crm",
+  "shortdesc": "Contact Form"
+ },
+ {
+  "id": 1256,
+  "name": "website_crm_sms",
+  "shortdesc": "Send SMS to Visitor with leads"
+ },
+ {
+  "id": 1326,
+  "name": "website_sms",
+  "shortdesc": "Send SMS to Visitor"
+ },
+ {
+  "id": 57,
+  "name": "ai",
+  "shortdesc": "AI"
+ },
+ {
+  "id": 1399,
+  "name": "ai_auto_install",
+  "shortdesc": "AI Auto Install"
+ },
+ {
+  "id": 60,
+  "name": "ai_fields",
+  "shortdesc": "ai_fields"
+ },
+ {
+  "id": 61,
+  "name": "ai_knowledge",
+  "shortdesc": "AI Text Draft - Knowledge"
+ },
+ {
+  "id": 62,
+  "name": "ai_server_actions",
+  "shortdesc": "ai_server_actions"
+ },
+ {
+  "id": 1407,
+  "name": "ai_website",
+  "shortdesc": "AI Website Integration"
+ },
+ {
+  "id": 63,
+  "name": "analytic",
+  "shortdesc": "Analytic Accounting"
+ },
+ {
+  "id": 1409,
+  "name": "api_doc",
+  "shortdesc": "API Documentation"
+ },
+ {
+  "id": 68,
+  "name": "appointment_google_calendar",
+  "shortdesc": "Appointment Google Calendar"
+ },
+ {
+  "id": 76,
+  "name": "attachment_indexation",
+  "shortdesc": "Attachments List and Document Indexation"
+ },
+ {
+  "id": 83,
+  "name": "auth_signup",
+  "shortdesc": "Signup"
+ },
+ {
+  "id": 84,
+  "name": "auth_totp",
+  "shortdesc": "Two-Factor Authentication (TOTP)"
+ },
+ {
+  "id": 85,
+  "name": "auth_totp_mail",
+  "shortdesc": "2FA Invite mail"
+ },
+ {
+  "id": 86,
+  "name": "auth_totp_portal",
+  "shortdesc": "TOTPortal"
+ },
+ {
+  "id": 89,
+  "name": "base",
+  "shortdesc": "Base"
+ },
+ {
+  "id": 91,
+  "name": "base_automation",
+  "shortdesc": "Automation Rules"
+ },
+ {
+  "id": 95,
+  "name": "base_import",
+  "shortdesc": "Base import"
+ },
+ {
+  "id": 96,
+  "name": "base_import_module",
+  "shortdesc": "Base import module"
+ },
+ {
+  "id": 97,
+  "name": "base_install_request",
+  "shortdesc": "Base - Module Install Request"
+ },
+ {
+  "id": 98,
+  "name": "base_setup",
+  "shortdesc": "Initial Setup Tools"
+ },
+ {
+  "id": 102,
+  "name": "bus",
+  "shortdesc": "IM Bus"
+ },
+ {
+  "id": 104,
+  "name": "calendar_sms",
+  "shortdesc": "Calendar - SMS"
+ },
+ {
+  "id": 105,
+  "name": "certificate",
+  "shortdesc": "Certificate"
+ },
+ {
+  "id": 110,
+  "name": "contacts_enterprise",
+  "shortdesc": "Contacts Enterprise"
+ },
+ {
+  "id": 112,
+  "name": "crm_enterprise",
+  "shortdesc": "CRM enterprise"
+ },
+ {
+  "id": 115,
+  "name": "crm_iap_enrich",
+  "shortdesc": "Lead Enrichment"
+ },
+ {
+  "id": 116,
+  "name": "crm_iap_mine",
+  "shortdesc": "Lead Generation"
+ },
+ {
+  "id": 120,
+  "name": "crm_sms",
+  "shortdesc": "SMS in CRM"
+ },
+ {
+  "id": 147,
+  "name": "digest",
+  "shortdesc": "KPI Digests"
+ },
+ {
+  "id": 148,
+  "name": "digest_enterprise",
+  "shortdesc": "Digest Enterprise"
+ },
+ {
+  "id": 190,
+  "name": "google_account",
+  "shortdesc": "Google Users"
+ },
+ {
+  "id": 192,
+  "name": "google_calendar",
+  "shortdesc": "Google Calendar"
+ },
+ {
+  "id": 193,
+  "name": "google_gmail",
+  "shortdesc": "Google Gmail"
+ },
+ {
+  "id": 194,
+  "name": "google_recaptcha",
+  "shortdesc": "Google reCAPTCHA integration"
+ },
+ {
+  "id": 217,
+  "name": "hr_calendar",
+  "shortdesc": "Display Working Hours in Calendar"
+ },
+ {
+  "id": 228,
+  "name": "hr_gamification",
+  "shortdesc": "HR Gamification"
+ },
+ {
+  "id": 229,
+  "name": "hr_gantt",
+  "shortdesc": "Employees in Gantt"
+ },
+ {
+  "id": 235,
+  "name": "hr_homeworking",
+  "shortdesc": "Remote Work"
+ },
+ {
+  "id": 236,
+  "name": "hr_homeworking_calendar",
+  "shortdesc": "Remote Work with calendar"
+ },
+ {
+  "id": 237,
+  "name": "hr_hourly_cost",
+  "shortdesc": "Employee Hourly Wage"
+ },
+ {
+  "id": 240,
+  "name": "hr_mobile",
+  "shortdesc": "Employees in Mobile"
+ },
+ {
+  "id": 241,
+  "name": "hr_org_chart",
+  "shortdesc": "HR Org Chart"
+ },
+ {
+  "id": 267,
+  "name": "hr_skills_survey",
+  "shortdesc": "Skills Certification"
+ },
+ {
+  "id": 1406,
+  "name": "html_builder",
+  "shortdesc": "HTML Builder"
+ },
+ {
+  "id": 278,
+  "name": "html_editor",
+  "shortdesc": "HTML Editor"
+ },
+ {
+  "id": 282,
+  "name": "iap",
+  "shortdesc": "In-App Purchases"
+ },
+ {
+  "id": 283,
+  "name": "iap_crm",
+  "shortdesc": "IAP / CRM"
+ },
+ {
+  "id": 284,
+  "name": "iap_extract",
+  "shortdesc": "Iap Extract"
+ },
+ {
+  "id": 285,
+  "name": "iap_mail",
+  "shortdesc": "IAP / Mail"
+ },
+ {
+  "id": 756,
+  "name": "link_tracker",
+  "shortdesc": "Link Tracker"
+ },
+ {
+  "id": 760,
+  "name": "mail_bot",
+  "shortdesc": "OdooBot"
+ },
+ {
+  "id": 761,
+  "name": "mail_bot_hr",
+  "shortdesc": "OdooBot - HR"
+ },
+ {
+  "id": 762,
+  "name": "mail_enterprise",
+  "shortdesc": "Mail Enterprise"
+ },
+ {
+  "id": 764,
+  "name": "mail_mobile",
+  "shortdesc": "Mail Mobile"
+ },
+ {
+  "id": 1344,
+  "name": "obd_myoperator",
+  "shortdesc": "MyOperator OBD Service"
+ },
+ {
+  "id": 815,
+  "name": "partner_autocomplete",
+  "shortdesc": "Partner Autocomplete"
+ },
+ {
+  "id": 842,
+  "name": "planning_hr_skills",
+  "shortdesc": "Planning - Skills"
+ },
+ {
+  "id": 845,
+  "name": "portal_rating",
+  "shortdesc": "Portal Rating"
+ },
+ {
+  "id": 906,
+  "name": "privacy_lookup",
+  "shortdesc": "Privacy"
+ },
+ {
+  "id": 918,
+  "name": "project_enterprise",
+  "shortdesc": "Project Enterprise"
+ },
+ {
+  "id": 919,
+  "name": "project_enterprise_hr",
+  "shortdesc": "Project Enterprise HR"
+ },
+ {
+  "id": 921,
+  "name": "project_enterprise_hr_skills",
+  "shortdesc": "Project - Skills"
+ },
+ {
+  "id": 927,
+  "name": "project_hr_skills",
+  "shortdesc": "Project - Skills"
+ },
+ {
+  "id": 938,
+  "name": "project_sms",
+  "shortdesc": "Project - SMS"
+ },
+ {
+  "id": 968,
+  "name": "rating",
+  "shortdesc": "Customer Rating"
+ },
+ {
+  "id": 970,
+  "name": "resource",
+  "shortdesc": "Resource"
+ },
+ {
+  "id": 971,
+  "name": "resource_mail",
+  "shortdesc": "Resource Mail"
+ },
+ {
+  "id": 973,
+  "name": "rpc",
+  "shortdesc": "RPC endpoints"
+ },
+ {
+  "id": 976,
+  "name": "saas_ai",
+  "shortdesc": "SaaS AI"
+ },
+ {
+  "id": 977,
+  "name": "saas_base_import",
+  "shortdesc": "saas_base_import"
+ },
+ {
+  "id": 978,
+  "name": "saas_dashboard_activities",
+  "shortdesc": "saas_dashboard_activities"
+ },
+ {
+  "id": 983,
+  "name": "saas_google_account",
+  "shortdesc": "Saas Google Calendar"
+ },
+ {
+  "id": 990,
+  "name": "saas_studio",
+  "shortdesc": "saas_studio"
+ },
+ {
+  "id": 991,
+  "name": "saas_trial",
+  "shortdesc": "saas_trial"
+ },
+ {
+  "id": 992,
+  "name": "saas_unsplash",
+  "shortdesc": "Unsplash SaaS Integration"
+ },
+ {
+  "id": 993,
+  "name": "saas_website",
+  "shortdesc": "Website SaaS Integration"
+ },
+ {
+  "id": 996,
+  "name": "saas_whatsapp",
+  "shortdesc": "SaaS WhatsApp"
+ },
+ {
+  "id": 1052,
+  "name": "sales_team",
+  "shortdesc": "Sales Teams"
+ },
+ {
+  "id": 1484,
+  "name": "sign_ai",
+  "shortdesc": "Sign AI Integration"
+ },
+ {
+  "id": 1055,
+  "name": "sms",
+  "shortdesc": "SMS gateway"
+ },
+ {
+  "id": 1056,
+  "name": "snailmail",
+  "shortdesc": "Snail Mail"
+ },
+ {
+  "id": 1065,
+  "name": "social_media",
+  "shortdesc": "Social Media"
+ },
+ {
+  "id": 1071,
+  "name": "spreadsheet",
+  "shortdesc": "Spreadsheet"
+ },
+ {
+  "id": 1073,
+  "name": "spreadsheet_dashboard",
+  "shortdesc": "Spreadsheet dashboard"
+ },
+ {
+  "id": 1076,
+  "name": "spreadsheet_dashboard_crm",
+  "shortdesc": "Spreadsheet dashboard for CRM"
+ },
+ {
+  "id": 1078,
+  "name": "spreadsheet_dashboard_edition",
+  "shortdesc": "Spreadsheet dashboard edition"
+ },
+ {
+  "id": 1100,
+  "name": "spreadsheet_edition",
+  "shortdesc": "Spreadsheet"
+ },
+ {
+  "id": 1343,
+  "name": "studio_customization",
+  "shortdesc": "Studio customizations"
+ },
+ {
+  "id": 1486,
+  "name": "survey_crm",
+  "shortdesc": "Survey CRM"
+ },
+ {
+  "id": 1223,
+  "name": "uom",
+  "shortdesc": "Units of measure"
+ },
+ {
+  "id": 1224,
+  "name": "utm",
+  "shortdesc": "UTM Trackers"
+ },
+ {
+  "id": 1487,
+  "name": "voip_ai",
+  "shortdesc": "Phone - AI"
+ },
+ {
+  "id": 1226,
+  "name": "voip_crm",
+  "shortdesc": "Phone - CRM"
+ },
+ {
+  "id": 1492,
+  "name": "voip_hr",
+  "shortdesc": "Phone - Human Resources"
+ },
+ {
+  "id": 1229,
+  "name": "voip_sms",
+  "shortdesc": "Phone - SMS"
+ },
+ {
+  "id": 1230,
+  "name": "web",
+  "shortdesc": "Web"
+ },
+ {
+  "id": 1231,
+  "name": "web_cohort",
+  "shortdesc": "Cohort View"
+ },
+ {
+  "id": 1233,
+  "name": "web_enterprise",
+  "shortdesc": "Web Enterprise"
+ },
+ {
+  "id": 1234,
+  "name": "web_gantt",
+  "shortdesc": "Web Gantt"
+ },
+ {
+  "id": 1235,
+  "name": "web_grid",
+  "shortdesc": "Grid View"
+ },
+ {
+  "id": 1236,
+  "name": "web_hierarchy",
+  "shortdesc": "Web Hierarchy"
+ },
+ {
+  "id": 1237,
+  "name": "web_map",
+  "shortdesc": "Map View"
+ },
+ {
+  "id": 1238,
+  "name": "web_mobile",
+  "shortdesc": "Mobile"
+ },
+ {
+  "id": 1240,
+  "name": "web_studio_ai_fields",
+  "shortdesc": "web_studio_ai_fields"
+ },
+ {
+  "id": 1241,
+  "name": "web_tour",
+  "shortdesc": "Tours"
+ },
+ {
+  "id": 1242,
+  "name": "web_unsplash",
+  "shortdesc": "Unsplash Image Library"
+ },
+ {
+  "id": 1252,
+  "name": "website_crm_iap_reveal",
+  "shortdesc": "Lead Generation From Website Visits"
+ },
+ {
+  "id": 1253,
+  "name": "website_crm_iap_reveal_enterprise",
+  "shortdesc": "Website Visits Lead Generation Enterprise"
+ },
+ {
+  "id": 1260,
+  "name": "website_enterprise",
+  "shortdesc": "Website Enterprise"
+ },
+ {
+  "id": 1289,
+  "name": "website_knowledge",
+  "shortdesc": "Knowledge Website"
+ },
+ {
+  "id": 1290,
+  "name": "website_links",
+  "shortdesc": "Link Tracker"
+ },
+ {
+  "id": 1292,
+  "name": "website_mail",
+  "shortdesc": "Website Mail"
+ },
+ {
+  "id": 1296,
+  "name": "website_partner",
+  "shortdesc": "Website Partner"
+ },
+ {
+  "id": 1301,
+  "name": "website_project",
+  "shortdesc": "Online Task Submission"
+ },
+ {
+  "id": 1327,
+  "name": "website_studio",
+  "shortdesc": "Website Studio"
+ },
+ {
+  "id": 1332,
+  "name": "whatsapp_calendar",
+  "shortdesc": "WhatsApp-Calendar"
+ },
+ {
+  "id": 1495,
+  "name": "whatsapp_sign",
+  "shortdesc": "WhatsApp-Sign"
+ },
+ {
+  "id": 188,
+  "name": "gamification",
+  "shortdesc": "Gamification"
+ },
+ {
+  "id": 1244,
+  "name": "website_appointment",
+  "shortdesc": "Website Appointments"
+ },
+ {
+  "id": 1201,
+  "name": "theme_default",
+  "shortdesc": "Default Theme"
+ },
+ {
+  "id": 69,
+  "name": "appointment_hr",
+  "shortdesc": "Employees on Appointments"
+ },
+ {
+  "id": 67,
+  "name": "appointment_crm",
+  "shortdesc": "Appointment Lead Generation"
+ },
+ {
+  "id": 72,
+  "name": "appointment_sms",
+  "shortdesc": "Appointment SMS"
+ },
+ {
+  "id": 1246,
+  "name": "website_appointment_crm",
+  "shortdesc": "Website Appointment Lead Enrichment"
+ },
+ {
+  "id": 844,
+  "name": "portal",
+  "shortdesc": "Customer Portal"
+ },
+ {
+  "id": 279,
+  "name": "http_routing",
+  "shortdesc": "Web Routing"
+ },
+ {
+  "id": 837,
+  "name": "phone_validation",
+  "shortdesc": "Phone Numbers Validation"
+ }
+]

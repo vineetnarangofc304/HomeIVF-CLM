@@ -1,0 +1,58 @@
+[
+ {
+  "id": 5,
+  "name": "Banner"
+ },
+ {
+  "id": 3,
+  "name": "Direct"
+ },
+ {
+  "id": 4,
+  "name": "Email"
+ },
+ {
+  "id": 7,
+  "name": "Facebook"
+ },
+ {
+  "id": 10,
+  "name": "Google Adwords"
+ },
+ {
+  "id": 8,
+  "name": "LinkedIn"
+ },
+ {
+  "id": 2,
+  "name": "Phone"
+ },
+ {
+  "id": 9,
+  "name": "Television"
+ },
+ {
+  "id": 1,
+  "name": "Website"
+ },
+ {
+  "id": 6,
+  "name": "X"
+ },
+ {
+  "id": 12,
+  "name": "lead form"
+ },
+ {
+  "id": 11,
+  "name": "organic"
+ },
+ {
+  "id": 13,
+  "name": "paid"
+ },
+ {
+  "id": 14,
+  "name": "social"
+ }
+]

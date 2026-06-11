@@ -1,0 +1,290 @@
+[
+ {
+  "id": 20,
+  "name": "Appointment: Appointment Booked",
+  "model": "calendar.event",
+  "subject": "{{ 'Appointment Requested: ' if not object.appointment_type_id.is_always_confirm and object.appointment_status == 'request' else 'Appointment Booked: ' }}{{ object.appointment_type_id.name }}",
+  "email_from": "{{ (user.email_formatted or object.user_id.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 21,
+  "name": "Appointment: Appointment Canceled",
+  "model": "calendar.event",
+  "subject": "Appointment Canceled: {{ object.appointment_type_id.name }}",
+  "email_from": "{{ (user.email_formatted or object.user_id.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 22,
+  "name": "Appointment: Attendee Invitation",
+  "model": "calendar.attendee",
+  "subject": "Invitation to {{ object.event_id.name }}",
+  "email_from": "{{ (object.event_id.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 10,
+  "name": "Calendar: Date Updated",
+  "model": "calendar.attendee",
+  "subject": "{{ object.event_id.name }}: Date updated",
+  "email_from": "{{ (object.event_id.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 13,
+  "name": "Calendar: Event Deleted",
+  "model": "calendar.event",
+  "subject": "Deleted event: {{ object.name }}",
+  "email_from": "{{ (object.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 12,
+  "name": "Calendar: Event Update",
+  "model": "calendar.event",
+  "subject": "{{object.name}}: Event update",
+  "email_from": "{{ (object.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 9,
+  "name": "Calendar: Meeting Invitation",
+  "model": "calendar.attendee",
+  "subject": "Invitation to {{ object.event_id.name }}",
+  "email_from": "{{ (object.event_id.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 11,
+  "name": "Calendar: Reminder",
+  "model": "calendar.attendee",
+  "subject": "{{ object.event_id.name }} - Reminder",
+  "email_from": "{{ (object.event_id.user_id.email_formatted or user.email_formatted or '') }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 14,
+  "name": "Gamification: Badge Received",
+  "model": "gamification.badge.user",
+  "subject": "New badge {{ object.badge_id.name }} granted",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 16,
+  "name": "Gamification: Challenge Report",
+  "model": "gamification.challenge",
+  "subject": false,
+  "email_from": false,
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 17,
+  "name": "Gamification: New Rank Reached",
+  "model": "res.users",
+  "subject": "New rank: {{ object.rank_id.name }}",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 15,
+  "name": "Gamification: Reminder For Goal Update",
+  "model": "gamification.goal",
+  "subject": false,
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 32,
+  "name": "HomeIVF Welcome Email - New Lead",
+  "model": "res.partner",
+  "subject": "Big Hugs {{object.name}} You're One Step Closer to Your Parenthood Dream",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 7,
+  "name": "IAP Extract Notification",
+  "model": "iap.account",
+  "subject": "IAP Extract Notification",
+  "email_from": "iap@odoo.com",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 28,
+  "name": "IAP Lead Generation Notification",
+  "model": "iap.account",
+  "subject": "IAP Lead Generation Notification",
+  "email_from": "iap@odoo.com",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 6,
+  "name": "Mail: Install Request",
+  "model": "base.module.install.request",
+  "subject": "Module Activation Request for \"{{ object.module_id.shortdesc }}\"",
+  "email_from": "{{ object.user_id.email_formatted or user.email_formatted }}",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 26,
+  "name": "Planning: New Schedule",
+  "model": "planning.planning",
+  "subject": "Your planning from {{ format_date(ctx.get('start_datetime')) }} to {{ format_date(ctx.get('end_datetime')) }}",
+  "email_from": "{{ object.company_id.email_formatted }}",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 25,
+  "name": "Planning: New Shift",
+  "model": "planning.slot",
+  "subject": "{{ ctx.get('mail_subject', '') }} {{ ctx.get('start_datetime' , '') }}",
+  "email_from": "{{ object.company_id.email_formatted }}",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 27,
+  "name": "Planning: Shift Re-assigned",
+  "model": "planning.slot",
+  "subject": "Your shift on {{ ctx.get('start_datetime') }} was re-assigned to {{ ctx.get('new_assignee_name', 'Marc Demo') }}",
+  "email_from": "{{ object.company_id.email_formatted }}",
+  "use_default_to": false,
+  "active": true
+ },
+ {
+  "id": 23,
+  "name": "Project: Request Acknowledgment",
+  "model": "project.task",
+  "subject": "Reception of {{ object.name }}",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 4,
+  "name": "Settings: 2Fa Invitation",
+  "model": "res.users",
+  "subject": "Invitation to activate two-factor authentication on your Odoo account",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 5,
+  "name": "Settings: 2Fa New Login",
+  "model": "res.users",
+  "subject": "Your two-factor authentication code",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 3,
+  "name": "Settings: New Portal Sign Up",
+  "model": "res.users",
+  "subject": "Welcome to {{ object.company_id.name }}!",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 36,
+  "name": "Settings: New Portal User Invite",
+  "model": "res.users",
+  "subject": "Your account at {{ object.company_id.name }}",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 1,
+  "name": "Settings: New User Invite",
+  "model": "res.users",
+  "subject": "{{ object.create_uid.name }} from {{ object.company_id.name }} invites you to connect to Odoo",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 2,
+  "name": "Settings: Unregistered User Reminder",
+  "model": "res.users",
+  "subject": "Reminder for unregistered users",
+  "email_from": "{{ (object.company_id.email_formatted or user.email_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 19,
+  "name": "Survey: Certification Success",
+  "model": "survey.user_input",
+  "subject": "Certification: {{ object.survey_id.display_name }}",
+  "email_from": "{{ (object.survey_id.create_uid.email_formatted or user.email_formatted or user.company_id.catchall_formatted) }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 18,
+  "name": "Survey: Invite",
+  "model": "survey.user_input",
+  "subject": "Participate to {{ object.survey_id.display_name }} survey",
+  "email_from": "{{ user.email_formatted }}",
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 35,
+  "name": "Welcome - Webinar Leads - Zoom Link",
+  "model": "crm.lead",
+  "subject": "Hey {{object.name}}, here\u2019s your link to the IVF Myth-Busting Webinar by Dr. Gauri Agarwal",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 30,
+  "name": "Welcome Email - New Lead HomeIVF",
+  "model": "crm.lead",
+  "subject": "Big Hugs {{object.name}}! You're One Step Closer to Your Parenthood Dream \ud83d\udc99",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 29,
+  "name": "Welcome Home",
+  "model": "crm.lead",
+  "subject": false,
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ },
+ {
+  "id": 31,
+  "name": "Welcome To HomeIVF",
+  "model": "res.partner",
+  "subject": "Big Hugs {{object.name}}! You're One Step Closer to Your Parenthood Dream \ud83d\udc99",
+  "email_from": false,
+  "use_default_to": true,
+  "active": true
+ }
+]

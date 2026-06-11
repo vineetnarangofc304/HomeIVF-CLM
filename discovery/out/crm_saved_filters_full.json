@@ -1,0 +1,1532 @@
+[
+ {
+  "id": 65,
+  "display_name": "Days",
+  "name": "Days",
+  "user_ids": [
+   7
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "create_date": "2026-02-09 11:58:10",
+  "write_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "write_date": "2026-02-09 12:08:26"
+ },
+ {
+  "id": 37,
+  "display_name": "Incoming",
+  "name": "Incoming",
+  "user_ids": [
+   7
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   419,
+   "Pipeline"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "create_date": "2025-09-29 07:54:38",
+  "write_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "write_date": "2025-09-29 07:54:38"
+ },
+ {
+  "id": 104,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   29
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   29,
+   "Neha Dabral"
+  ],
+  "create_date": "2026-06-06 12:00:57",
+  "write_uid": [
+   29,
+   "Neha Dabral"
+  ],
+  "write_date": "2026-06-06 12:00:57"
+ },
+ {
+  "id": 101,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'x_studio_lead_stage_5']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-05-13 08:49:42",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-05-13 08:49:42"
+ },
+ {
+  "id": 100,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   12
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   12,
+   "Kishore"
+  ],
+  "create_date": "2026-04-30 07:46:09",
+  "write_uid": [
+   12,
+   "Kishore"
+  ],
+  "write_date": "2026-05-15 08:18:22"
+ },
+ {
+  "id": 99,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   12
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   12,
+   "Kishore"
+  ],
+  "create_date": "2026-04-30 07:46:03",
+  "write_uid": [
+   12,
+   "Kishore"
+  ],
+  "write_date": "2026-05-14 04:59:18"
+ },
+ {
+  "id": 81,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-04-26 09:04:21",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 09:04:21"
+ },
+ {
+  "id": 80,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-04-26 09:04:19",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 09:04:19"
+ },
+ {
+  "id": 79,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-04-26 09:03:54",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 09:03:54"
+ },
+ {
+  "id": 78,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   15
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "create_date": "2026-04-12 08:53:17",
+  "write_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "write_date": "2026-04-12 08:53:17"
+ },
+ {
+  "id": 77,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   15
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "create_date": "2026-04-11 08:29:37",
+  "write_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "write_date": "2026-04-11 08:29:37"
+ },
+ {
+  "id": 73,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   16
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   16,
+   "Laxmi Gautam"
+  ],
+  "create_date": "2026-03-26 07:15:09",
+  "write_uid": [
+   16,
+   "Laxmi Gautam"
+  ],
+  "write_date": "2026-03-26 07:15:09"
+ },
+ {
+  "id": 72,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   15
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "create_date": "2026-03-24 07:59:54",
+  "write_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "write_date": "2026-04-11 09:04:00"
+ },
+ {
+  "id": 69,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   7
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "create_date": "2026-02-10 11:07:19",
+  "write_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "write_date": "2026-02-10 11:07:19"
+ },
+ {
+  "id": 62,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'tag_ids', 'user_id']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-01-10 12:29:31",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 09:03:23"
+ },
+ {
+  "id": 61,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-01-10 12:29:20",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 09:04:11"
+ },
+ {
+  "id": 60,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-01-10 12:29:18",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 10:12:57"
+ },
+ {
+  "id": 59,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2026-01-10 12:07:59",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 10:12:52"
+ },
+ {
+  "id": 58,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   22
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   22,
+   "Manish Verma"
+  ],
+  "create_date": "2026-01-03 10:31:20",
+  "write_uid": [
+   22,
+   "Manish Verma"
+  ],
+  "write_date": "2026-01-03 10:31:27"
+ },
+ {
+  "id": 57,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   22
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   22,
+   "Manish Verma"
+  ],
+  "create_date": "2026-01-01 14:37:07",
+  "write_uid": [
+   22,
+   "Manish Verma"
+  ],
+  "write_date": "2026-01-01 14:37:07"
+ },
+ {
+  "id": 56,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   19
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   19,
+   "Ashutosh"
+  ],
+  "create_date": "2025-12-25 11:43:41",
+  "write_uid": [
+   19,
+   "Ashutosh"
+  ],
+  "write_date": "2026-02-15 15:00:58"
+ },
+ {
+  "id": 55,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   19
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   19,
+   "Ashutosh"
+  ],
+  "create_date": "2025-12-25 10:29:37",
+  "write_uid": [
+   19,
+   "Ashutosh"
+  ],
+  "write_date": "2025-12-25 10:29:37"
+ },
+ {
+  "id": 54,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   17
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   17,
+   "Ranbir Singh"
+  ],
+  "create_date": "2025-12-22 06:10:46",
+  "write_uid": [
+   17,
+   "Ranbir Singh"
+  ],
+  "write_date": "2026-04-26 04:48:01"
+ },
+ {
+  "id": 53,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   18
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   18,
+   "Neelam Sharma"
+  ],
+  "create_date": "2025-12-22 06:08:34",
+  "write_uid": [
+   18,
+   "Neelam Sharma"
+  ],
+  "write_date": "2026-04-27 04:46:58"
+ },
+ {
+  "id": 48,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   8
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "create_date": "2025-11-10 10:13:09",
+  "write_uid": [
+   8,
+   "Himani Sharma"
+  ],
+  "write_date": "2026-04-26 10:12:45"
+ },
+ {
+  "id": 40,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   14
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   14,
+   "Sahil"
+  ],
+  "create_date": "2025-09-29 12:50:12",
+  "write_uid": [
+   14,
+   "Sahil"
+  ],
+  "write_date": "2025-09-29 12:50:12"
+ },
+ {
+  "id": 21,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   13
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": true,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "create_date": "2025-09-03 11:10:52",
+  "write_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "write_date": "2025-09-03 11:10:52"
+ },
+ {
+  "id": 20,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   13
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "create_date": "2025-09-03 11:10:10",
+  "write_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "write_date": "2025-09-03 11:10:10"
+ },
+ {
+  "id": 19,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   13
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "create_date": "2025-09-03 11:08:16",
+  "write_uid": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "write_date": "2025-09-03 11:08:16"
+ },
+ {
+  "id": 16,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   5
+  ],
+  "domain": "[]",
+  "context": "{'group_by': []}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "create_date": "2025-08-30 13:07:14",
+  "write_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "write_date": "2025-08-30 13:07:14"
+ },
+ {
+  "id": 15,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   5
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "create_date": "2025-08-30 13:06:48",
+  "write_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "write_date": "2025-08-30 13:06:48"
+ },
+ {
+  "id": 12,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-21 11:06:33",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-21 11:06:33"
+ },
+ {
+  "id": 6,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-15 11:09:25",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-15 11:09:25"
+ },
+ {
+  "id": 4,
+  "display_name": "Leads",
+  "name": "Leads",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-14 09:44:59",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-14 09:44:59"
+ },
+ {
+  "id": 66,
+  "display_name": "Month",
+  "name": "Month",
+  "user_ids": [
+   7
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:month', 'x_studio_lead_stage_1']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "create_date": "2026-02-09 11:58:37",
+  "write_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "write_date": "2026-02-09 11:58:48"
+ },
+ {
+  "id": 70,
+  "display_name": "Same Day Leads",
+  "name": "Same Day Leads",
+  "user_ids": [
+   7
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'x_studio_lead_stage']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "create_date": "2026-02-15 12:35:07",
+  "write_uid": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "write_date": "2026-02-15 12:35:07"
+ },
+ {
+  "id": 38,
+  "display_name": "incoming",
+  "name": "incoming",
+  "user_ids": [
+   5
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   419,
+   "Pipeline"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "create_date": "2025-09-29 07:55:55",
+  "write_uid": [
+   5,
+   "Anamika Suman"
+  ],
+  "write_date": "2025-09-29 07:55:55"
+ },
+ {
+  "id": 64,
+  "display_name": "mll",
+  "name": "mll",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:day', 'x_studio_lead_stage_2']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2026-02-07 05:45:11",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2026-02-07 05:45:11"
+ },
+ {
+  "id": 63,
+  "display_name": "mlt",
+  "name": "mlt",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['create_date:month', 'x_studio_lead_stage_4', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2026-01-22 11:59:29",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2026-01-22 11:59:29"
+ },
+ {
+  "id": 102,
+  "display_name": "mtd",
+  "name": "mtd",
+  "user_ids": [
+   33
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   33,
+   "Shagun Mishra"
+  ],
+  "create_date": "2026-05-13 10:49:55",
+  "write_uid": [
+   33,
+   "Shagun Mishra"
+  ],
+  "write_date": "2026-05-13 10:49:55"
+ },
+ {
+  "id": 74,
+  "display_name": "mtd",
+  "name": "mtd",
+  "user_ids": [
+   15
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "create_date": "2026-04-03 10:55:46",
+  "write_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "write_date": "2026-04-03 10:55:46"
+ },
+ {
+  "id": 68,
+  "display_name": "mtd",
+  "name": "mtd",
+  "user_ids": [
+   24
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:month', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   24,
+   "Sumit Kumar"
+  ],
+  "create_date": "2026-02-09 13:20:59",
+  "write_uid": [
+   24,
+   "Sumit Kumar"
+  ],
+  "write_date": "2026-02-09 13:20:59"
+ },
+ {
+  "id": 14,
+  "display_name": "mtd",
+  "name": "mtd",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:month']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-08-16 14:43:35",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-08-16 14:43:35"
+ },
+ {
+  "id": 13,
+  "display_name": "mtd",
+  "name": "mtd",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:month']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-08-16 13:49:06",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-08-16 13:49:06"
+ },
+ {
+  "id": 75,
+  "display_name": "mtd'",
+  "name": "mtd'",
+  "user_ids": [
+   15
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids', 'create_date:month', 'tag_ids']}",
+  "sort": "[\"user_id desc\"]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "create_date": "2026-04-03 10:56:19",
+  "write_uid": [
+   15,
+   "Diksha Bharti"
+  ],
+  "write_date": "2026-04-03 10:56:19"
+ },
+ {
+  "id": 103,
+  "display_name": "pp",
+  "name": "pp",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'x_studio_lead_stage_1', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2026-06-02 09:48:22",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2026-06-02 09:48:22"
+ },
+ {
+  "id": 49,
+  "display_name": "salesperson",
+  "name": "salesperson",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-11-30 15:28:59",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-11-30 15:28:59"
+ },
+ {
+  "id": 76,
+  "display_name": "slt",
+  "name": "slt",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2026-04-07 11:55:23",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2026-04-07 11:55:23"
+ },
+ {
+  "id": 9,
+  "display_name": "tag 1",
+  "name": "tag 1",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'create_date:day', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-17 10:09:11",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-17 10:09:11"
+ },
+ {
+  "id": 11,
+  "display_name": "tagged",
+  "name": "tagged",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids', 'create_date:day']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-21 11:06:20",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-21 11:06:20"
+ },
+ {
+  "id": 10,
+  "display_name": "tags",
+  "name": "tags",
+  "user_ids": [
+   6
+  ],
+  "domain": "[]",
+  "context": "{'group_by': ['user_id', 'tag_ids']}",
+  "sort": "[]",
+  "model_id": "crm.lead",
+  "is_default": false,
+  "action_id": [
+   416,
+   "Leads"
+  ],
+  "embedded_action_id": false,
+  "embedded_parent_res_id": 0,
+  "active": true,
+  "create_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "create_date": "2025-07-18 10:44:13",
+  "write_uid": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "write_date": "2025-07-18 10:44:13"
+ }
+]

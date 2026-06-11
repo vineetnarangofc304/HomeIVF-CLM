@@ -1,0 +1,366 @@
+[
+ {
+  "id": 5,
+  "name": "Anamika Suman",
+  "login": "caller11@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   31,
+   23,
+   24,
+   13,
+   9,
+   8,
+   47,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 32,
+  "name": "Ansh Sharma",
+  "login": "caller18@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 19,
+  "name": "Ashutosh",
+  "login": "caller7@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 26,
+  "name": "Ayush Mishra",
+  "login": "caller17@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 20,
+  "name": "Azhar",
+  "login": "caller9@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 15,
+  "name": "Diksha Bharti",
+  "login": "caller4@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 8,
+  "name": "Himani Sharma",
+  "login": "caller16@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   2,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 30,
+  "name": "Himanshu Yadav",
+  "login": "caller21@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 2,
+  "name": "Homeivf",
+  "login": "homeivfofficial@gmail.com",
+  "active": true,
+  "group_ids": [
+   43,
+   32,
+   30,
+   23,
+   17,
+   46,
+   25,
+   40,
+   28,
+   47,
+   2,
+   4,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 12,
+  "name": "Kishore",
+  "login": "kishore@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 16,
+  "name": "Laxmi Gautam",
+  "login": "caller8@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 25,
+  "name": "Manish Sachan",
+  "login": "caller15@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 22,
+  "name": "Manish Verma",
+  "login": "caller1@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 10,
+  "name": "Mansi Binjola",
+  "login": "caller19@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 31,
+  "name": "Mehak Chauhan",
+  "login": "caller20@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 13,
+  "name": "Minakshi Panwar",
+  "login": "minakshi@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 18,
+  "name": "Neelam Sharma",
+  "login": "caller5@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 29,
+  "name": "Neha Dabral",
+  "login": "caller22@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 17,
+  "name": "Ranbir Singh",
+  "login": "caller6@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 6,
+  "name": "Rishabh Choudhary",
+  "login": "rishabh.choudhary@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 14,
+  "name": "Sahil",
+  "login": "caller3@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 33,
+  "name": "Shagun Mishra",
+  "login": "caller23@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 21,
+  "name": "Sugandhi Khutail",
+  "login": "caller10@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 24,
+  "name": "Sumit Kumar",
+  "login": "caller12@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 11,
+  "name": "Vaishali Sethi",
+  "login": "caller2@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 7,
+  "name": "Vikas Chauhan",
+  "login": "vikas.chauhan@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ },
+ {
+  "id": 34,
+  "name": "Vikram Pratap",
+  "login": "caller24@homeivf.com",
+  "active": true,
+  "group_ids": [
+   42,
+   9,
+   8,
+   1
+  ],
+  "share": false
+ }
+]

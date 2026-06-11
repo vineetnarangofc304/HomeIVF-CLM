@@ -1,0 +1,38 @@
+[
+ {
+  "id": 1,
+  "name": "New",
+  "sequence": 1,
+  "is_won": false,
+  "fold": false,
+  "requirements": false,
+  "team_ids": []
+ },
+ {
+  "id": 2,
+  "name": "Qualified",
+  "sequence": 2,
+  "is_won": false,
+  "fold": false,
+  "requirements": false,
+  "team_ids": []
+ },
+ {
+  "id": 3,
+  "name": "Proposition",
+  "sequence": 3,
+  "is_won": false,
+  "fold": false,
+  "requirements": false,
+  "team_ids": []
+ },
+ {
+  "id": 4,
+  "name": "Converted",
+  "sequence": 70,
+  "is_won": true,
+  "fold": false,
+  "requirements": "OPD Done",
+  "team_ids": []
+ }
+]

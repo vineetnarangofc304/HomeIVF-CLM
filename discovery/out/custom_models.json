@@ -1,0 +1,262 @@
+[
+ {
+  "id": 347,
+  "model": "extract.mixin",
+  "name": "Base class to extract data from documents"
+ },
+ {
+  "id": 349,
+  "model": "extract.mixin.with.words",
+  "name": "Base class to extract data from documents with OCRed words saved"
+ },
+ {
+  "id": 153,
+  "model": "mail.tracking.duration.mixin",
+  "name": "Mixin to compute the time a record has spent in each value a many2one field can take"
+ },
+ {
+  "id": 451,
+  "model": "rating.mixin",
+  "name": "Rating Mixin"
+ },
+ {
+  "id": 144,
+  "model": "mail.activity.mixin",
+  "name": "Activity Mixin"
+ },
+ {
+  "id": 83,
+  "model": "format.address.mixin",
+  "name": "Address Format"
+ },
+ {
+  "id": 429,
+  "model": "analytic.mixin",
+  "name": "Analytic Mixin"
+ },
+ {
+  "id": 427,
+  "model": "analytic.plan.fields.mixin",
+  "name": "Analytic Plan Fields"
+ },
+ {
+  "id": 77,
+  "model": "avatar.mixin",
+  "name": "Avatar Mixin"
+ },
+ {
+  "id": 128,
+  "model": "bus.listener.mixin",
+  "name": "Can send messages via bus.bus"
+ },
+ {
+  "id": 82,
+  "model": "format.vat.label.mixin",
+  "name": "Country Specific VAT Label"
+ },
+ {
+  "id": 392,
+  "model": "website.cover_properties.mixin",
+  "name": "Cover Properties Website Mixin"
+ },
+ {
+  "id": 146,
+  "model": "mail.alias.mixin",
+  "name": "Email Aliases Mixin"
+ },
+ {
+  "id": 145,
+  "model": "mail.alias.mixin.optional",
+  "name": "Email Aliases Mixin (light)"
+ },
+ {
+  "id": 35,
+  "model": "ir.exports",
+  "name": "Exports"
+ },
+ {
+  "id": 36,
+  "model": "ir.exports.line",
+  "name": "Exports Line"
+ },
+ {
+  "id": 659,
+  "model": "html.field.history.mixin",
+  "name": "Field html History"
+ },
+ {
+  "id": 337,
+  "model": "google.gmail.mixin",
+  "name": "Google Gmail Mixin"
+ },
+ {
+  "id": 739,
+  "model": "website.html.text.processor",
+  "name": "HTML Text Processor Abstract Model"
+ },
+ {
+  "id": 76,
+  "model": "image.mixin",
+  "name": "Image Mixin"
+ },
+ {
+  "id": 116,
+  "model": "base.language.export",
+  "name": "Language Export"
+ },
+ {
+  "id": 148,
+  "model": "mail.composer.mixin",
+  "name": "Mail Composer Mixin"
+ },
+ {
+  "id": 147,
+  "model": "mail.render.mixin",
+  "name": "Mail Render Mixin"
+ },
+ {
+  "id": 68,
+  "model": "ir.module.module.exclusion",
+  "name": "Module exclusion"
+ },
+ {
+  "id": 395,
+  "model": "website.multi.mixin",
+  "name": "Multi Website Mixin"
+ },
+ {
+  "id": 397,
+  "model": "website.published.multi.mixin",
+  "name": "Multi Website Published Mixin"
+ },
+ {
+  "id": 602,
+  "model": "voip.country.code.mixin",
+  "name": "Phone Country Mixin"
+ },
+ {
+  "id": 383,
+  "model": "portal.mixin",
+  "name": "Portal Mixin"
+ },
+ {
+  "id": 765,
+  "model": "x_prescription",
+  "name": "Prescription"
+ },
+ {
+  "id": 643,
+  "model": "properties.base.definition.mixin",
+  "name": "Properties Base Definition Mixin"
+ },
+ {
+  "id": 48,
+  "model": "ir.qweb.field.text",
+  "name": "Qweb Field Text"
+ },
+ {
+  "id": 452,
+  "model": "rating.parent.mixin",
+  "name": "Rating Parent Mixin"
+ },
+ {
+  "id": 374,
+  "model": "resource.mixin",
+  "name": "Resource Mixin"
+ },
+ {
+  "id": 351,
+  "model": "ir.min.cron.mixin",
+  "name": "Set Min Next call on metabase"
+ },
+ {
+  "id": 712,
+  "model": "hr.individual.skill.mixin",
+  "name": "Skill level"
+ },
+ {
+  "id": 548,
+  "model": "spreadsheet.mixin",
+  "name": "Spreadsheet mixin"
+ },
+ {
+  "id": 597,
+  "model": "studio.export.wizard.data",
+  "name": "Studio Export Data"
+ },
+ {
+  "id": 596,
+  "model": "studio.export.model",
+  "name": "Studio Export Models"
+ },
+ {
+  "id": 598,
+  "model": "studio.export.wizard",
+  "name": "Studio Export Wizard"
+ },
+ {
+  "id": 574,
+  "model": "studio.mixin",
+  "name": "Studio Mixin"
+ },
+ {
+  "id": 154,
+  "model": "template.reset.mixin",
+  "name": "Template Reset Mixin"
+ },
+ {
+  "id": 378,
+  "model": "utm.mixin",
+  "name": "UTM Mixin"
+ },
+ {
+  "id": 380,
+  "model": "utm.source.mixin",
+  "name": "UTM Source Mixin"
+ },
+ {
+  "id": 603,
+  "model": "voip.queue.mixin",
+  "name": "VOIP Queue support"
+ },
+ {
+  "id": 396,
+  "model": "website.published.mixin",
+  "name": "Website Published Mixin"
+ },
+ {
+  "id": 398,
+  "model": "website.searchable.mixin",
+  "name": "Website Searchable Mixin"
+ },
+ {
+  "id": 394,
+  "model": "website.page_options.mixin",
+  "name": "Website page/record specific options"
+ },
+ {
+  "id": 393,
+  "model": "website.page_visibility_options.mixin",
+  "name": "Website page/record specific visibility options"
+ },
+ {
+  "id": 615,
+  "model": "x_crm_lead_line_7cae5",
+  "name": "crm_lead_line"
+ },
+ {
+  "id": 702,
+  "model": "hr.mixin",
+  "name": "hr.mixin"
+ },
+ {
+  "id": 622,
+  "model": "x_tag",
+  "name": "tag"
+ },
+ {
+  "id": 620,
+  "model": "x_tags",
+  "name": "tags"
+ }
+]

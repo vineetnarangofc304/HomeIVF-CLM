@@ -1,0 +1,22 @@
+[
+ {
+  "id": 605,
+  "model": "voip.call",
+  "name": "Phone call"
+ },
+ {
+  "id": 602,
+  "model": "voip.country.code.mixin",
+  "name": "Phone Country Mixin"
+ },
+ {
+  "id": 603,
+  "model": "voip.queue.mixin",
+  "name": "VOIP Queue support"
+ },
+ {
+  "id": 604,
+  "model": "voip.provider",
+  "name": "VoIP Provider"
+ }
+]

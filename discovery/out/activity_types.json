@@ -1,0 +1,58 @@
+[
+ {
+  "id": 4,
+  "name": "To-Do",
+  "delay_count": 5,
+  "delay_unit": "days",
+  "category": "default",
+  "res_model": false
+ },
+ {
+  "id": 1,
+  "name": "Email",
+  "delay_count": 0,
+  "delay_unit": "days",
+  "category": "default",
+  "res_model": false
+ },
+ {
+  "id": 2,
+  "name": "Call",
+  "delay_count": 2,
+  "delay_unit": "days",
+  "category": "phonecall",
+  "res_model": false
+ },
+ {
+  "id": 3,
+  "name": "Meeting",
+  "delay_count": 0,
+  "delay_unit": "days",
+  "category": "meeting",
+  "res_model": false
+ },
+ {
+  "id": 5,
+  "name": "Document",
+  "delay_count": 5,
+  "delay_unit": "days",
+  "category": "upload_file",
+  "res_model": false
+ },
+ {
+  "id": 9,
+  "name": "Certifications",
+  "delay_count": 5,
+  "delay_unit": "days",
+  "category": "upload_file",
+  "res_model": "hr.employee"
+ },
+ {
+  "id": 7,
+  "name": "Signature",
+  "delay_count": 2,
+  "delay_unit": "days",
+  "category": "sign_request",
+  "res_model": false
+ }
+]

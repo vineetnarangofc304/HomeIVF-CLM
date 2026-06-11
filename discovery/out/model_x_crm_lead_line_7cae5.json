@@ -1,0 +1,234 @@
+{
+ "count": 22,
+ "fields": {
+  "id": {
+   "string": "ID",
+   "type": "integer"
+  },
+  "display_name": {
+   "string": "Display Name",
+   "type": "char"
+  },
+  "create_uid": {
+   "relation": "res.users",
+   "string": "Created by",
+   "type": "many2one"
+  },
+  "create_date": {
+   "string": "Created on",
+   "type": "datetime"
+  },
+  "write_uid": {
+   "relation": "res.users",
+   "string": "Last Updated by",
+   "type": "many2one"
+  },
+  "write_date": {
+   "string": "Last Updated on",
+   "type": "datetime"
+  },
+  "x_studio_sequence": {
+   "string": "Sequence",
+   "type": "integer"
+  },
+  "x_name": {
+   "string": "Description",
+   "type": "char"
+  },
+  "x_crm_lead_id": {
+   "relation": "crm.lead",
+   "string": "X Crm Lead",
+   "type": "many2one"
+  }
+ },
+ "sample": [
+  {
+   "id": 1,
+   "display_name": "PCOD",
+   "create_uid": [
+    2,
+    "Homeivf"
+   ],
+   "create_date": "2025-07-12 10:52:34",
+   "write_uid": [
+    2,
+    "Homeivf"
+   ],
+   "write_date": "2025-07-12 10:52:34",
+   "x_studio_sequence": 0,
+   "x_name": "PCOD",
+   "x_crm_lead_id": false
+  },
+  {
+   "id": 2,
+   "display_name": "Thyroid",
+   "create_uid": [
+    2,
+    "Homeivf"
+   ],
+   "create_date": "2025-07-12 10:52:34",
+   "write_uid": [
+    2,
+    "Homeivf"
+   ],
+   "write_date": "2025-07-12 10:52:34",
+   "x_studio_sequence": 0,
+   "x_name": "Thyroid",
+   "x_crm_lead_id": false
+  },
+  {
+   "id": 3,
+   "display_name": "3 time IVF tried",
+   "create_uid": [
+    2,
+    "Homeivf"
+   ],
+   "create_date": "2025-07-12 10:52:34",
+   "write_uid": [
+    2,
+    "Homeivf"
+   ],
+   "write_date": "2025-07-12 10:52:34",
+   "x_studio_sequence": 0,
+   "x_name": "3 time IVF tried",
+   "x_crm_lead_id": false
+  },
+  {
+   "id": 4,
+   "display_name": "3month me travel ki wajh se miscarrige ho gaya tha fir nhi ho rha baby",
+   "create_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "create_date": "2025-07-12 12:02:26",
+   "write_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "write_date": "2025-07-12 12:02:26",
+   "x_studio_sequence": 0,
+   "x_name": "3month me travel ki wajh se miscarrige ho gaya tha fir nhi ho rha baby",
+   "x_crm_lead_id": [
+    715,
+    "lalmohan tripathy"
+   ]
+  },
+  {
+   "id": 5,
+   "display_name": "salary bohot kam hai",
+   "create_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "create_date": "2025-07-12 12:07:44",
+   "write_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "write_date": "2025-07-12 12:07:44",
+   "x_studio_sequence": 0,
+   "x_name": "salary bohot kam hai",
+   "x_crm_lead_id": [
+    731,
+    "Gurmit Singh"
+   ]
+  },
+  {
+   "id": 6,
+   "display_name": "period irregular, uterus enlarged",
+   "create_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "create_date": "2025-07-12 12:08:21",
+   "write_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "write_date": "2025-07-12 12:08:21",
+   "x_studio_sequence": 0,
+   "x_name": "period irregular, uterus enlarged",
+   "x_crm_lead_id": [
+    800,
+    "Ashwani Kumar"
+   ]
+  },
+  {
+   "id": 7,
+   "display_name": "m-36, f-35",
+   "create_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "create_date": "2025-07-12 12:08:21",
+   "write_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "write_date": "2025-07-12 12:08:21",
+   "x_studio_sequence": 1,
+   "x_name": "m-36, f-35",
+   "x_crm_lead_id": [
+    800,
+    "Ashwani Kumar"
+   ]
+  },
+  {
+   "id": 8,
+   "display_name": "online payment nhi use krte hai",
+   "create_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "create_date": "2025-07-12 12:09:58",
+   "write_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "write_date": "2025-07-12 12:09:58",
+   "x_studio_sequence": 0,
+   "x_name": "online payment nhi use krte hai",
+   "x_crm_lead_id": [
+    732,
+    "Srihari Barik"
+   ]
+  },
+  {
+   "id": 9,
+   "display_name": "4saal ho gaya shadi 35 /35 anjali /praveen prakash /sasaram call back dr gori agarwal mam se dikhana hain",
+   "create_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "create_date": "2025-07-12 12:13:13",
+   "write_uid": [
+    10,
+    "Mansi Binjola"
+   ],
+   "write_date": "2025-07-12 12:13:13",
+   "x_studio_sequence": 0,
+   "x_name": "4saal ho gaya shadi 35 /35 anjali /praveen prakash /sasaram call back dr gori agarwal mam se dikhana hain",
+   "x_crm_lead_id": [
+    734,
+    "Praveen Prakash"
+   ]
+  },
+  {
+   "id": 10,
+   "display_name": "pcod",
+   "create_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "create_date": "2025-07-12 12:22:28",
+   "write_uid": [
+    6,
+    "Rishabh Choudhary"
+   ],
+   "write_date": "2025-07-12 12:22:28",
+   "x_studio_sequence": 0,
+   "x_name": "pcod",
+   "x_crm_lead_id": false
+  }
+ ]
+}

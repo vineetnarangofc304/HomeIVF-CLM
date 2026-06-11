@@ -1,0 +1,405 @@
+[
+ {
+  "user_id": [
+   5,
+   "Anamika Suman"
+  ],
+  "user_id_count": 6041,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    5
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   32,
+   "Ansh Sharma"
+  ],
+  "user_id_count": 474,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    32
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   19,
+   "Ashutosh"
+  ],
+  "user_id_count": 5866,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    19
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   26,
+   "Ayush Mishra"
+  ],
+  "user_id_count": 772,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    26
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   20,
+   "Azhar"
+  ],
+  "user_id_count": 4473,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    20
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   15,
+   "Diksha Bharti"
+  ],
+  "user_id_count": 5425,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    15
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   8,
+   "Himani Sharma"
+  ],
+  "user_id_count": 3560,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    8
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   30,
+   "Himanshu Yadav"
+  ],
+  "user_id_count": 239,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    30
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   2,
+   "Homeivf"
+  ],
+  "user_id_count": 32,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    2
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   12,
+   "Kishore"
+  ],
+  "user_id_count": 6534,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    12
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   16,
+   "Laxmi Gautam"
+  ],
+  "user_id_count": 2892,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    16
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   25,
+   "Manish Sachan"
+  ],
+  "user_id_count": 2401,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    25
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   22,
+   "Manish Verma"
+  ],
+  "user_id_count": 4986,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    22
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   10,
+   "Mansi Binjola"
+  ],
+  "user_id_count": 3897,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    10
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   31,
+   "Mehak Chauhan"
+  ],
+  "user_id_count": 433,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    31
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   13,
+   "Minakshi Panwar"
+  ],
+  "user_id_count": 8318,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    13
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   18,
+   "Neelam Sharma"
+  ],
+  "user_id_count": 3948,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    18
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   29,
+   "Neha Dabral"
+  ],
+  "user_id_count": 759,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    29
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   3,
+   "Public user"
+  ],
+  "user_id_count": 121,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    3
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   17,
+   "Ranbir Singh"
+  ],
+  "user_id_count": 4493,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    17
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   6,
+   "Rishabh Choudhary"
+  ],
+  "user_id_count": 6723,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    6
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   14,
+   "Sahil"
+  ],
+  "user_id_count": 4362,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    14
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   33,
+   "Shagun Mishra"
+  ],
+  "user_id_count": 904,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    33
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   21,
+   "Sugandhi Khutail"
+  ],
+  "user_id_count": 3964,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    21
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   24,
+   "Sumit Kumar"
+  ],
+  "user_id_count": 3611,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    24
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   11,
+   "Vaishali Sethi"
+  ],
+  "user_id_count": 5904,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    11
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   7,
+   "Vikas Chauhan"
+  ],
+  "user_id_count": 6226,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    7
+   ]
+  ]
+ },
+ {
+  "user_id": [
+   34,
+   "Vikram Pratap"
+  ],
+  "user_id_count": 1021,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    34
+   ]
+  ]
+ },
+ {
+  "user_id": false,
+  "user_id_count": 1129,
+  "__domain": [
+   [
+    "user_id",
+    "=",
+    false
+   ]
+  ]
+ }
+]
