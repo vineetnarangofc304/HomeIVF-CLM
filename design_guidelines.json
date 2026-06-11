@@ -1,0 +1,76 @@
+{
+  "theme": "Light",
+  "archetype": "1 (Organic & Earthy)",
+  "emotional_tone": "Warm, trusting, and empathetic, balanced with high-density data efficiency. Soft medical aesthetic.",
+  "typography": {
+    "fonts_required": ["Nunito", "Figtree"],
+    "heading_family": "font-sans (Nunito)",
+    "body_family": "font-sans (Figtree)",
+    "scales": {
+      "h1": "text-4xl sm:text-5xl tracking-tight",
+      "h2": "text-2xl sm:text-3xl tracking-tight",
+      "h3": "text-xl sm:text-2xl",
+      "h4": "text-lg sm:text-xl",
+      "body": "text-sm md:text-base",
+      "small_labels": "text-xs uppercase tracking-[0.2em]"
+    }
+  },
+  "colors": {
+    "background": "bg-slate-50",
+    "surface": "bg-white",
+    "primary": "bg-[#4A90E2]",
+    "secondary": "bg-[#8B5CF6]",
+    "accent_success": "bg-emerald-500",
+    "accent_warning": "bg-amber-500",
+    "accent_danger": "bg-rose-500",
+    "text_primary": "text-slate-900",
+    "text_secondary": "text-slate-600",
+    "border": "border-slate-200"
+  },
+  "layout_and_spacing": {
+    "grid_strategy": "The 'Control Room' Grid for dashboards (grid-cols-1 md:grid-cols-3 lg:grid-cols-4) with gap-4 or gap-6. Dense but clear.",
+    "spacing_scale": "Use p-6 to p-8 for main cards. For data tables, use p-2 or p-3 to maintain density.",
+    "radii": "rounded-2xl for outer containers, rounded-xl or rounded-lg for internal elements to reflect the 'rounded friendly shapes' brand requirement."
+  },
+  "visual_enhancers": {
+    "shadows": "Soft, diffuse ambient shadows (shadow-sm, shadow-[0_8px_32px_rgba(0,0,0,0.04)]).",
+    "borders": "1px solid border-slate-200. Avoid glassmorphism for this medical CRM; use solid surfaces to prevent visual refraction of data.",
+    "motion": "Subtle hover states (-translate-y-[2px], shadow-md). Transitions on buttons and table rows."
+  },
+  "icons": "@phosphor-icons/react (best for dense dashboards and developer tools)",
+  "components": {
+    "AppShell": "Sidebar with active state highlighted via soft blue/violet background and primary text color. Topbar with global search and user profile.",
+    "DataTable": "Dense layout. Sticky headers. Expandable rows or column toggles. Sortable headers. Hover effects on rows.",
+    "Cards": "Flat background, 1px subtle border, no shadow by default. Hover adds slight lift and shadow.",
+    "Badges/Chips": "Soft tinted backgrounds (e.g., bg-blue-50 text-blue-700) for lead stages and tags. Fully rounded (rounded-full).",
+    "Buttons": "Primary: solid bg-[#4A90E2] hover:bg-[#357ABD] text-white. Secondary: border border-slate-200 hover:bg-slate-50.",
+    "AI_Hooks": "Floating 'AI Brain' chat button. Inline AI insight panels with soft violet gradients and a sparkle icon."
+  },
+  "media": {
+    "image_urls": {
+      "logo": {
+        "url": "https://homeivf.com/_next/static/media/homeivglogo.3a89a3c2.svg",
+        "description": "HomeIVF Brand Logo (Use in sidebar header and login screen)"
+      },
+      "avatars": {
+        "url": "https://images.pexels.com/photos/29852895/pexels-photo-29852895.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Placeholder Avatar for user profiles and leaderboard"
+      }
+    }
+  },
+  "accessibility": {
+    "contrast": "Ensure text over primary buttons is pure white. Muted text must meet 4.5:1 ratio on slate-50.",
+    "focus": "focus:ring-2 focus:ring-[#4A90E2] focus:outline-none focus:ring-offset-2",
+    "motion": "Respect prefers-reduced-motion for all transitions."
+  },
+  "instructions_to_main_agent": [
+    "Install and configure Nunito and Figtree fonts from Google Fonts.",
+    "Ensure 'Powered by TagQuest' text is visible in the sidebar footer and login page.",
+    "Build the dashboard with Shadcn UI components but heavily customize the appearance: use dense variants of tables and forms.",
+    "Lead detail page MUST be a two-column layout: Left for fields/stepper, Right for chatter timeline.",
+    "Filter bar in Leads should replicate Odoo functionality (multi-select, tags).",
+    "Embed placeholders for Phase 2 AI insights (e.g., an 'AI Summary' card on Lead Detail).",
+    "All interactive elements MUST have data-testid attributes.",
+    "Do not use generic Inter font. Do not use dark mode. Stick to the soft medical aesthetic."
+  ]
+}
