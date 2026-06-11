@@ -482,7 +482,7 @@ def migrate_contacts():
     done = cp.get("done", 0)
     checkpoint("contacts", state="running", total=total, done=done)
     log(f"contacts: total={total}, resuming after id={last_id}")
-    fields = ["name", "phone", "mobile", "email", "city", "state_id", "create_date"]
+    fields = ["name", "phone", "email", "city", "state_id", "create_date"]
     batch = 2000
     while True:
         recs = call("res.partner", "search_read", [["id", ">", last_id]],
@@ -493,9 +493,9 @@ def migrate_contacts():
         for r in recs:
             ops.append(UpdateOne({"id": r["id"]}, {"$set": {
                 "id": r["id"], "name": s(r.get("name")), "phone": s(r.get("phone")),
-                "mobile": s(r.get("mobile")), "email": s(r.get("email")), "city": s(r.get("city")),
+                "email": s(r.get("email")), "city": s(r.get("city")),
                 "state_name": m2o_name(r.get("state_id")), "create_date": s(r.get("create_date")),
-                "phone_digits": phone_digits(r.get("phone") or r.get("mobile")), "migrated": True,
+                "phone_digits": phone_digits(r.get("phone")), "migrated": True,
             }}, upsert=True))
         db.contacts.bulk_write(ops)
         last_id = recs[-1]["id"]

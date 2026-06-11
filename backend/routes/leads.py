@@ -52,10 +52,10 @@ def build_query(
         q["$or"] = ors
     if stage_id:
         q["stage_id"] = int(stage_id)
-    if lead_stage:
-        q["lead_stage"] = {"$in": lead_stage.split(",")} if "," in lead_stage else lead_stage
     if lead_stage == "__none__":
         q["lead_stage"] = {"$in": [None, False, ""]}
+    elif lead_stage:
+        q["lead_stage"] = {"$in": lead_stage.split(",")} if "," in lead_stage else lead_stage
     if tags:
         q["tags"] = {"$in": [int(t) for t in tags.split(",") if t]}
     if user_id == "none":

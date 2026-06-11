@@ -54,8 +54,8 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="hivf-card p-5 lg:col-span-2">
           <h3 className="font-display text-base font-bold text-slate-800">Incoming Leads — last 14 days</h3>
-          <div className="mt-4 h-64">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="mt-4 h-64 min-h-64 w-full min-w-0">
+            <ResponsiveContainer width="100%" height={256} minWidth={200}>
               <BarChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                 <XAxis dataKey="day" tick={{ fontSize: 11, fill: "#64748b" }} />

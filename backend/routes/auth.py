@@ -41,12 +41,14 @@ async def login(body: LoginBody, request: Request, response: Response):
 
     user = await db.users.find_one({"email": email})
     if not user or not verify_password(body.password, user.get("password_hash", "")):
-        await db.login_attempts.update_one(
-            {"identifier": identifier},
-            {"$inc": {"count": 1},
-             "$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()}},
-            upsert=True,
+        doc = await db.login_attempts.find_one_and_update(
+            {"identifier": identifier}, {"$inc": {"count": 1}}, upsert=True, return_document=True,
         )
+        if doc and doc.get("count", 0) >= LOCKOUT_ATTEMPTS and not doc.get("locked_until"):
+            await db.login_attempts.update_one(
+                {"identifier": identifier},
+                {"$set": {"locked_until": (datetime.now(timezone.utc) + timedelta(minutes=LOCKOUT_MINUTES)).isoformat()}},
+            )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     if not user.get("active", True):
         raise HTTPException(status_code=403, detail="Account is deactivated")
