@@ -39,6 +39,16 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Full migration: catalogs, 27 users, templates, 99,516 leads, 16 activities, 10,936 WA channels, ~38.7K WA messages, ~910K lead messages, 96K contacts (background, resumable)
 - HomeIVF branding (scraped logo, soft blue/violet, Nunito/Figtree), "Powered by TagQuest", data-testids everywhere
 
+## Implemented (2026-06-11, batch 2) — Drill-downs, Sorting, Audit, Visual Analytics (50/50 tests pass, iteration_2)
+- Pivot reports: raw keys returned → EVERY cell/row/child clickable, drills to /leads with combined filters; column-header sorting; FULL filter bar (date/status/caller/tag/stage/source/FU tag/ads platform/campaign/state/city)
+- Dashboard fully clickable: KPIs, funnel rows, leaderboard rows, top tags, chart bars → filtered leads
+- Leads table: sortable column headers (whitelisted sort fields), FU Tag filter, more filter chips (campaign/ads/state/city/lost_reason)
+- Follow-ups: whole row clickable → lead detail; Quick Note modal (note + reschedule + disposition tag) without leaving page
+- Migration Audit tool (Admin > Migration): live XML-RPC count comparison Odoo vs CRM per entity with ✓/✗ + explanatory notes; persisted to settings.last_audit. Notes: Odoo keeps growing while team still uses it → rerun migration script (resumable, upserts) to sync deltas before cutover
+- Visual Analytics (Reports tab): stacked-area lead volume trend (day/week/month), conversions + conversion-rate dual-axis line, source donut (clickable), DOW×Hour incoming heatmap (90d IST), Caller×Day load heatmap (clickable cells) — recharts + custom CSS heatmap grids
+- All Emergent branding removed; title/meta = "HomeIVF CRM | Powered by TagQuest", HomeIVF logo favicon
+- Data-completeness facts (verified): all 10,936 WA channels have clean 10-digit phones; 99,532 leads have chatter; Odoo only stores OPEN activities (16) — done activities live in chatter (faithful migration)
+
 ## Backlog
 ### P0 (Phase 1.5 — needs user API credentials)
 - Meta WhatsApp Business API live send/receive (process outbound_queue, webhook for inbound)

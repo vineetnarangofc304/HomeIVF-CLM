@@ -116,6 +116,10 @@ def query_params_dep(
     )
 
 
+ALLOWED_SORT = {"create_date", "create_date_ist", "contact_name", "name", "phone", "city",
+                "user_id", "lead_stage", "follow_up_date", "source_lead", "id", "write_date"}
+
+
 @router.get("")
 async def list_leads(
     params: dict = Depends(query_params_dep),
@@ -124,6 +128,8 @@ async def list_leads(
     user: dict = Depends(get_current_user),
 ):
     q = build_query(**params, current_user=user)
+    if sort not in ALLOWED_SORT:
+        sort = "create_date"
     sort_dir = -1 if order == "desc" else 1
     total = await db.leads.count_documents(q)
     cursor = db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)]).skip((page - 1) * limit).limit(limit)
@@ -136,6 +142,7 @@ GROUP_FIELDS = {
     "source_lead": "$source_lead", "follow_up_tag": "$follow_up_tag",
     "ads_platform": "$ads_platform", "campaign_name": "$campaign_name",
     "city": "$city", "state_name": "$state_name", "priority": "$priority",
+    "lost_reason_id": "$lost_reason_id",
     "create_date:day": {"$substrCP": ["$create_date_ist", 0, 10]},
     "create_date:month": {"$substrCP": ["$create_date_ist", 0, 7]},
 }

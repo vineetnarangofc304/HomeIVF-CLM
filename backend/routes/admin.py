@@ -91,10 +91,15 @@ async def migration_audit(user: dict = Depends(require_roles("admin", "manager")
     import xmlrpc.client
 
     def odoo_counts():
-        url, dbname = os.environ["ODOO_URL"], os.environ["ODOO_DB"]
-        login, pwd = os.environ["ODOO_LOGIN"], os.environ["ODOO_PASSWORD"]
+        try:
+            url, dbname = os.environ["ODOO_URL"], os.environ["ODOO_DB"]
+            login, pwd = os.environ["ODOO_LOGIN"], os.environ["ODOO_PASSWORD"]
+        except KeyError as e:
+            raise HTTPException(status_code=503, detail=f"Odoo credentials missing in environment: {e}")
         common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
         uid = common.authenticate(dbname, login, pwd, {})
+        if not uid:
+            raise HTTPException(status_code=503, detail="Odoo authentication failed")
         models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
 
         def c(model, domain):
