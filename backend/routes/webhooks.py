@@ -50,6 +50,14 @@ async def webhook_lead(token: str, request: Request):
                 data[field] = str(lower[a]).strip()
                 break
     extras = {k: v for k, v in lower.items() if v not in (None, "")}
+    # map admin-defined custom fields (Case 4: form/ads field mapping)
+    defs = await db.custom_fields.find({"active": True}).to_list(300)
+    for d in defs:
+        for alias in [d["key"], d["label"]] + (d.get("aliases") or []):
+            a = str(alias).strip().lower().replace(" ", "_")
+            if a in lower and lower[a] not in (None, ""):
+                extras[d["key"]] = str(lower[a]).strip()
+                break
 
     lid = await next_id("lead")
     now = now_utc_str()

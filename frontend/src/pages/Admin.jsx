@@ -5,7 +5,7 @@ import { API, apiErr } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Webhooks", "Automations", "Assignment", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Migration"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -16,7 +16,7 @@ export default function Admin() {
       <p className="text-sm text-slate-500">Manage everything that powers your CRM</p>
       <div className="mt-4 flex flex-wrap gap-2">
         {TABS.map((t) => (
-          <button key={t} data-testid={`admin-tab-${t.toLowerCase()}`} onClick={() => setTab(t)}
+          <button key={t} data-testid={`admin-tab-${t.toLowerCase().replace(/\s/g, "-")}`} onClick={() => setTab(t)}
             className={`rounded-full border px-4 py-2 text-sm font-bold transition-colors ${tab === t ? "border-[#4A90E2] bg-[#4A90E2]/10 text-[#357ABD]" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}>
             {t}
           </button>
@@ -26,6 +26,7 @@ export default function Admin() {
         {tab === "Users" && <UsersTab isAdmin={user.role === "admin"} />}
         {tab === "Tags" && <CatalogTab ctype="tag" title="Disposition Tags" withColor />}
         {tab === "Dropdowns" && <DropdownsTab />}
+        {tab === "Custom Fields" && <CustomFieldsTab />}
         {tab === "Webhooks" && <WebhooksTab />}
         {tab === "Automations" && <AutomationsTab />}
         {tab === "Assignment" && <AssignmentTab />}
@@ -182,6 +183,116 @@ function DropdownsTab() {
       <CatalogTab ctype="utm_medium" title="UTM Mediums" />
       <CatalogTab ctype="utm_campaign" title="UTM Campaigns" />
       <CatalogTab ctype="activity_type" title="Activity Types" />
+    </div>
+  );
+}
+
+/* ---------- Case 4: self-service custom field builder (like Odoo Studio) ---------- */
+function CustomFieldsTab() {
+  const { refreshCatalogs } = useCatalogs();
+  const [fields, setFields] = useState(null);
+  const [form, setForm] = useState({ label: "", field_type: "char", options: "", section: "qa", aliases: "" });
+
+  const load = () => API.get("/catalogs/custom-fields/all").then(({ data }) => setFields(data));
+  useEffect(() => { load(); }, []);
+
+  const create = async (e) => {
+    e.preventDefault();
+    if (!form.label.trim()) return;
+    try {
+      await API.post("/catalogs/custom-fields/create", {
+        label: form.label.trim(),
+        field_type: form.field_type,
+        options: form.field_type === "selection" ? form.options.split(",").map((s) => s.trim()).filter(Boolean) : [],
+        section: form.section,
+        aliases: form.aliases.split(",").map((s) => s.trim()).filter(Boolean),
+      });
+      toast.success("Custom field created — it now shows on every lead");
+      setForm({ label: "", field_type: "char", options: "", section: "qa", aliases: "" });
+      load(); refreshCatalogs();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const patch = async (fid, updates) => {
+    await API.patch(`/catalogs/custom-fields/${fid}`, updates);
+    load(); refreshCatalogs();
+  };
+
+  if (!fields) return <Spinner />;
+  return (
+    <div className="space-y-4">
+      <div className="hivf-card p-4" data-testid="custom-fields-tab">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Custom Lead Fields</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Works like Odoo Studio — add your own fields here and they instantly appear on every lead form.
+          Add <b>aliases</b> (comma-separated) to auto-capture matching fields from your webhook leads
+          (landing pages, Google Ads / Meta lead forms).
+        </p>
+        <form onSubmit={create} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="custom-field-form">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field label</label>
+            <input data-testid="custom-field-label-input" required className="hivf-input mt-1" placeholder="e.g. Preferred Clinic Location"
+              value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field type</label>
+            <select data-testid="custom-field-type-select" className="hivf-select mt-1 w-full" value={form.field_type}
+              onChange={(e) => setForm((f) => ({ ...f, field_type: e.target.value }))}>
+              <option value="char">Text</option>
+              <option value="selection">Dropdown (selection)</option>
+            </select>
+          </div>
+          {form.field_type === "selection" && (
+            <div className="md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Dropdown options (comma-separated)</label>
+              <input data-testid="custom-field-options-input" className="hivf-input mt-1" placeholder="e.g. Delhi, Noida, Gurgaon"
+                value={form.options} onChange={(e) => setForm((f) => ({ ...f, options: e.target.value }))} />
+            </div>
+          )}
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Show under</label>
+            <select data-testid="custom-field-section-select" className="hivf-select mt-1 w-full" value={form.section}
+              onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
+              <option value="qa">Meta / Google Q&A card</option>
+              <option value="general">Custom Fields card</option>
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Webhook / ads aliases (optional)</label>
+            <input data-testid="custom-field-aliases-input" className="hivf-input mt-1" placeholder="e.g. preferred_location, clinic_city"
+              value={form.aliases} onChange={(e) => setForm((f) => ({ ...f, aliases: e.target.value }))} />
+          </div>
+          <div className="md:col-span-2">
+            <button data-testid="custom-field-create-button" type="submit" className="hivf-btn-primary !py-2"><Plus size={14} /> Add custom field</button>
+          </div>
+        </form>
+      </div>
+
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Existing custom fields ({fields.length})</h3>
+        <div className="mt-3 space-y-2" data-testid="custom-fields-list">
+          {fields.map((f) => (
+            <div key={f.id} className={`flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 p-3 ${f.active === false ? "opacity-40" : ""}`} data-testid={`custom-field-row-${f.id}`}>
+              <div className="min-w-48 flex-1">
+                <p className="text-sm font-bold text-slate-700">{f.label}</p>
+                <p className="text-[11px] text-slate-400">
+                  {f.field_type === "selection" ? `Dropdown: ${(f.options || []).join(", ")}` : "Text"} ·
+                  shows in {f.section === "qa" ? "Meta/Google Q&A" : "Custom Fields"} card
+                  {(f.aliases || []).length > 0 && <> · aliases: {f.aliases.join(", ")}</>}
+                </p>
+              </div>
+              <code className="rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500">{f.key}</code>
+              <button data-testid={`custom-field-toggle-${f.id}`} onClick={() => patch(f.id, { active: f.active === false })}
+                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${f.active !== false ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
+                {f.active !== false ? "ACTIVE" : "OFF"}
+              </button>
+              <button onClick={async () => { if (window.confirm(`Disable field '${f.label}'?`)) { await API.delete(`/catalogs/custom-fields/${f.id}`); load(); refreshCatalogs(); } }}
+                className="text-slate-300 hover:text-rose-500"><Trash size={16} /></button>
+            </div>
+          ))}
+          {fields.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No custom fields yet — add your first one above.</p>}
+        </div>
+      </div>
     </div>
   );
 }

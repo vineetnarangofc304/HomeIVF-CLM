@@ -72,6 +72,12 @@ def sync_catalogs(run):
         upd += u
         if recs:
             db.counters.update_one({"_id": f"catalog_{ctype}"}, {"$max": {"seq": max(r["id"] for r in recs) + 100}}, upsert=True)
+    # refresh lead field labels (used by Meta/Google Q&A panel)
+    fields = call("crm.lead", "fields_get", [], attributes=["string", "type", "selection"])
+    labels = {k: {"label": v.get("string") or k, "type": v.get("type"),
+                  "selection": [sel[0] for sel in (v.get("selection") or [])]}
+              for k, v in fields.items() if k.startswith("x_")}
+    db.settings.update_one({"key": "lead_field_labels"}, {"$set": {"key": "lead_field_labels", "fields": labels}}, upsert=True)
     run.record("catalogs", new, upd)
 
 

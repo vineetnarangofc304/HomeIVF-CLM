@@ -20,11 +20,13 @@ LIST_PROJECTION = {
 
 EDITABLE_FIELDS = {
     "name", "contact_name", "phone", "mobile", "email_from", "city", "state_name",
+    "country", "street",
     "stage_id", "lead_stage", "tags", "user_id", "follow_up_date", "follow_up_tag",
     "appointment_date", "source_lead", "campaign_name", "ads_platform", "ads_campaign_name",
     "ads_name", "description", "priority", "gender", "age", "male_age", "female_age",
     "spouse_name", "spouse_age", "spouse_alternate_no", "query", "remark", "pre_conditions",
     "doctor_name", "lost_reason_id", "custom",
+    "source_id", "medium_id", "campaign_id",
 }
 
 TRACKED = ["stage_id", "lead_stage", "user_id", "tags", "follow_up_date", "follow_up_tag", "lost_reason_id"]
@@ -265,7 +267,9 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     updates["write_uid"] = user["id"]
     await db.leads.update_one({"id": lead_id}, {"$set": updates})
     new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
-    if "stage_id" in updates and updates["stage_id"] != lead.get("stage_id"):
+    stage_changed = ("stage_id" in updates and updates["stage_id"] != lead.get("stage_id")) or \
+                    ("lead_stage" in updates and updates["lead_stage"] != lead.get("lead_stage"))
+    if stage_changed:
         await run_automations("on_stage_set", new_lead)
     if "tags" in updates:
         added = list(set(updates["tags"] or []) - set(lead.get("tags") or []))
@@ -303,6 +307,84 @@ async def restore_lead(lead_id: int, user: dict = Depends(get_current_user)):
     return {"ok": True}
 
 
+class SendWhatsAppBody(BaseModel):
+    template_id: int
+    phone: Optional[str] = None
+
+
+@router.post("/{lead_id}/send_whatsapp")
+async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depends(get_current_user)):
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    template = await db.templates_whatsapp.find_one({"id": body.template_id}, {"_id": 0})
+    if not template:
+        raise HTTPException(status_code=404, detail="Template not found")
+    phone = body.phone or lead.get("phone") or lead.get("mobile")
+    if not phone:
+        raise HTTPException(status_code=400, detail="Lead has no phone number")
+    preview = (template.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
+    await db.outbound_queue.insert_one({
+        "channel": "whatsapp", "lead_id": lead_id, "template_id": template["id"],
+        "template_name": template["name"], "phone": phone, "body": preview,
+        "status": "pending_api_credentials", "requested_by": user["name"],
+        "created_at": now_utc_str(),
+    })
+    # mirror into the lead's WhatsApp thread if one exists
+    digits = re.sub(r"\D", "", phone)[-10:]
+    if len(digits) >= 8:
+        ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}})
+        if ch:
+            mid = await next_id("wa_message")
+            await db.wa_messages.insert_one({
+                "id": mid, "channel_id": ch["id"], "body": preview, "author_name": user["name"],
+                "date": now_utc_str(), "message_type": "comment", "direction": "outbound",
+                "status": "pending_api_credentials",
+            })
+    await log_message(
+        lead_id,
+        f"WhatsApp template <b>{template['name']}</b> queued to {phone} by {user['name']} "
+        f"(sends automatically once WhatsApp API is connected)<br/><span style='color:#64748b'>{preview[:400]}</span>",
+        author=user,
+    )
+    return {"ok": True, "status": "queued", "phone": phone, "template": template["name"]}
+
+
+class SendEmailBody(BaseModel):
+    to: Optional[str] = None
+    subject: str
+    body: str
+    save_as_template: Optional[str] = None
+
+
+@router.post("/{lead_id}/send_email")
+async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get_current_user)):
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    to = (body.to or lead.get("email_from") or "").strip()
+    if not to:
+        raise HTTPException(status_code=400, detail="Lead has no email address — enter one")
+    await db.outbound_queue.insert_one({
+        "channel": "email", "lead_id": lead_id, "to": to, "subject": body.subject,
+        "body": body.body, "status": "pending_api_credentials",
+        "requested_by": user["name"], "created_at": now_utc_str(),
+    })
+    if body.save_as_template:
+        tid = await next_id("template_email")
+        await db.templates_email.insert_one({
+            "id": tid, "name": body.save_as_template, "subject": body.subject,
+            "body": body.body, "active": True, "created_at": now_utc_str(),
+        })
+    await log_message(
+        lead_id,
+        f"Email queued to <b>{to}</b> by {user['name']} (sends automatically once SMTP is connected)"
+        f"<br/><b>Subject:</b> {body.subject}<br/><span style='color:#64748b'>{body.body[:500]}</span>",
+        author=user, subtype="comment",
+    )
+    return {"ok": True, "status": "queued", "to": to}
+
+
 class BulkBody(BaseModel):
     ids: list
     action: str
@@ -332,4 +414,11 @@ async def bulk_action(body: BulkBody, user: dict = Depends(require_roles("admin"
         await db.leads.update_many(q, {"$set": {"follow_up_date": p.get("follow_up_date"), "follow_up_tag": p.get("follow_up_tag")}})
     else:
         raise HTTPException(status_code=400, detail="Unknown action")
+    # Case 8: bulk tag/stage updates also fire automation triggers
+    if body.action in ("add_tags", "set_stage", "set_lead_stage"):
+        async for l in db.leads.find(q, {"_id": 0}):
+            if body.action == "add_tags":
+                await run_automations("on_tag_set", l, {"added_tags": [int(t) for t in p["tags"]]})
+            else:
+                await run_automations("on_stage_set", l)
     return {"ok": True, "count": len(ids)}

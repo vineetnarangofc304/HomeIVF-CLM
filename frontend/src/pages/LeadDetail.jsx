@@ -2,11 +2,11 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
-  ArrowLeft, NotePencil, PaperPlaneTilt, Phone, EnvelopeSimple, MapPin,
-  CalendarCheck, Sparkle, Prohibit, ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, Plus,
+  ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
+  ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
-import { useAuth, useCatalogMaps } from "../context/AuthContext";
+import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
 import { TagChip, Spinner, EmptyState } from "../components/Bits";
 
 export default function LeadDetail() {
@@ -14,6 +14,7 @@ export default function LeadDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { catalogs, tagById, userById, lostById } = useCatalogMaps();
+  const { refreshCatalogs } = useCatalogs();
   const [lead, setLead] = useState(null);
   const [messages, setMessages] = useState([]);
   const [msgTotal, setMsgTotal] = useState(0);
@@ -24,6 +25,9 @@ export default function LeadDetail() {
   const [note, setNote] = useState("");
   const [showActivity, setShowActivity] = useState(false);
   const [showLost, setShowLost] = useState(false);
+  const [showWa, setShowWa] = useState(false);
+  const [showEmail, setShowEmail] = useState(false);
+  const [showNewTag, setShowNewTag] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -46,12 +50,16 @@ export default function LeadDetail() {
 
   useEffect(() => { load(); }, [load]);
 
+  const reloadMessages = async () => {
+    const { data: m } = await API.get(`/leads/${id}/messages`, { params: { page: 1 } });
+    setMessages(m.items); setMsgTotal(m.total); setMsgPage(1);
+  };
+
   const update = async (updates) => {
     try {
       const { data } = await API.patch(`/leads/${id}`, { updates });
       setLead(data);
-      const { data: m } = await API.get(`/leads/${id}/messages`, { params: { page: 1 } });
-      setMessages(m.items); setMsgTotal(m.total); setMsgPage(1);
+      await reloadMessages();
       toast.success("Updated");
     } catch (e) { toast.error(apiErr(e)); }
   };
@@ -75,6 +83,8 @@ export default function LeadDetail() {
   if (!lead) return <Spinner />;
 
   const leadStages = (catalogs?.lead_stage || []).map((s) => s.name);
+  const fieldLabels = catalogs?.field_labels || {};
+  const labelOf = (k) => fieldLabels[k]?.label || k.replace("x_studio_", "").replace(/_/g, " ");
 
   return (
     <div className="h-full overflow-y-auto" data-testid="lead-detail-page">
@@ -86,7 +96,14 @@ export default function LeadDetail() {
             <h1 className="font-display text-lg font-extrabold text-slate-900" data-testid="lead-name">{lead.contact_name || lead.name}</h1>
             <p className="text-xs text-slate-500">#{lead.id} · created {fmtDate(lead.create_date)} {!lead.active && <span className="ml-1 font-bold uppercase text-rose-500">Lost{lead.lost_reason_id ? ` — ${lostById[lead.lost_reason_id]?.name || ""}` : ""}</span>}</p>
           </div>
-          {/* Lead stage stepper */}
+          <button data-testid="send-whatsapp-button" onClick={() => setShowWa(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-600">
+            <WhatsappLogo size={15} weight="bold" /> WhatsApp
+          </button>
+          <button data-testid="send-email-button" onClick={() => setShowEmail(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#4A90E2] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#357ABD]">
+            <EnvelopeSimple size={15} weight="bold" /> Email
+          </button>
           <div className="flex overflow-hidden rounded-full border border-slate-200" data-testid="lead-stage-stepper">
             {leadStages.map((s) => (
               <button key={s} data-testid={`stage-btn-${s.replace(/\s/g, "-")}`} onClick={() => update({ lead_stage: s })}
@@ -106,22 +123,33 @@ export default function LeadDetail() {
       <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-5">
         {/* LEFT: fields */}
         <div className="space-y-4 lg:col-span-2">
-          {/* AI hook */}
           <div className="rounded-2xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#8B5CF6]/5 to-[#4A90E2]/5 p-4">
             <div className="flex items-center gap-2 text-[#8B5CF6]"><Sparkle size={15} weight="fill" /><span className="text-xs font-bold">AI Summary</span></div>
             <p className="mt-1 text-xs text-slate-500">AI insights & next-best-action arrive in Phase 2.</p>
           </div>
 
-          <FieldCard title="Contact" lead={lead} onSave={update} fields={[
-            ["contact_name", "Name"], ["phone", "Phone"], ["email_from", "Email"],
-            ["city", "City"], ["state_name", "State"],
-          ]} icons={{ phone: Phone, email_from: EnvelopeSimple, city: MapPin }} />
+          <FieldCard title="Contact" lead={lead} onSave={update}
+            fields={[
+              ["contact_name", "Name"], ["phone", "Phone"], ["email_from", "Email"],
+              ["street", "Address"], ["city", "City"],
+              ["state_name", "State", "select"], ["country", "Country", "select"],
+            ]}
+            selects={{
+              state_name: (catalogs?.state || []).map((s) => s.name),
+              country: (catalogs?.country || []).map((c) => c.name),
+            }} />
+
+          {/* Meta / Google Q&A — Case 3 */}
+          <QACard lead={lead} onSave={update} catalogs={catalogs} labelOf={labelOf} />
 
           <FieldCard title="Case Details" lead={lead} onSave={update} fields={[
             ["gender", "Gender"], ["age", "Age"], ["male_age", "Male Age"], ["female_age", "Female Age"],
             ["spouse_name", "Spouse Name"], ["spouse_age", "Spouse Age"], ["pre_conditions", "Pre-conditions"],
             ["doctor_name", "Doctor"], ["query", "Query"], ["remark", "Remark"],
           ]} />
+
+          {/* Admin-defined custom fields (Case 4) — general section */}
+          <CustomFieldsCard lead={lead} onSave={update} catalogs={catalogs} />
 
           {/* Assignment & follow-up */}
           <div className="hivf-card p-4">
@@ -152,9 +180,15 @@ export default function LeadDetail() {
             </div>
           </div>
 
-          {/* Tags */}
+          {/* Tags — Case 2: inline new-tag creation */}
           <div className="hivf-card p-4">
-            <h3 className="mb-2 font-display text-sm font-extrabold text-slate-800">Disposition Tags</h3>
+            <div className="flex items-center justify-between">
+              <h3 className="mb-2 font-display text-sm font-extrabold text-slate-800">Disposition Tags</h3>
+              <button data-testid="new-tag-button" onClick={() => setShowNewTag(true)}
+                className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#4A90E2]/50 px-2.5 py-1 text-[11px] font-bold text-[#357ABD] transition-colors hover:bg-[#4A90E2]/10">
+                <Plus size={12} /> New tag
+              </button>
+            </div>
             <div className="flex flex-wrap gap-1.5" data-testid="lead-tags">
               {(lead.tags || []).map((t) => (
                 <TagChip key={t} tag={tagById[t]} onRemove={() => update({ tags: lead.tags.filter((x) => x !== t) })} />
@@ -167,19 +201,28 @@ export default function LeadDetail() {
             </select>
           </div>
 
-          <FieldCard title="Attribution" lead={lead} onSave={update} fields={[
-            ["source_lead", "Source"], ["ads_platform", "Ads Platform"], ["campaign_name", "Campaign"],
-            ["ads_campaign_name", "Ads Campaign"], ["ads_name", "Ad Name"],
-          ]} extra={[["Medium", lead.medium_id], ["UTM Source", lead.source_id], ["UTM Campaign", lead.campaign_id]]} />
+          {/* Attribution + UTM — Case 7 */}
+          <FieldCard title="Attribution" lead={lead} onSave={update}
+            fields={[
+              ["source_lead", "Source"], ["ads_platform", "Ads Platform"], ["campaign_name", "Campaign"],
+              ["ads_campaign_name", "Ads Campaign"], ["ads_name", "Ad Name"],
+              ["source_id", "UTM Source", "select"], ["medium_id", "UTM Medium", "select"],
+              ["campaign_id", "UTM Campaign", "select"],
+            ]}
+            selects={{
+              source_id: (catalogs?.utm_source || []).map((s) => s.name),
+              medium_id: (catalogs?.utm_medium || []).map((s) => s.name),
+              campaign_id: (catalogs?.utm_campaign || []).map((s) => s.name),
+            }} />
 
-          {/* Raw odoo fields */}
+          {/* Raw odoo fields with proper labels */}
           {lead.custom && Object.keys(lead.custom).length > 0 && (
             <details className="hivf-card p-4">
               <summary className="cursor-pointer font-display text-sm font-extrabold text-slate-800">All Odoo fields ({Object.keys(lead.custom).length})</summary>
               <div className="mt-3 max-h-72 space-y-1 overflow-y-auto text-xs">
                 {Object.entries(lead.custom).map(([k, v]) => (
                   <div key={k} className="flex gap-2 border-b border-slate-50 py-1">
-                    <span className="w-1/2 shrink-0 truncate font-semibold text-slate-500" title={k}>{k.replace("x_studio_", "")}</span>
+                    <span className="w-1/2 shrink-0 truncate font-semibold text-slate-500" title={k}>{labelOf(k)}</span>
                     <span className="text-slate-700">{Array.isArray(v) ? v[1] ?? v.join(",") : String(v)}</span>
                   </div>
                 ))}
@@ -270,11 +313,145 @@ export default function LeadDetail() {
 
       {showActivity && <ActivityModal leadId={lead.id} onClose={() => setShowActivity(false)} onSaved={() => { setShowActivity(false); load(); }} catalogs={catalogs} />}
       {showLost && <LostModal leadId={lead.id} onClose={() => setShowLost(false)} onSaved={() => { setShowLost(false); load(); }} catalogs={catalogs} />}
+      {showWa && <SendWhatsAppModal lead={lead} onClose={() => setShowWa(false)} onSent={() => { setShowWa(false); reloadMessages(); }} />}
+      {showEmail && <SendEmailModal lead={lead} onClose={() => setShowEmail(false)} onSent={() => { setShowEmail(false); reloadMessages(); }} />}
+      {showNewTag && <NewTagModal onClose={() => setShowNewTag(false)} onCreated={async (tag) => {
+        setShowNewTag(false);
+        await refreshCatalogs();
+        if (!(lead.tags || []).includes(tag.id)) update({ tags: [...(lead.tags || []), tag.id] });
+      }} />}
     </div>
   );
 }
 
-function FieldCard({ title, lead, onSave, fields, extra = [] }) {
+/* ---------- Meta / Google Q&A (Case 3) ---------- */
+function QACard({ lead, onSave, catalogs, labelOf }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({});
+  const fieldLabels = catalogs?.field_labels || {};
+  const customDefs = (catalogs?.custom_fields || []).filter((f) => f.active && f.section === "qa");
+
+  const isQuestion = (k) => {
+    const lbl = fieldLabels[k]?.label || "";
+    return lbl.includes("?") || /want_to_consult|tried_ivf|trying_to_conceive|treatment_before|health_issues|genetic|sperm_test|working_couple|fertility_treatment/i.test(k);
+  };
+  const odooQa = Object.entries(lead.custom || {})
+    .filter(([k, v]) => isQuestion(k) && v !== null && v !== "")
+    .map(([k, v]) => ({ key: k, label: labelOf(k), value: Array.isArray(v) ? v[1] ?? v.join(",") : String(v) }));
+  const defined = customDefs.map((d) => ({
+    key: d.key, label: d.label, value: lead.custom?.[d.key] != null ? String(lead.custom[d.key]) : "",
+    options: d.field_type === "selection" ? d.options : null,
+  }));
+  const seen = new Set(defined.map((e) => e.key));
+  const entries = [...defined, ...odooQa.filter((e) => !seen.has(e.key))];
+
+  if (entries.length === 0) return null;
+
+  const startEdit = () => {
+    setDraft(Object.fromEntries(entries.map((e) => [e.key, e.value])));
+    setEditing(true);
+  };
+  const save = () => {
+    const changed = {};
+    entries.forEach((e) => { if ((draft[e.key] ?? "") !== e.value) changed[e.key] = draft[e.key] || null; });
+    if (Object.keys(changed).length) onSave({ custom: changed });
+    setEditing(false);
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-[#8B5CF6]/25 bg-white p-4" data-testid="qa-card">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-display text-sm font-extrabold text-[#8B5CF6]">Meta / Google Q&A</h3>
+        {editing ? (
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="text-xs font-bold text-slate-400">Cancel</button>
+            <button data-testid="qa-save-button" onClick={save} className="text-xs font-bold text-[#357ABD]">Save</button>
+          </div>
+        ) : (
+          <button data-testid="qa-edit-button" onClick={startEdit} className="text-slate-300 hover:text-[#8B5CF6]"><NotePencil size={16} /></button>
+        )}
+      </div>
+      <p className="mb-3 text-[11px] text-slate-400">Answers the customer submitted on the ad / landing page — confirm these on the call.</p>
+      <div className="space-y-2">
+        {entries.map((e) => (
+          <div key={e.key} className="rounded-lg bg-[#8B5CF6]/5 px-3 py-2">
+            <p className="text-[11px] font-bold text-slate-500">{e.label}</p>
+            {editing ? (
+              e.options ? (
+                <select className="hivf-select mt-1 w-full !py-1" value={draft[e.key] || ""} onChange={(ev) => setDraft((d) => ({ ...d, [e.key]: ev.target.value }))} data-testid={`qa-input-${e.key}`}>
+                  <option value="">—</option>
+                  {e.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input className="hivf-input mt-1 !py-1" value={draft[e.key] || ""} onChange={(ev) => setDraft((d) => ({ ...d, [e.key]: ev.target.value }))} data-testid={`qa-input-${e.key}`} />
+              )
+            ) : (
+              <p className="text-sm font-semibold text-slate-800" data-testid={`qa-value-${e.key}`}>{e.value || <span className="text-slate-300">—</span>}</p>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Admin-defined custom fields (Case 4) ---------- */
+function CustomFieldsCard({ lead, onSave, catalogs }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({});
+  const defs = (catalogs?.custom_fields || []).filter((f) => f.active !== false && f.section === "general");
+  if (defs.length === 0) return null;
+
+  const valueOf = (d) => (lead.custom?.[d.key] != null ? String(lead.custom[d.key]) : "");
+  const startEdit = () => {
+    setDraft(Object.fromEntries(defs.map((d) => [d.key, valueOf(d)])));
+    setEditing(true);
+  };
+  const save = () => {
+    const changed = {};
+    defs.forEach((d) => { if ((draft[d.key] ?? "") !== valueOf(d)) changed[d.key] = draft[d.key] || null; });
+    if (Object.keys(changed).length) onSave({ custom: changed });
+    setEditing(false);
+  };
+
+  return (
+    <div className="hivf-card p-4" data-testid="custom-fields-card">
+      <div className="mb-2 flex items-center justify-between">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Custom Fields</h3>
+        {editing ? (
+          <div className="flex gap-2">
+            <button onClick={() => setEditing(false)} className="text-xs font-bold text-slate-400">Cancel</button>
+            <button data-testid="custom-fields-save-button" onClick={save} className="text-xs font-bold text-[#357ABD]">Save</button>
+          </div>
+        ) : (
+          <button data-testid="custom-fields-edit-button" onClick={startEdit} className="text-slate-300 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        {defs.map((d) => (
+          <div key={d.key} className="flex items-center gap-2 text-sm">
+            <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{d.label}</span>
+            {editing ? (
+              d.field_type === "selection" ? (
+                <select className="hivf-select w-full !py-1" value={draft[d.key] || ""} onChange={(e) => setDraft((dr) => ({ ...dr, [d.key]: e.target.value }))} data-testid={`custom-field-input-${d.key}`}>
+                  <option value="">—</option>
+                  {(d.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input className="hivf-input !py-1" value={draft[d.key] || ""} onChange={(e) => setDraft((dr) => ({ ...dr, [d.key]: e.target.value }))} data-testid={`custom-field-input-${d.key}`} />
+              )
+            ) : (
+              <span className="truncate text-slate-700" data-testid={`custom-field-value-${d.key}`}>{valueOf(d) || <span className="text-slate-300">—</span>}</span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- field card with select support (Cases 1 & 7) ---------- */
+function FieldCard({ title, lead, onSave, fields, selects = {} }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
 
@@ -303,23 +480,203 @@ function FieldCard({ title, lead, onSave, fields, extra = [] }) {
         )}
       </div>
       <div className="space-y-1.5">
-        {fields.map(([k, label]) => (
+        {fields.map(([k, label, type]) => (
           <div key={k} className="flex items-center gap-2 text-sm">
             <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
             {editing ? (
-              <input className="hivf-input !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`} />
+              type === "select" && selects[k] ? (
+                <select className="hivf-select w-full !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`}>
+                  <option value="">—</option>
+                  {draft[k] && !selects[k].includes(draft[k]) && <option value={draft[k]}>{draft[k]}</option>}
+                  {selects[k].map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              ) : (
+                <input className="hivf-input !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`} />
+              )
             ) : (
               <span className="truncate text-slate-700" data-testid={`field-value-${k}`}>{lead[k] || <span className="text-slate-300">—</span>}</span>
             )}
           </div>
         ))}
-        {extra.map(([label, val]) => val && (
-          <div key={label} className="flex items-center gap-2 text-sm">
-            <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
-            <span className="truncate text-slate-500">{val}</span>
-          </div>
-        ))}
       </div>
+    </div>
+  );
+}
+
+/* ---------- Send WhatsApp template (Case 5) ---------- */
+function SendWhatsAppModal({ lead, onClose, onSent }) {
+  const [templates, setTemplates] = useState(null);
+  const [search, setSearch] = useState("");
+  const [selected, setSelected] = useState(null);
+  const [phone, setPhone] = useState(lead.phone || lead.mobile || "");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    API.get("/templates/whatsapp").then(({ data }) => setTemplates(data.filter((t) => t.active !== false)));
+  }, []);
+
+  const filtered = (templates || []).filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
+  const preview = selected ? (selected.body || "").replace("{{1}}", lead.contact_name || lead.name || "") : "";
+
+  const send = async () => {
+    if (!selected) return toast.error("Choose a template");
+    setSending(true);
+    try {
+      await API.post(`/leads/${lead.id}/send_whatsapp`, { template_id: selected.id, phone });
+      toast.success(`Queued '${selected.name}' to ${phone} — sends when WhatsApp API is connected`);
+      onSent();
+    } catch (e) { toast.error(apiErr(e)); } finally { setSending(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-2xl bg-white p-6 shadow-xl" data-testid="send-whatsapp-modal">
+        <h3 className="font-display text-lg font-extrabold text-slate-900"><WhatsappLogo size={20} className="mr-1 inline text-emerald-500" weight="duotone" />Send WhatsApp Message</h3>
+        <div className="mt-3 space-y-3 overflow-y-auto">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone</label>
+            <input data-testid="wa-phone-input" className="hivf-input mt-1" value={phone} onChange={(e) => setPhone(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Template</label>
+            <input data-testid="wa-template-search" className="hivf-input mt-1" placeholder="Search templates…" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <div className="mt-2 max-h-44 space-y-1 overflow-y-auto rounded-xl border border-slate-100 p-2" data-testid="wa-template-list">
+              {templates === null ? <Spinner /> : filtered.map((t) => (
+                <button key={t.id} data-testid={`wa-template-option-${t.id}`} onClick={() => setSelected(t)}
+                  className={`flex w-full items-center justify-between rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors ${selected?.id === t.id ? "bg-emerald-50 font-bold text-emerald-700" : "hover:bg-slate-50 text-slate-600"}`}>
+                  <span className="truncate">{t.name}</span>
+                  {t.status && <span className={`ml-2 shrink-0 rounded-full px-1.5 text-[9px] font-bold ${t.status === "approved" ? "bg-emerald-100 text-emerald-600" : "bg-amber-100 text-amber-600"}`}>{t.status}</span>}
+                </button>
+              ))}
+              {templates !== null && filtered.length === 0 && <p className="py-3 text-center text-xs text-slate-400">No templates match</p>}
+            </div>
+          </div>
+          {selected && (
+            <div className="rounded-xl bg-emerald-50/60 p-3" data-testid="wa-preview">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Preview</p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{preview}</p>
+            </div>
+          )}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+          <button data-testid="wa-send-submit" onClick={send} disabled={sending || !selected}
+            className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50">
+            <PaperPlaneTilt size={15} /> {sending ? "Queuing…" : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Compose Email (Case 6) ---------- */
+function SendEmailModal({ lead, onClose, onSent }) {
+  const [templates, setTemplates] = useState([]);
+  const [to, setTo] = useState(lead.email_from || "");
+  const [subject, setSubject] = useState("");
+  const [body, setBody] = useState("");
+  const [saveAs, setSaveAs] = useState(false);
+  const [saveName, setSaveName] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    API.get("/templates/email").then(({ data }) => setTemplates(data.filter((t) => t.active !== false)));
+  }, []);
+
+  const applyTemplate = (id) => {
+    const t = templates.find((x) => x.id === parseInt(id));
+    if (!t) return;
+    setSubject((t.subject || t.name || "").replace(/\{\{.*?\}\}/g, lead.contact_name || ""));
+    setBody(t.body || "");
+  };
+
+  const send = async () => {
+    if (!subject.trim() || !body.trim()) return toast.error("Subject and body are required");
+    setSending(true);
+    try {
+      await API.post(`/leads/${lead.id}/send_email`, {
+        to, subject: subject.trim(), body,
+        save_as_template: saveAs && saveName.trim() ? saveName.trim() : null,
+      });
+      toast.success(`Email queued to ${to} — sends when SMTP is connected`);
+      onSent();
+    } catch (e) { toast.error(apiErr(e)); } finally { setSending(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="flex max-h-[88vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-6 shadow-xl" data-testid="send-email-modal">
+        <h3 className="font-display text-lg font-extrabold text-slate-900"><EnvelopeSimple size={20} className="mr-1 inline text-[#4A90E2]" weight="duotone" />Compose Email</h3>
+        <div className="mt-3 space-y-3 overflow-y-auto">
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</label>
+              <input data-testid="email-to-input" className="hivf-input mt-1" value={to} onChange={(e) => setTo(e.target.value)} placeholder="customer@email.com" />
+            </div>
+            <div className="flex-1">
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Select a template</label>
+              <select data-testid="email-template-select" className="hivf-select mt-1 w-full" value="" onChange={(e) => e.target.value && applyTemplate(e.target.value)}>
+                <option value="">Choose…</option>
+                {templates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Subject</label>
+            <input data-testid="email-subject-input" className="hivf-input mt-1" value={subject} onChange={(e) => setSubject(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Body (HTML supported)</label>
+            <textarea data-testid="email-body-input" rows={8} className="hivf-input mt-1 font-mono text-xs" value={body} onChange={(e) => setBody(e.target.value)} />
+          </div>
+          {body && (
+            <details className="rounded-xl border border-slate-100 p-3">
+              <summary className="cursor-pointer text-xs font-bold text-slate-500">Preview</summary>
+              <div className="chatter-body mt-2 max-h-48 overflow-y-auto text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: body }} />
+            </details>
+          )}
+          <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
+            <input type="checkbox" data-testid="email-save-template-checkbox" checked={saveAs} onChange={(e) => setSaveAs(e.target.checked)} />
+            Save as template
+            {saveAs && <input className="hivf-input !w-56 !py-1" placeholder="Template name" value={saveName} onChange={(e) => setSaveName(e.target.value)} data-testid="email-save-template-name" />}
+          </label>
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onClose} className="hivf-btn-secondary">Discard</button>
+          <button data-testid="email-send-submit" onClick={send} disabled={sending} className="hivf-btn-primary">
+            <PaperPlaneTilt size={15} /> {sending ? "Queuing…" : "Send"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- New tag popup (Case 2) ---------- */
+function NewTagModal({ onClose, onCreated }) {
+  const [name, setName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return;
+    setSaving(true);
+    try {
+      const { data } = await API.post("/catalogs/tag", { name: name.trim(), color: Math.floor(Math.random() * 11) + 1 });
+      toast.success(`Tag '${data.name}' ready`);
+      onCreated(data);
+    } catch (err) { toast.error(apiErr(err)); } finally { setSaving(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <form onSubmit={submit} onClick={(e) => e.stopPropagation()} className="w-full max-w-xs rounded-2xl bg-white p-6 shadow-xl" data-testid="new-tag-modal">
+        <h3 className="font-display text-lg font-extrabold text-slate-900">New Disposition Tag</h3>
+        <input data-testid="new-tag-name-input" autoFocus required className="hivf-input mt-4" placeholder="Tag name" value={name} onChange={(e) => setName(e.target.value)} />
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+          <button data-testid="new-tag-submit" type="submit" disabled={saving} className="hivf-btn-primary">{saving ? "Creating…" : "Create & Add"}</button>
+        </div>
+      </form>
     </div>
   );
 }
