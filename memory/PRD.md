@@ -57,6 +57,19 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - New endpoints: GET /api/admin/sync/status, POST /api/admin/sync/start (admin-only, 409 if already running, stale-run recovery), GET /api/admin/sync/runs(+/{id}). New tests: tests/test_sync.py.
 - ⚠️ DEPLOYMENT NOTE: production (hi-connect-1687.emergent.host) has its OWN empty database — after redeploying these features, click "Sync Now" there once: it auto-detects empty DB and runs the full import into production.
 
+## Implemented (2026-06-12, batch 4) — "CRM Testing Points" PDF: ALL 8 CASES COMPLETE & TESTED (iteration_3: 25/25 case tests pass)
+- Case 1: Address (street) + City + State dropdown (36 states) + Country dropdown (19) on lead Contact card — editable, persisted
+- Case 2: "New tag" button + popup on lead detail; any user can create disposition tags (matches Odoo); tag auto-added to lead + global catalog
+- Case 3: "Meta / Google Q&A" card on lead detail — landing-page/ads questionnaire answers shown separately with heading, editable, for agent confirmation on calls
+- Case 4: Custom Fields builder (Admin > Custom Fields tab) — like Odoo Studio: label, text/dropdown type, section (Q&A card or Custom Fields card), webhook/ads aliases for auto-capture from landing pages & Google/Meta lead forms; fields instantly render + editable on every lead; webhook intake maps aliases → lead.custom
+- Case 5: WhatsApp template popup on lead (55 templates, search + preview + phone override) → queues to outbound_queue + chatter log (live send once Meta API connected)
+- Case 6: Compose Email modal on lead (To/Subject/HTML body, 32 templates, save-as-template) → queues + chatter log (live once SMTP connected)
+- Case 7: UTM Source / UTM Medium / UTM Campaign dropdowns on Attribution card (catalogs utm_*, managed in Admin > Dropdowns)
+- Case 8: Automation triggers (Admin > Automations): when tag added / lead stage changes / lead created → send WhatsApp template, send email template, add tag, set stage, assign. FIXED bug: on_stage_set now fires on lead_stage change (UI stepper), not only stage_id; bulk add_tags/set_stage/set_lead_stage now fire automations per lead
+- Bug fixes: catalogs.py route-ordering (custom-fields PATCH/DELETE 404 — specific routes now before generic /{ctype}/{cid}); reports.py trends + caller_day heatmap 500s (KeyError on missing $group _id keys → .get())
+- All TEST_* artifacts purged from DB (50 leads, 22 tags, 13 fields, 10 webhooks)
+- New test suite: tests/test_crm_8_cases.py (25 tests)
+
 ## Backlog
 ### P0 (Phase 1.5 — needs user API credentials)
 - Meta WhatsApp Business API live send/receive (process outbound_queue, webhook for inbound)
@@ -65,6 +78,8 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Cutover plan (user-confirmed 2026-06-12)
+- NO scheduled auto-sync needed. One final incremental "Sync Now" just before switching off Odoo, then run standalone.
 ### P2
 - Custom lead form builder (hosted forms posting to webhooks)
 - Duplicate field cleanup (user deferred), lead dedupe/merge by phone

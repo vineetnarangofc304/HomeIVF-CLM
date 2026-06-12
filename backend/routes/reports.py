@@ -172,10 +172,10 @@ async def trends(granularity: str = "day", date_from: Optional[str] = None,
 
     periods = {}
     for r in data:
-        p = r["_id"]["p"]
+        p = r["_id"].get("p")
         if not p:
             continue
-        s = r["_id"]["s"] or "Undefined"
+        s = r["_id"].get("s") or "Undefined"
         node = periods.setdefault(p, {"period": p, "total": 0})
         node[s] = node.get(s, 0) + r["count"]
         node["total"] += r["count"]
@@ -211,8 +211,8 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
         ]).to_list(5000)
         users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
         return {"type": "caller_day", "date_from": date_from,
-                "cells": [{"user_id": r["_id"]["u"], "user": users.get(r["_id"]["u"], "Unassigned"),
-                           "day": r["_id"]["d"], "count": r["count"]} for r in data]}
+                "cells": [{"user_id": r["_id"].get("u"), "user": users.get(r["_id"].get("u"), "Unassigned"),
+                           "day": r["_id"].get("d"), "count": r["count"]} for r in data if r["_id"].get("d")]}
     raise HTTPException(status_code=400, detail="Invalid heatmap type")
 
 
