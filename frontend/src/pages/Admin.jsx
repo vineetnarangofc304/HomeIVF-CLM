@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash, ArrowsClockwise, Copy } from "@phosphor-icons/react";
-import { API, apiErr } from "../lib/api";
+import { Plus, Trash, ArrowsClockwise, Copy, Phone } from "@phosphor-icons/react";
+import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Migration"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -30,6 +30,7 @@ export default function Admin() {
         {tab === "Webhooks" && <WebhooksTab />}
         {tab === "Automations" && <AutomationsTab />}
         {tab === "Assignment" && <AssignmentTab />}
+        {tab === "Telephony" && <TelephonyTab isAdmin={user.role === "admin"} />}
         {tab === "Migration" && <MigrationTab />}
       </div>
     </div>
@@ -498,6 +499,142 @@ function AssignmentTab() {
             {u.name} <span className="text-[10px] text-slate-400">({u.role})</span>
           </label>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function TelephonyTab({ isAdmin }) {
+  const [cfg, setCfg] = useState(null);
+  const [users, setUsers] = useState(null);
+  const [calls, setCalls] = useState(null);
+  const screenPopUrl = `${window.location.origin}/screen-pop`;
+
+  const loadCfg = () => API.get("/admin/settings").then(({ data }) =>
+    setCfg(data.ozonetel || { domain: "in1-ccaas-api.ozonetel.com", username: "", api_key: "", campaign_name: "", priority: "" }));
+  const loadUsers = () => API.get("/users").then(({ data }) => setUsers(data));
+  const loadCalls = () => API.get("/calls", { params: { limit: 20 } }).then(({ data }) => setCalls(data.items));
+  useEffect(() => { loadCfg(); loadUsers(); loadCalls(); }, []);
+
+  const saveCfg = async (e) => {
+    e.preventDefault();
+    try {
+      await API.patch("/admin/settings", {
+        key: "ozonetel",
+        value: {
+          domain: (cfg.domain || "in1-ccaas-api.ozonetel.com").trim(),
+          username: (cfg.username || "").trim(),
+          api_key: (cfg.api_key || "").trim(),
+          campaign_name: (cfg.campaign_name || "").trim(),
+          priority: (cfg.priority || "").toString().trim(),
+        },
+      });
+      toast.success("Ozonetel settings saved");
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const patchUser = async (id, updates) => {
+    try { await API.patch(`/users/${id}`, updates); loadUsers(); toast.success("Agent mapping saved"); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
+
+  if (!cfg) return <Spinner />;
+  return (
+    <div className="space-y-4" data-testid="telephony-tab">
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Ozonetel Telephony</h3>
+        <p className="mt-1 text-xs text-slate-500">
+          Incoming calls pop the matching lead on the agent's screen. Configure your CloudAgent account below,
+          then paste the Screen-Pop URL into Ozonetel (Admin → Settings → Screen Pop URL).
+        </p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#4A90E2]/5 p-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Screen-Pop URL</span>
+          <code className="flex-1 truncate rounded-lg bg-white px-2 py-1.5 text-[11px] text-slate-600" data-testid="screen-pop-url">{screenPopUrl}?phoneNumber=&#123;phoneNumber&#125;&amp;ucid=&#123;ucid&#125;&amp;callerID=&#123;callerID&#125;&amp;did=&#123;did&#125;&amp;agentID=&#123;agentID&#125;&amp;phoneName=&#123;phoneName&#125;</code>
+          <button title="Copy URL" onClick={() => { navigator.clipboard.writeText(screenPopUrl); toast.success("Copied"); }} className="text-slate-400 hover:text-[#4A90E2]"><Copy size={16} /></button>
+        </div>
+
+        <form onSubmit={saveCfg} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">API Domain</label>
+            <input data-testid="ozonetel-domain-input" disabled={!isAdmin} className="hivf-input mt-1" placeholder="in1-ccaas-api.ozonetel.com"
+              value={cfg.domain || ""} onChange={(e) => setCfg((c) => ({ ...c, domain: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">CloudAgent Username</label>
+            <input data-testid="ozonetel-username-input" disabled={!isAdmin} className="hivf-input mt-1" placeholder="homeivf"
+              value={cfg.username || ""} onChange={(e) => setCfg((c) => ({ ...c, username: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">API Key</label>
+            <input data-testid="ozonetel-apikey-input" disabled={!isAdmin} className="hivf-input mt-1" placeholder="KK…"
+              value={cfg.api_key || ""} onChange={(e) => setCfg((c) => ({ ...c, api_key: e.target.value }))} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Outbound Campaign (for click-to-dial)</label>
+            <input data-testid="ozonetel-campaign-input" disabled={!isAdmin} className="hivf-input mt-1" placeholder="e.g. HomeIVF_Outbound"
+              value={cfg.campaign_name || ""} onChange={(e) => setCfg((c) => ({ ...c, campaign_name: e.target.value }))} />
+          </div>
+          {isAdmin && (
+            <div className="md:col-span-2">
+              <button data-testid="save-ozonetel-button" type="submit" className="hivf-btn-primary !py-2"><Phone size={14} /> Save Telephony Settings</button>
+            </div>
+          )}
+        </form>
+      </div>
+
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Agent Mapping</h3>
+        <p className="mt-1 text-xs text-slate-500">Map each CRM agent to their Ozonetel Agent ID (or login name) so incoming calls pop on the right person's screen.</p>
+        {!users ? <Spinner /> : (
+          <table className="mt-3 w-full text-sm" data-testid="agent-mapping-table">
+            <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="py-2">Agent</th><th className="py-2">Ozonetel Agent ID</th><th className="py-2">Ozonetel Login Name</th></tr></thead>
+            <tbody>
+              {users.filter((u) => u.active).map((u) => (
+                <tr key={u.id} className="border-b border-slate-50">
+                  <td className="py-2 font-semibold text-slate-700">{u.name} <span className="text-[10px] text-slate-400">({u.role})</span></td>
+                  <td className="py-2">
+                    <input data-testid={`agent-id-input-${u.id}`} disabled={!isAdmin} defaultValue={u.ozonetel_agent_id || ""} placeholder="e.g. 84822"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (u.ozonetel_agent_id || "")) patchUser(u.id, { ozonetel_agent_id: v }); }}
+                      className="hivf-input !w-36 !py-1 text-xs" />
+                  </td>
+                  <td className="py-2">
+                    <input data-testid={`agent-name-input-${u.id}`} disabled={!isAdmin} defaultValue={u.ozonetel_phone_name || ""} placeholder="e.g. agent1"
+                      onBlur={(e) => { const v = e.target.value.trim(); if (v !== (u.ozonetel_phone_name || "")) patchUser(u.id, { ozonetel_phone_name: v }); }}
+                      className="hivf-input !w-36 !py-1 text-xs" />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <div className="hivf-card p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Recent Calls</h3>
+          <button onClick={loadCalls} className="hivf-btn-secondary !py-1.5 text-xs"><ArrowsClockwise size={14} /> Refresh</button>
+        </div>
+        {!calls ? <Spinner /> : calls.length === 0 ? (
+          <p className="py-6 text-center text-sm text-slate-400">No calls logged yet. Calls appear here as Ozonetel routes them.</p>
+        ) : (
+          <table className="mt-3 w-full text-sm" data-testid="recent-calls-table">
+            <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="py-2">Direction</th><th className="py-2">Number</th><th className="py-2">Lead</th><th className="py-2">Agent</th><th className="py-2">When</th></tr></thead>
+            <tbody>
+              {calls.map((c) => (
+                <tr key={c.id} className="border-b border-slate-50">
+                  <td className="py-2 capitalize text-slate-600">{c.direction}</td>
+                  <td className="py-2 text-slate-700">{c.phone || "—"}</td>
+                  <td className="py-2">{c.lead_id ? <a className="font-semibold text-[#357ABD]" href={`/leads/${c.lead_id}`}>{c.lead_name || `#${c.lead_id}`}</a> : <span className="text-slate-400">No match</span>}</td>
+                  <td className="py-2 text-slate-500">{c.agent_name || c.agent_phone_name || "—"}</td>
+                  <td className="py-2 text-xs text-slate-400">{fmtDate(c.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

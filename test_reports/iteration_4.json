@@ -1,0 +1,38 @@
+{
+  "summary": "Iteration 4 — Full validation of Ozonetel telephony integration + 'Powered by TifTech' branding rebrand. Backend: 8/8 tests in test_calls.py PASS (screenpop match/idempotent/no-match, lead call history, calls list, agent mapping persistence, active-call for mapped agent, dial-requires-campaign guard). Frontend e2e: branding verified everywhere (Login page, sidebar 'POWERED BY TIFTECH', browser tab 'HomeIVF CRM | Powered by TifTech'), no 'TagQuest' string remains anywhere. Admin > Telephony tab fully working: all 8 testids present (telephony-tab, ozonetel-domain-input, ozonetel-username-input pre-filled 'homeivf', ozonetel-apikey-input pre-filled 34-char key, ozonetel-campaign-input, save-ozonetel-button → 'Ozonetel settings saved' toast, screen-pop-url displayed with full URL, agent-mapping-table). Agent mapping flow: setting agent-id-input-1 → blur → 'Agent mapping saved' toast confirmed (toast found via DOM scan). Lead detail page (lead #118704 Ranveer saran): click-to-dial-button + tab-calls present, Calls tab shows lead-calls-list with 2 incoming-call entries logged by screenpop calls. Clicking Call button surfaces expected graceful error toast 'Ozonetel is not configured (Admin → Telephony). Need API key, username & campaign.' (HTTP 400 from /api/calls/dial — CORRECT per spec). Public /screen-pop page: real lead phone 6375430919 matched correctly, screen-pop-matched + screen-pop-lead-name='Ranveer saran' rendered; phone 0000000001 correctly renders screen-pop-no-match. Incoming-call banner e2e PASSED: after setting admin.ozonetel_agent_id=QAAGENT1 and hitting /api/calls/ozonetel/screenpop with agentID=QAAGENT1, banner (data-testid='incoming-call-banner') appeared within ~5s on admin's page with banner-phone='6375430919', banner-open-lead and dismiss-call-banner buttons; dismiss removed banner from DOM. /api/calls/active also returned the live active call payload with full lead object. Admin's ozonetel_agent_id was reverted to empty post-test (verified 200 PATCH).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calls.py",
+    "/app/test_reports/pytest/iter4_calls.xml"
+  ],
+  "action_items": [
+    "Purge QA test artifacts created during this iteration: db.call_events.delete_many({ucid: {$in: ['QAUCID123','QASCRPOP1','QABANNER999','QANOMATCH456']}}) and db.messages.delete_many({lead_id: 118704, body: {$regex: 'Incoming call'}, created_at: {$gte: <today>}}). All artifacts use QA-prefixed ucids per testing instructions.",
+    "(Optional) The Admin Telephony tab currently exposes the full API key in plain text on screen. Consider masking (show last 4 chars) since this UI is visible to any user who can reach /admin (admin role only — lower priority)."
+  ],
+  "critical_code_review_comments": [
+    "routes/calls.py — screenpop is correctly idempotent on (ucid) and gracefully no-matches when phone has no lead. agent→user mapping via ozonetel_agent_id works end-to-end and surfaces on /api/calls/active polling. ✓",
+    "ScreenPop.jsx is correctly registered as a PUBLIC route outside Protected (verified by directly loading /screen-pop in fresh context — page rendered without redirect to /login). ✓",
+    "IncomingCallBanner.jsx polling at 5s interval is acceptable for the use case; consider exponential backoff or websockets if ringing volume grows. Current implementation handles dismiss → banner removed from DOM correctly. ✓",
+    "Telephony /dial endpoint correctly returns HTTP 400 with 'Ozonetel is not configured ... Need API key, username & campaign' message — graceful failure mode confirmed both at API level and via frontend toast. ✓",
+    "Branding: confirmed zero 'TagQuest' references in /app/frontend/src — all replaced with 'TifTech' in Login.jsx (2 spots), Layout.jsx (sidebar footer), ScreenPop.jsx, and index.html title/meta tags. ✓"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "8/8 (100%) on test_calls.py",
+    "frontend": "100% — every required data-testid rendered, every flow surfaced correct UI/toast, branding correct on all surfaces"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "No new leads created (used real lead #118704 'Ranveer saran' / phone 6375430919 fetched via GET /api/leads). Created 3 call_events with QA-prefixed ucids (QASCRPOP1, QABANNER999; QANOMATCH456 was a no-match so no row was written) and 2 chatter 'Incoming call' messages on lead 118704. Admin user's ozonetel_agent_id was set to 'QAAGENT1' then cleared back to empty (verified). Main agent should purge the QA call_events + the 2 incoming-call chatter messages on lead 118704.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run: cd /app/backend && pytest tests/test_calls.py -v --junitxml=/app/test_reports/pytest/iterN_calls.xml — 8 tests covering full telephony stack. Tests have their own teardown that purges call_events & messages they create (uses TEST_/TESTUCID_ prefixes). The QA-prefixed ucids in this iteration (QASCRPOP1, QABANNER999) are NOT auto-purged by pytest because they were created via browser e2e — main agent must clean them. Outbound campaign in DB settings is intentionally EMPTY (click-to-dial → 400 'not configured' is the expected production state until admin sets it).",
+  "rca of the issue": "N/A — no bugs found. All features specified in the review request work as designed: branding rebrand complete, Ozonetel screen-pop matches real leads, idempotency holds, no-match path renders no-match UI, click-to-dial gracefully reports missing campaign, agent-mapping → banner flow works end-to-end with ~5s polling latency, dismiss cleanly removes banner."
+}

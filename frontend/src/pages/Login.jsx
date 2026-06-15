@@ -41,7 +41,7 @@ export default function Login() {
             The HomeIVF CRM — your complete lead management, follow-up and conversion engine.
           </p>
         </div>
-        <p className="text-xs uppercase tracking-[0.2em] text-white/70">Powered by TagQuest</p>
+        <p className="text-xs uppercase tracking-[0.2em] text-white/70">Powered by TifTech</p>
       </div>
       <div className="flex w-full lg:w-1/2 items-center justify-center p-8">
         <div className="w-full max-w-sm">
@@ -82,7 +82,7 @@ export default function Login() {
               {loading ? "Signing in…" : "Sign in"}
             </button>
           </form>
-          <p className="mt-10 text-center text-xs uppercase tracking-[0.2em] text-slate-400 lg:hidden">Powered by TagQuest</p>
+          <p className="mt-10 text-center text-xs uppercase tracking-[0.2em] text-slate-400 lg:hidden">Powered by TifTech</p>
         </div>
       </div>
     </div>

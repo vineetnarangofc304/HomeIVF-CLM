@@ -22,6 +22,8 @@ class UserUpdate(BaseModel):
     role: Optional[str] = None
     active: Optional[bool] = None
     password: Optional[str] = None
+    ozonetel_agent_id: Optional[str] = None
+    ozonetel_phone_name: Optional[str] = None
 
 
 @router.get("")
@@ -69,6 +71,10 @@ async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(requ
         updates["active"] = body.active
     if body.password:
         updates["password_hash"] = hash_password(body.password)
+    if body.ozonetel_agent_id is not None:
+        updates["ozonetel_agent_id"] = body.ozonetel_agent_id.strip() or None
+    if body.ozonetel_phone_name is not None:
+        updates["ozonetel_phone_name"] = body.ozonetel_phone_name.strip() or None
     if updates:
         await db.users.update_one({"id": user_id}, {"$set": updates})
     out = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})

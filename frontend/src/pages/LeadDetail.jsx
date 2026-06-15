@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
   ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
+  Phone, PhoneIncoming, PhoneOutgoing,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
@@ -21,6 +22,8 @@ export default function LeadDetail() {
   const [msgPage, setMsgPage] = useState(1);
   const [activities, setActivities] = useState([]);
   const [waChannels, setWaChannels] = useState([]);
+  const [calls, setCalls] = useState([]);
+  const [dialing, setDialing] = useState(false);
   const [tab, setTab] = useState("chatter");
   const [note, setNote] = useState("");
   const [showActivity, setShowActivity] = useState(false);
@@ -31,11 +34,12 @@ export default function LeadDetail() {
 
   const load = useCallback(async () => {
     try {
-      const [{ data: l }, { data: m }, { data: a }, { data: w }] = await Promise.all([
+      const [{ data: l }, { data: m }, { data: a }, { data: w }, { data: c }] = await Promise.all([
         API.get(`/leads/${id}`),
         API.get(`/leads/${id}/messages`, { params: { page: 1 } }),
         API.get(`/leads/${id}/activities`),
         API.get(`/whatsapp/lead/${id}`),
+        API.get(`/calls/lead/${id}`),
       ]);
       setLead(l);
       setMessages(m.items);
@@ -43,6 +47,7 @@ export default function LeadDetail() {
       setMsgPage(1);
       setActivities(a);
       setWaChannels(w);
+      setCalls(c);
     } catch (e) {
       toast.error(apiErr(e));
     }
@@ -80,6 +85,18 @@ export default function LeadDetail() {
     setMsgPage(next);
   };
 
+  const clickToDial = async () => {
+    setDialing(true);
+    try {
+      await API.post(`/calls/dial`, { lead_id: lead.id });
+      toast.success("Call queued via Ozonetel — the dialer will connect you shortly");
+      const { data: c } = await API.get(`/calls/lead/${id}`);
+      setCalls(c);
+      await reloadMessages();
+    } catch (e) { toast.error(apiErr(e)); }
+    finally { setDialing(false); }
+  };
+
   if (!lead) return <Spinner />;
 
   const leadStages = (catalogs?.lead_stage || []).map((s) => s.name);
@@ -96,6 +113,10 @@ export default function LeadDetail() {
             <h1 className="font-display text-lg font-extrabold text-slate-900" data-testid="lead-name">{lead.contact_name || lead.name}</h1>
             <p className="text-xs text-slate-500">#{lead.id} · created {fmtDate(lead.create_date)} {!lead.active && <span className="ml-1 font-bold uppercase text-rose-500">Lost{lead.lost_reason_id ? ` — ${lostById[lead.lost_reason_id]?.name || ""}` : ""}</span>}</p>
           </div>
+          <button data-testid="click-to-dial-button" onClick={clickToDial} disabled={dialing}
+            className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-indigo-600 disabled:opacity-60">
+            <Phone size={15} weight="bold" /> {dialing ? "Dialing…" : "Call"}
+          </button>
           <button data-testid="send-whatsapp-button" onClick={() => setShowWa(true)}
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-600">
             <WhatsappLogo size={15} weight="bold" /> WhatsApp
@@ -235,7 +256,7 @@ export default function LeadDetail() {
         <div className="lg:col-span-3">
           <div className="hivf-card">
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 pt-3">
-              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length]].map(([k, l, c]) => (
+              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length]].map(([k, l, c]) => (
                 <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
                   className={`rounded-t-lg px-3 py-2 text-sm font-bold transition-colors ${tab === k ? "border-b-2 border-[#4A90E2] text-[#357ABD]" : "text-slate-500 hover:text-slate-700"}`}>
                   {l} {c > 0 && <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">{c}</span>}
@@ -305,6 +326,30 @@ export default function LeadDetail() {
                     </Link>
                   ))
                 )}
+              </div>
+            )}
+            {tab === "calls" && (
+              <div className="space-y-2 p-4" data-testid="lead-calls-list">
+                {calls.length === 0 && <EmptyState title="No calls yet" subtitle="Incoming Ozonetel calls & click-to-dial attempts appear here" />}
+                {calls.map((c) => (
+                  <div key={c.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3" data-testid={`call-row-${c.id}`}>
+                    {c.direction === "incoming"
+                      ? <PhoneIncoming size={18} weight="duotone" className="text-emerald-500" />
+                      : <PhoneOutgoing size={18} weight="duotone" className="text-indigo-500" />}
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-slate-700">
+                        {c.direction === "incoming" ? "Incoming call" : "Outbound (click-to-dial)"} · {c.phone || "—"}
+                      </p>
+                      <p className="text-xs text-slate-500">
+                        {fmtDate(c.created_at)}{c.agent_name ? ` · ${c.agent_name}` : ""}
+                        {c.status ? ` · ${c.status}` : ""}
+                      </p>
+                    </div>
+                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "failed" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
+                      {c.call_type || c.direction}
+                    </span>
+                  </div>
+                ))}
               </div>
             )}
           </div>

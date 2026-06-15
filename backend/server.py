@@ -14,6 +14,7 @@ from core.security import hash_password, verify_password
 from core.utils import now_utc_str
 from routes import admin as admin_routes
 from routes import auth as auth_routes
+from routes import calls as call_routes
 from routes import catalogs as catalog_routes
 from routes import chatter as chatter_routes
 from routes import filters as filter_routes
@@ -51,11 +52,12 @@ api.include_router(report_routes.router)
 api.include_router(webhook_routes.router)
 api.include_router(filter_routes.router)
 api.include_router(admin_routes.router)
+api.include_router(call_routes.router)
 
 
 @api.get("/health")
 async def health():
-    return {"status": "ok", "service": "HomeIVF CRM API", "powered_by": "TagQuest"}
+    return {"status": "ok", "service": "HomeIVF CRM API", "powered_by": "TifTech"}
 
 
 app.include_router(api)
@@ -90,6 +92,11 @@ async def startup():
     await db.catalogs.create_index([("type", 1), ("id", 1)], unique=True)
     await db.contacts.create_index("id", unique=True)
     await db.webhooks.create_index("token")
+    await db.call_events.create_index("id", unique=True)
+    await db.call_events.create_index([("created_at", -1)])
+    await db.call_events.create_index("ucid")
+    await db.call_events.create_index("lead_id")
+    await db.call_events.create_index("user_id")
 
     # Seed admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
@@ -111,6 +118,7 @@ async def startup():
     await db.counters.update_one({"_id": "message"}, {"$max": {"seq": 5000000}}, upsert=True)
     await db.counters.update_one({"_id": "wa_message"}, {"$max": {"seq": 5000000}}, upsert=True)
     await db.counters.update_one({"_id": "activity"}, {"$max": {"seq": 1000}}, upsert=True)
+    await db.counters.update_one({"_id": "call"}, {"$max": {"seq": 1}}, upsert=True)
 
     # Seed default lead stages / follow-up tags
     for i, name in enumerate(DEFAULT_LEAD_STAGES):

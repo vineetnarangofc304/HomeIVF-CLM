@@ -5,6 +5,7 @@ import {
   EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle,
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
+import IncomingCallBanner from "./IncomingCallBanner";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard" },
@@ -72,7 +73,7 @@ export default function Layout({ children }) {
           <p className="mt-1 text-[11px] text-slate-500">Coming in Phase 2 — conversational insights on all your data.</p>
         </div>
         <div className="border-t border-slate-100 px-5 py-3">
-          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Powered by TagQuest</p>
+          <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Powered by TifTech</p>
         </div>
       </aside>
 
@@ -104,6 +105,7 @@ export default function Layout({ children }) {
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+      <IncomingCallBanner />
     </div>
   );
 }

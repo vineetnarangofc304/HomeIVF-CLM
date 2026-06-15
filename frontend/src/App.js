@@ -13,6 +13,7 @@ import WhatsAppInbox from "./pages/WhatsAppInbox";
 import Reports from "./pages/Reports";
 import Templates from "./pages/Templates";
 import Admin from "./pages/Admin";
+import ScreenPop from "./pages/ScreenPop";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -32,6 +33,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/screen-pop" element={<ScreenPop />} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
           <Route path="/leads" element={<Protected><Leads /></Protected>} />
           <Route path="/leads/:id" element={<Protected><LeadDetail /></Protected>} />
