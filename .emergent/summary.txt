@@ -1,0 +1,168 @@
+<analysis>**original_problem_statement**: 
+The user wants to replace their existing Odoo CRM with a custom-built, fully DIY CRM named HomeIVF CRM for their business HomeIVF (a Seeds of Innocens venture).
+**PRODUCT REQUIREMENTS:**
+- **Phase 1 (Current):** Replicate Odoo setup (leads, chatter, follow-ups, assignments, admin roles, drill-down reports). Migrate ~100K leads. 
+- **Phase 2 (Upcoming):** Introduce AI insights/recommendations and a conversational AI Brain for analytics.
+
+**User's preferred language**: English (INSTRUCT NEXT AGENT: Respond in English only)
+
+**what currently exists?** 
+A fully functional, custom full-stack CRM (React + FastAPI + MongoDB). 
+- Odoo migration is complete.
+- Core UI (Leads, Detail, Dashboard, FollowUps, Reports, Admin) is built and tested.
+- All feedback from the CRM - Testing Points.pdf (8 explicit cases including custom fields builder, complex trigger automations, and UI updates) was fully implemented and passed a 25-point testing agent test suite. 
+- Continuous automated Odoo syncing was canceled by the user; instead, one final manual cutover sync will be used.
+
+**Last working item**: 
+    - Last item agent was working: The previous agent successfully finished the PDF testing points and called the finish tool. Immediately after, the user sent several rapid-fire messages requesting a new 3rd-party integration (Ozonetel for incoming calls) and a branding name change. The agent has not started on these new messages.
+    - Status: NOT STARTED
+    - Agent Testing Done: N
+    - Which testing method agent to use? both (Frontend screenshot for branding, Backend curl/Testing agent for Ozonetel webhooks).
+    - User Testing Done: N
+
+**All Pending/In progress Issue list**:  
+  Issue 1: Update Global Branding to TifTech (Priority P0)
+     - Attempted fixes: None yet.
+     - Next debug checklist: Search the frontend codebase (likely , , , or ) and replace any text saying Powered by TagQuest or TagQuest with Powered by TifTech. 
+     - Why fix this issue and what will be achieved with the fix? Direct user request to update white-label branding.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? frontend (screenshot)
+     - Blocked on other issue: NA
+
+  Issue 2: Integrate Ozonetel for Incoming Calls (Priority P0)
+     - Attempted fixes: None yet.
+     - Next debug checklist: 
+       1. Read the provided Ozonetel docs (Screen-pop URL & Add Campaign Data). Use  or  with  to fetch the doc text if needed.
+       2. Use  if required, or build standard FastAPI webhook routes (e.g., in  or a new ) to receive incoming call payloads from Ozonetel.
+       3. Create frontend UI to display incoming calls/screen-pop to the logged-in agent.
+     - Why fix this issue and what will be achieved with the fix? Integrates the client's telephony system directly into the CRM.
+     - Status: NOT STARTED
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on other issue: NA
+
+**In progress Task List**:
+  None. (All previous in-progress tasks were completed by the prior agent).
+
+**Upcoming and Future Tasks**
+    Upcoming Tasks:
+    - Add a Cutover Checklist screen in the Admin panel to facilitate the final manual Odoo sync and switch-over (Suggested enhancement, P1).
+    - Final Delta Odoo Sync (Manual trigger on cutover day) (P1).
+    - Connect actual SMTP credentials and WhatsApp Meta API credentials to the built templates for live messaging (P1 - Pending user providing actual keys).
+    
+    Future Tasks:
+    - Phase 2: Add AI insights and recommendations on every section (P0).
+    - Phase 2: Build the AI Brain conversational chat interface for reports and insights using Emergent LLM Key (P0).
+
+**Completed work in this session**
+- Extracted and verified all cases (1 through 8) from CRM - Testing Points.pdf (DONE)
+- Built Custom Fields engine allowing Odoo Studio-style form building + webhook alias mapping (DONE)
+- Built trigger Automations (e.g., Tag/Stage update -> queues WhatsApp/Email) (DONE)
+- Fixed a 500 error in Reports aggregation pipelines (DONE)
+- Purged all dummy/test data generated during development to maintain data hygiene (DONE)
+- Passed 25/25 automated backend tests for CRM capabilities (DONE)
+
+**Earlier issues found/mentioned but not fixed**
+None.
+
+**Known issue recurrence from previous fork**
+  - Issue recurrence in previous fork: None
+  - Recurrence count: 0
+  - Status: NOT STARTED
+
+**Code Architecture**
+/app/
+├── backend/
+│   ├── core/ (db.py, security.py, utils.py)
+│   ├── migration/ (odoo_migrate.py, odoo_sync.py)
+│   ├── routes/ (admin.py, catalogs.py, chatter.py, filters.py, leads.py, reports.py, webhooks.py, whatsapp.py)
+│   ├── tests/ (test_homeivf_api.py, test_sync.py, test_crm_8_cases.py)
+│   └── server.py
+├── frontend/
+│   ├── public/ (index.html)
+│   └── src/
+│       ├── components/ 
+│       ├── pages/ (Admin.jsx, Dashboard.jsx, LeadDetail.jsx, Leads.jsx, Reports.jsx, etc.)
+
+**Key Technical Concepts**
+Frontend: React, Tailwind, Recharts
+Backend: FastAPI, PyMongo, Webhooks
+Database: MongoDB
+Integrations: Odoo XML-RPC, Ozonetel (Telephony - Pending)
+
+**key DB schema**
+  - leads: {id, active, stage_id, tag_ids, user_id, contact_id, source_id, custom_fields}
+  - users: {id, email, role, active}
+  - automations: {id, name, trigger, condition, actions, active}
+  - custom_fields: {id, key, label, field_type, options, aliases, active}
+
+**changes in tech stack**
+  - Custom dynamic fields and automation engine added.
+
+**All files of reference** 
+  -  or new file: Will be needed for Ozonetel webhook consumption.
+  - Frontend layout/navigation files: Need editing for TifTech branding.
+
+**Areas that need refactoring**: 
+  - None immediately; recent work stabilized routes and passes comprehensive tests.
+
+**key api endpoints**
+  - 
+  - 
+  - **New Needed:**  (or similar for call screen-pops).
+
+**Critical Info for New Agent** 
+- **Ozonetel Request:** The user sent multiple docs/keys for Ozonetel telephony integration right after the previous session ended. Start here. Use the  tool first to propose a plan for the integration and the branding change.
+- **Branding:** Update any instance of TagQuest or Emergent to **TifTech**. 
+- **No Dummy Data:** The user strictly dislikes dummy data. Clean up any artifacts, leads, or hooks you create while testing the Ozonetel integration.
+- **Environments:** The user has deployed the app to a production URL. **You are working in the PREVIEW environment.** Do not provide deployment URLs. If debugging user feedback, ensure the issue exists in preview before modifying code.
+- **Odoo Sync:** The user explicitly stated continuous sync is NOT needed. They will do one final sync at cutover. Do not spend time building cron jobs for Odoo.
+
+**documents and test reports created in this job** 
+  - /app/memory/PRD.md (Updated with Phase 1 completion)
+  - /app/test_reports/iteration_3.json
+
+**Last 10 User Messages and any pending HUMAN messages** 
+ 1. User: Please confirm your plan. (COMPLETED)
+ 2. User (Haseen/Sunny): Clarified to complete all PDF cases, test everything, give a point-by-point report. Explicitly stated continuous Odoo sync is not needed—will just do a final sync at cutover. (COMPLETED)
+ 3. Agent: Delivered point-by-point summary and finished task.
+ 4. System Notif: App deployed to production (TWO environments exist now).
+ 5. User (Sunny): Provided Ozonetel docs (screen-pop URL, campaign data API), an API key (), and admin login (, ) for incoming calls integration. (PENDING)
+ 6. User (Sunny): Reiterated Ozonetel integration context. (PENDING)
+ 7. User (Sunny): Requested branding change: Instead of powered by Tagquest, PUT Powered by TifTech. (PENDING)
+ 8. User (Sunny): Reiterated Ozonetel links again. (PENDING)
+
+**Project Health Check:**
+Healthy. 25/25 Backend tests passing.
+
+**3rd Party Integrations** 
+  - Odoo XML-RPC API (Requires User credentials)
+  - Emergent LLM Key (Phase 2)
+  - Ozonetel (Pending integration - Requires User credentials provided in chat)
+
+**Testing status**
+  - Testing agent used after significant changes: YES
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: 
+  - Known regressions: None
+
+**Credentials to test flow:**
+Available in . 
+Admin:  / 
+Ozonetel Portal:  / 
+Ozonetel Key: 
+
+**What agent forgot to execute**
+The agent called the finish tool appropriately, but the user immediately dropped new requirements in the chat regarding Ozonetel integration and TifTech branding. These must be picked up immediately.
+
+**Debugging checklist for current issue**
+    Issue: Implement TifTech Branding & Ozonetel Integration
+    Frontend files to check: 
+      - Global layout files (e.g., , , , ) to replace TagQuest with TifTech.
+    Backend files to check:
+      - TBD (Requires reviewing Ozonetel documentation provided in user links to determine webhook/API structure).
+    Steps:
+      - Call  to confirm the plan for Ozonetel & Branding.
+      - Perform text replacement for branding -> take a screenshot.
+      - Read Ozonetel docs via  curl -> build integration -> self-test via curl payloads.</analysis>
