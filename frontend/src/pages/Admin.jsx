@@ -567,7 +567,7 @@ function TelephonyTab({ isAdmin }) {
           </div>
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">API Key</label>
-            <input data-testid="ozonetel-apikey-input" disabled={!isAdmin} className="hivf-input mt-1" placeholder="KK…"
+            <input data-testid="ozonetel-apikey-input" type="password" disabled={!isAdmin} className="hivf-input mt-1" placeholder="KK…"
               value={cfg.api_key || ""} onChange={(e) => setCfg((c) => ({ ...c, api_key: e.target.value }))} />
           </div>
           <div>

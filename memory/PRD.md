@@ -23,6 +23,19 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Implemented (2026-06-15, batch 5) — TifTech rebrand + Ozonetel telephony (incoming-call screen-pop) — 8/8 calls tests + 100% frontend e2e (iteration_4)
+- **Rebrand**: "Powered by TagQuest" → "Powered by TifTech" everywhere (Login, sidebar, index.html title/meta/og, /api/health). No "TagQuest" string remains.
+- **Ozonetel incoming-call integration** (`backend/routes/calls.py`):
+  - PUBLIC `GET/POST /api/calls/ozonetel/screenpop` — Ozonetel hits this on each incoming call (params: phoneNumber, ucid, callerID, did, agentID, phoneName, type, campaignID...). Matches caller→lead by phone_digits, matches agent→CRM user (ozonetel_agent_id / ozonetel_phone_name), records call_events, logs "📞 Incoming call … (via Ozonetel)" to lead chatter. Idempotent per ucid.
+  - `GET /api/calls/active` (auth) — live incoming call for the logged-in agent (last 45s, matched by mapping/user_id) → powers the floating IncomingCallBanner (polls every 5s, mounted in Layout).
+  - `GET /api/calls` (paginated, caller-scoped), `GET /api/calls/lead/{id}` — call history (shown in lead-detail "Calls" tab).
+  - `POST /api/calls/dial` (auth) — click-to-dial via Ozonetel AddCampaignData API (https://{domain}/ca_apis/AddCampaignData); guarded → HTTP 400 with clear message until an outbound campaign is configured.
+- **Agent mapping**: users gained ozonetel_agent_id / ozonetel_phone_name (users.py UserUpdate); editable in Admin → Telephony.
+- **Frontend**: ScreenPop.jsx (PUBLIC route /screen-pop for Ozonetel iframe — matched lead card / no-match / open-in-CRM), IncomingCallBanner.jsx, Admin → Telephony tab (config form, copy-able Screen-Pop URL, agent-mapping table, recent-calls table; API key field masked), LeadDetail Call button + Calls tab.
+- **Config** stored in DB settings key="ozonetel" (domain in1-ccaas-api.ozonetel.com, username homeivf, api_key, campaign). Pre-seeded with user's real key/username (campaign blank — user to fill for click-to-dial). NOT hardcoded in source.
+- Data hygiene: all QA/test call_events + chatter purged; real migrated Odoo "Incoming call" chatter preserved. New suite: tests/test_calls.py (8 tests).
+- Screen-Pop URL to paste in Ozonetel (Admin → Settings → Screen Pop URL): `https://<crm-domain>/screen-pop?phoneNumber={phoneNumber}&ucid={ucid}&callerID={callerID}&did={did}&agentID={agentID}&phoneName={phoneName}`
+
 ## Implemented (2026-06-11) — Phase 1 COMPLETE & TESTED (32/32 backend tests, all frontend flows pass)
 - JWT auth (cookies + bearer), brute-force lockout, admin seed, change-password
 - User management (roles, activate/deactivate, password reset)
