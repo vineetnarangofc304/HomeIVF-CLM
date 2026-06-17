@@ -118,3 +118,42 @@ def test_fb_status(admin_client):
     r = admin_client.get(f"{API}/admin/facebook/status")
     assert r.status_code == 200
     assert "configured" in r.json() and "leads_captured" in r.json()
+
+
+# ---------- WhatsApp Cloud API ----------
+def test_wa_verify_handshake(admin_client, dbconn):
+    token = f"wa_{uuid.uuid4().hex[:8]}"
+    admin_client.patch(f"{API}/admin/settings", json={"key": "whatsapp_cloud", "value": {"verify_token": token, "app_secret": "s", "graph_api_version": "v25.0"}})
+    try:
+        ok = requests.get(f"{API}/webhooks/whatsapp",
+                          params={"hub.mode": "subscribe", "hub.verify_token": token, "hub.challenge": "WAECHO"}, timeout=30)
+        assert ok.status_code == 200 and ok.text == "WAECHO"
+        bad = requests.get(f"{API}/webhooks/whatsapp",
+                           params={"hub.mode": "subscribe", "hub.verify_token": "x", "hub.challenge": "y"}, timeout=30)
+        assert bad.status_code == 403
+    finally:
+        dbconn.settings.delete_one({"key": "whatsapp_cloud"})
+
+
+def test_wa_webhook_rejects_bad_signature(dbconn):
+    dbconn.settings.update_one({"key": "whatsapp_cloud"},
+                               {"$set": {"key": "whatsapp_cloud", "app_secret": "sek", "verify_token": "v"}}, upsert=True)
+    try:
+        r = requests.post(f"{API}/webhooks/whatsapp", json={"entry": []},
+                          headers={"X-Hub-Signature-256": "sha256=bad"}, timeout=30)
+        assert r.status_code == 401
+    finally:
+        dbconn.settings.delete_one({"key": "whatsapp_cloud"})
+
+
+def test_wa_status_and_send_guard(admin_client, dbconn):
+    # configured=false when phone_number_id missing → send-test must fail gracefully, not crash
+    dbconn.settings.update_one({"key": "whatsapp_cloud"},
+                               {"$set": {"key": "whatsapp_cloud", "access_token": "tok", "phone_number_id": "", "graph_api_version": "v25.0"}}, upsert=True)
+    try:
+        s = admin_client.get(f"{API}/admin/whatsapp/status")
+        assert s.status_code == 200 and s.json()["configured"] is False
+        t = admin_client.post(f"{API}/admin/whatsapp/send-test", json={"to": "919812345678"})
+        assert t.status_code == 400
+    finally:
+        dbconn.settings.delete_one({"key": "whatsapp_cloud"})

@@ -71,18 +71,32 @@ async def run_automations(trigger: str, lead: dict, extra: dict = None):
             elif atype == "assign_user" and value:
                 updates["user_id"] = int(value)
             elif atype in ("send_whatsapp_template", "send_email_template"):
-                await db.outbound_queue.insert_one({
-                    "lead_id": lead["id"],
-                    "channel": "whatsapp" if "whatsapp" in atype else "email",
-                    "template_id": value,
-                    "status": "pending_api_credentials",
-                    "automation": rule["name"],
-                    "created_at": now_utc_str(),
-                })
-                await log_message(
-                    lead["id"],
-                    f"Automation '{rule['name']}': queued {('WhatsApp' if 'whatsapp' in atype else 'Email')} template (awaiting live API connection)",
-                )
+                sent_live = False
+                if atype == "send_whatsapp_template" and value:
+                    from core import whatsapp_cloud as wac
+                    if await wac.is_configured():
+                        tmpl = await db.templates_whatsapp.find_one({"id": int(value)}, {"_id": 0})
+                        if tmpl and (lead.get("phone") or lead.get("mobile")):
+                            res = await wac.send_lead_template(lead, tmpl)
+                            sent_live = res.get("ok", False)
+                            await log_message(
+                                lead["id"],
+                                f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
+                                + ("delivered via Cloud API" if sent_live else f"failed ({res.get('error')})"),
+                            )
+                if not sent_live:
+                    await db.outbound_queue.insert_one({
+                        "lead_id": lead["id"],
+                        "channel": "whatsapp" if "whatsapp" in atype else "email",
+                        "template_id": value,
+                        "status": "pending_api_credentials",
+                        "automation": rule["name"],
+                        "created_at": now_utc_str(),
+                    })
+                    await log_message(
+                        lead["id"],
+                        f"Automation '{rule['name']}': queued {('WhatsApp' if 'whatsapp' in atype else 'Email')} template (awaiting live API connection)",
+                    )
         if updates:
             await db.leads.update_one({"id": lead["id"]}, {"$set": updates})
             lead.update(updates)

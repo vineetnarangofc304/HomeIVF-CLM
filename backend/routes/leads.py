@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from core.db import db
 from core.security import get_current_user, require_roles
 from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, today_ist
+from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
 
@@ -324,10 +325,23 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     if not phone:
         raise HTTPException(status_code=400, detail="Lead has no phone number")
     preview = (template.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
+    # Live send via WhatsApp Cloud API when configured, else queue until connected.
+    live = await wac.is_configured()
+    send_status = "pending_api_credentials"
+    send_note = "sends automatically once WhatsApp API is connected"
+    wamid = None
+    if live:
+        res = await wac.send_lead_template(lead, template)
+        if res.get("ok"):
+            send_status, wamid = "sent", res.get("wamid")
+            send_note = "delivered via WhatsApp Cloud API"
+        else:
+            send_status = "failed"
+            send_note = f"WhatsApp send failed: {res.get('error')}"
     await db.outbound_queue.insert_one({
         "channel": "whatsapp", "lead_id": lead_id, "template_id": template["id"],
         "template_name": template["name"], "phone": phone, "body": preview,
-        "status": "pending_api_credentials", "requested_by": user["name"],
+        "status": send_status, "requested_by": user["name"], "wamid": wamid,
         "created_at": now_utc_str(),
     })
     # mirror into the lead's WhatsApp thread if one exists
@@ -339,15 +353,17 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
             await db.wa_messages.insert_one({
                 "id": mid, "channel_id": ch["id"], "body": preview, "author_name": user["name"],
                 "date": now_utc_str(), "message_type": "comment", "direction": "outbound",
-                "status": "pending_api_credentials",
+                "status": send_status, "wamid": wamid,
             })
     await log_message(
         lead_id,
-        f"WhatsApp template <b>{template['name']}</b> queued to {phone} by {user['name']} "
-        f"(sends automatically once WhatsApp API is connected)<br/><span style='color:#64748b'>{preview[:400]}</span>",
+        f"WhatsApp template <b>{template['name']}</b> to {phone} by {user['name']} "
+        f"({send_note})<br/><span style='color:#64748b'>{preview[:400]}</span>",
         author=user,
     )
-    return {"ok": True, "status": "queued", "phone": phone, "template": template["name"]}
+    if live and send_status == "failed":
+        raise HTTPException(status_code=400, detail=send_note)
+    return {"ok": True, "status": send_status, "phone": phone, "template": template["name"]}
 
 
 class SendEmailBody(BaseModel):

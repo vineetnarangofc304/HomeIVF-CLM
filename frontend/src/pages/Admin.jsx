@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo } from "@phosphor-icons/react";
+import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Migration"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -32,6 +32,7 @@ export default function Admin() {
         {tab === "Assignment" && <AssignmentTab />}
         {tab === "Telephony" && <TelephonyTab isAdmin={user.role === "admin"} />}
         {tab === "Facebook" && <FacebookTab isAdmin={user.role === "admin"} />}
+        {tab === "WhatsApp" && <WhatsAppTab isAdmin={user.role === "admin"} />}
         {tab === "Migration" && <MigrationTab />}
       </div>
     </div>
@@ -882,6 +883,123 @@ function FacebookTab({ isAdmin }) {
             <button type="button" onClick={() => setTest((arr) => [...arr, { name: "", value: "" }])} className="text-xs font-bold text-[#357ABD]">+ Add field</button>
             <button type="button" onClick={sendTest} className="hivf-btn-primary !py-1 text-xs" data-testid="fb-send-test">Send test lead</button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WhatsAppTab({ isAdmin }) {
+  const [cfg, setCfg] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [phones, setPhones] = useState(null);
+  const [templates, setTemplates] = useState(null);
+  const [testTo, setTestTo] = useState("");
+  const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/whatsapp`;
+
+  const load = () => {
+    API.get("/admin/settings").then(({ data }) => setCfg(data.whatsapp_cloud || { graph_api_version: "v25.0" }));
+    API.get("/admin/whatsapp/status").then(({ data }) => setStatus(data));
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async (e) => {
+    e?.preventDefault();
+    try {
+      await API.patch("/admin/settings", {
+        key: "whatsapp_cloud",
+        value: {
+          access_token: (cfg.access_token || "").trim(), waba_id: (cfg.waba_id || "").trim(),
+          phone_number_id: (cfg.phone_number_id || "").trim(), app_secret: (cfg.app_secret || "").trim(),
+          verify_token: (cfg.verify_token || "").trim(), graph_api_version: (cfg.graph_api_version || "v25.0").trim(),
+        },
+      });
+      toast.success("WhatsApp settings saved"); load();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const fetchPhones = async () => {
+    try { const { data } = await API.post("/admin/whatsapp/phone-numbers"); setPhones(data.data || []); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
+  const fetchTemplates = async () => {
+    try { const { data } = await API.post("/admin/whatsapp/templates"); setTemplates(data.data || []); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
+  const sendTest = async () => {
+    if (!testTo.trim()) { toast.error("Enter a number (with country code)"); return; }
+    try { await API.post("/admin/whatsapp/send-test", { to: testTo.trim() }); toast.success("Test message sent ✓"); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
+
+  if (!cfg) return <Spinner />;
+  return (
+    <div className="space-y-4" data-testid="whatsapp-tab">
+      <div className="hivf-card p-4">
+        <div className="flex items-center gap-2">
+          <WhatsappLogo size={20} weight="fill" className="text-[#25D366]" />
+          <h3 className="font-display text-sm font-extrabold text-slate-800">WhatsApp Business Cloud API</h3>
+          {status && <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.configured ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{status.configured ? "CONNECTED" : "NOT CONNECTED"}</span>}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Send template & session messages live and receive inbound replies. Connect your Meta WhatsApp account, then paste the callback URL into Meta → WhatsApp → Configuration → Webhook.</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#25D366]/5 p-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Webhook Callback URL</span>
+          <code className="flex-1 truncate rounded-lg bg-white px-2 py-1.5 text-[11px] text-slate-600" data-testid="wa-callback-url">{callbackUrl}</code>
+          <button title="Copy" onClick={() => { navigator.clipboard.writeText(callbackUrl); toast.success("Copied"); }} className="text-slate-400 hover:text-[#25D366]"><Copy size={16} /></button>
+        </div>
+
+        <form onSubmit={save} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[["access_token", "System User Access Token", "password"], ["waba_id", "WhatsApp Business Account ID", "text"],
+            ["phone_number_id", "Phone Number ID", "text"], ["app_secret", "App Secret", "password"],
+            ["verify_token", "Verify Token (you choose)", "text"], ["graph_api_version", "Graph API Version", "text"]].map(([k, label, type]) => (
+            <div key={k}>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</label>
+              <input data-testid={`wa-${k}-input`} type={type} disabled={!isAdmin} className="hivf-input mt-1"
+                value={cfg[k] || ""} onChange={(e) => setCfg((c) => ({ ...c, [k]: e.target.value }))} />
+            </div>
+          ))}
+          {isAdmin && (
+            <div className="flex flex-wrap items-end gap-2 md:col-span-2">
+              <button data-testid="wa-save-button" type="submit" className="hivf-btn-primary !py-2"><WhatsappLogo size={14} /> Save Settings</button>
+              <button type="button" onClick={fetchPhones} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-phones">Fetch phone numbers</button>
+              <button type="button" onClick={fetchTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-templates">Fetch templates</button>
+            </div>
+          )}
+        </form>
+
+        {phones && (
+          <div className="mt-3 rounded-xl bg-slate-50 p-3" data-testid="wa-phones-list">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Phone numbers</p>
+            {phones.length === 0 && <p className="text-xs text-slate-400">None returned.</p>}
+            {phones.map((p) => (
+              <div key={p.id} className="mt-1 flex items-center gap-2 text-sm">
+                <span className="font-semibold text-slate-700">{p.display_phone_number}</span>
+                <code className="rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-500">{p.id}</code>
+                {isAdmin && <button onClick={() => setCfg((c) => ({ ...c, phone_number_id: p.id }))} className="text-xs font-bold text-[#357ABD]">Use</button>}
+              </div>
+            ))}
+          </div>
+        )}
+        {templates && (
+          <div className="mt-3 rounded-xl bg-slate-50 p-3" data-testid="wa-templates-list">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Approved templates</p>
+            {templates.length === 0 && <p className="text-xs text-slate-400">None returned.</p>}
+            <div className="mt-1 flex flex-wrap gap-1.5">
+              {templates.map((t) => (
+                <span key={t.name} className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${t.status === "APPROVED" ? "bg-emerald-50 text-emerald-600" : "bg-slate-200 text-slate-500"}`}>{t.name} · {t.language}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Send a test message</h3>
+        <p className="mt-1 text-xs text-slate-500">Sends a session text to a number that has messaged your business in the last 24h.</p>
+        <div className="mt-3 flex gap-2">
+          <input data-testid="wa-test-to" className="hivf-input" placeholder="Recipient number e.g. 919812345678" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+          <button onClick={sendTest} className="hivf-btn-primary" data-testid="wa-send-test">Send</button>
         </div>
       </div>
     </div>

@@ -16,6 +16,7 @@ from routes import admin as admin_routes
 from routes import auth as auth_routes
 from routes import calls as call_routes
 from routes import facebook as facebook_routes
+from routes import wa_cloud as wa_cloud_routes
 from routes import catalogs as catalog_routes
 from routes import chatter as chatter_routes
 from routes import filters as filter_routes
@@ -55,6 +56,7 @@ api.include_router(filter_routes.router)
 api.include_router(admin_routes.router)
 api.include_router(call_routes.router)
 api.include_router(facebook_routes.router)
+api.include_router(wa_cloud_routes.router)
 
 
 @api.get("/health")

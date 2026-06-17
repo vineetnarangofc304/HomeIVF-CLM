@@ -23,6 +23,11 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Implemented (2026-06-17, batch 7) — Live WhatsApp Cloud API + Facebook app creds — 17/17 + 8/8 backend tests pass
+- **WhatsApp Business Cloud API** (`core/whatsapp_cloud.py`, `routes/wa_cloud.py`): live template + session-text sending wired into per-lead WhatsApp send (leads.py), automation `send_whatsapp_template` action (utils.py), and free-text WhatsApp thread (whatsapp.py). Inbound webhook GET/POST `/api/webhooks/whatsapp` (verify handshake + X-Hub-Signature-256 + mirrors to wa thread + logs to matching lead chatter). Admin endpoints: status, phone-numbers, templates, send-test. Admin → WhatsApp tab (config form w/ masked secrets, copy-able callback URL, fetch phone numbers/templates, "Use" to set phone_number_id, send test). Live send gated on access_token+phone_number_id; otherwise safely queues (pending_api_credentials) — no behavior change for unconnected state.
+- **Facebook** Admin tab now pre-seeded with user's App ID + App Secret. Lead Ads still needs Page ID + Page Access Token to go live.
+- **BLOCKER (user action)**: WhatsApp System User token provided failed Meta validation (OAuth 190 — truncated in paste). Need a clean token + Phone Number ID; and the Facebook Page ID + Page Access Token. Then redeploy.
+
 ## Implemented (2026-06-17, batch 6) — Odoo-parity "changes & issues" doc — 14/14 backend tests + 100% frontend e2e (iteration_5)
 Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push). Autodialer ON HOLD per user.
 - **Case 1/3 — Automations like Odoo (multi-action)**: a rule now runs MULTIPLE actions in order (Admin → Automations → New rule → "+ Add another action"). Action types: Send WhatsApp template, Send Email template, Add tag, Set lead stage, Assign to user. Engine already iterated the actions list; UI now builds it. Per-row testids automation-rule-<id> / automation-delete-<id>.

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 from core.db import db
 from core.security import get_current_user
 from core.utils import next_id, now_utc_str
+from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/whatsapp", tags=["whatsapp"])
 
@@ -47,17 +48,26 @@ async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get
         raise HTTPException(status_code=404, detail="Channel not found")
     mid = await next_id("wa_message")
     now = now_utc_str()
+    status = "pending_api_credentials"
+    wamid = None
+    if await wac.is_configured() and ch.get("phone_digits"):
+        res = await wac.send_text(ch["phone_digits"], body.body)
+        if res.get("ok"):
+            status, wamid = "sent", res.get("wamid")
+        else:
+            status = "failed"
     msg = {
         "id": mid, "channel_id": channel_id, "body": body.body,
         "author_name": user["name"], "date": now, "message_type": "comment",
-        "direction": "outbound", "status": "pending_api_credentials",
+        "direction": "outbound", "status": status, "wamid": wamid,
     }
     await db.wa_messages.insert_one(msg)
     await db.wa_channels.update_one({"id": channel_id}, {"$set": {"last_message_date": now}})
-    await db.outbound_queue.insert_one({
-        "channel": "whatsapp", "wa_channel_id": channel_id, "body": body.body,
-        "status": "pending_api_credentials", "created_at": now, "user_id": user["id"],
-    })
+    if status == "pending_api_credentials":
+        await db.outbound_queue.insert_one({
+            "channel": "whatsapp", "wa_channel_id": channel_id, "body": body.body,
+            "status": status, "created_at": now, "user_id": user["id"],
+        })
     msg.pop("_id", None)
     return msg
 
