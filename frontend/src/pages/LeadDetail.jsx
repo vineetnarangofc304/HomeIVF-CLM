@@ -369,6 +369,43 @@ export default function LeadDetail() {
   );
 }
 
+/* ---------- typed custom-field rendering (Case 2: field types) ---------- */
+function FieldEditor({ type, value, onChange, options, testid }) {
+  const common = "hivf-input mt-1 !py-1";
+  if (type === "selection") {
+    return (
+      <select className="hivf-select mt-1 w-full !py-1" value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid}>
+        <option value="">—</option>
+        {(options || []).map((o) => <option key={o} value={o}>{o}</option>)}
+      </select>
+    );
+  }
+  if (type === "boolean") {
+    return (
+      <label className="mt-1 inline-flex items-center gap-2 text-sm text-slate-700">
+        <input type="checkbox" checked={value === "true" || value === true} onChange={(e) => onChange(e.target.checked ? "true" : "false")} data-testid={testid} />
+        Yes
+      </label>
+    );
+  }
+  if (type === "text") {
+    return <textarea rows={2} className={common} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid} />;
+  }
+  if (type === "integer" || type === "float" || type === "monetary") {
+    return <input type="number" step={type === "integer" ? "1" : "any"} className={common} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid} />;
+  }
+  if (type === "date") return <input type="date" className={common} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid} />;
+  if (type === "datetime") return <input type="datetime-local" className={common} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid} />;
+  return <input className={common} value={value || ""} onChange={(e) => onChange(e.target.value)} data-testid={testid} />;
+}
+
+function fieldDisplay(type, value) {
+  if (value == null || value === "") return null;
+  if (type === "boolean") return value === "true" || value === true ? "Yes" : "No";
+  if (type === "monetary") return `₹${value}`;
+  return String(value);
+}
+
 /* ---------- Meta / Google Q&A (Case 3) ---------- */
 function QACard({ lead, onSave, catalogs, labelOf }) {
   const [editing, setEditing] = useState(false);
@@ -382,10 +419,10 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
   };
   const odooQa = Object.entries(lead.custom || {})
     .filter(([k, v]) => isQuestion(k) && v !== null && v !== "")
-    .map(([k, v]) => ({ key: k, label: labelOf(k), value: Array.isArray(v) ? v[1] ?? v.join(",") : String(v) }));
+    .map(([k, v]) => ({ key: k, label: labelOf(k), value: Array.isArray(v) ? v[1] ?? v.join(",") : String(v), field_type: "char", options: [] }));
   const defined = customDefs.map((d) => ({
     key: d.key, label: d.label, value: lead.custom?.[d.key] != null ? String(lead.custom[d.key]) : "",
-    options: d.field_type === "selection" ? d.options : null,
+    field_type: d.field_type || "char", options: d.options || [],
   }));
   const seen = new Set(defined.map((e) => e.key));
   const entries = [...defined, ...odooQa.filter((e) => !seen.has(e.key))];
@@ -422,16 +459,10 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
           <div key={e.key} className="rounded-lg bg-[#8B5CF6]/5 px-3 py-2">
             <p className="text-[11px] font-bold text-slate-500">{e.label}</p>
             {editing ? (
-              e.options ? (
-                <select className="hivf-select mt-1 w-full !py-1" value={draft[e.key] || ""} onChange={(ev) => setDraft((d) => ({ ...d, [e.key]: ev.target.value }))} data-testid={`qa-input-${e.key}`}>
-                  <option value="">—</option>
-                  {e.options.map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input className="hivf-input mt-1 !py-1" value={draft[e.key] || ""} onChange={(ev) => setDraft((d) => ({ ...d, [e.key]: ev.target.value }))} data-testid={`qa-input-${e.key}`} />
-              )
+              <FieldEditor type={e.field_type} value={draft[e.key]} options={e.options}
+                onChange={(v) => setDraft((d) => ({ ...d, [e.key]: v }))} testid={`qa-input-${e.key}`} />
             ) : (
-              <p className="text-sm font-semibold text-slate-800" data-testid={`qa-value-${e.key}`}>{e.value || <span className="text-slate-300">—</span>}</p>
+              <p className="text-sm font-semibold text-slate-800" data-testid={`qa-value-${e.key}`}>{fieldDisplay(e.field_type, e.value) || <span className="text-slate-300">—</span>}</p>
             )}
           </div>
         ))}
@@ -477,16 +508,10 @@ function CustomFieldsCard({ lead, onSave, catalogs }) {
           <div key={d.key} className="flex items-center gap-2 text-sm">
             <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{d.label}</span>
             {editing ? (
-              d.field_type === "selection" ? (
-                <select className="hivf-select w-full !py-1" value={draft[d.key] || ""} onChange={(e) => setDraft((dr) => ({ ...dr, [d.key]: e.target.value }))} data-testid={`custom-field-input-${d.key}`}>
-                  <option value="">—</option>
-                  {(d.options || []).map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input className="hivf-input !py-1" value={draft[d.key] || ""} onChange={(e) => setDraft((dr) => ({ ...dr, [d.key]: e.target.value }))} data-testid={`custom-field-input-${d.key}`} />
-              )
+              <div className="flex-1"><FieldEditor type={d.field_type} value={draft[d.key]} options={d.options}
+                onChange={(v) => setDraft((dr) => ({ ...dr, [d.key]: v }))} testid={`custom-field-input-${d.key}`} /></div>
             ) : (
-              <span className="truncate text-slate-700" data-testid={`custom-field-value-${d.key}`}>{valueOf(d) || <span className="text-slate-300">—</span>}</span>
+              <span className="truncate text-slate-700" data-testid={`custom-field-value-${d.key}`}>{fieldDisplay(d.field_type, valueOf(d)) || <span className="text-slate-300">—</span>}</span>
             )}
           </div>
         ))}

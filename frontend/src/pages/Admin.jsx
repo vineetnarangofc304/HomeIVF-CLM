@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash, ArrowsClockwise, Copy, Phone } from "@phosphor-icons/react";
+import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "Migration"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -31,6 +31,7 @@ export default function Admin() {
         {tab === "Automations" && <AutomationsTab />}
         {tab === "Assignment" && <AssignmentTab />}
         {tab === "Telephony" && <TelephonyTab isAdmin={user.role === "admin"} />}
+        {tab === "Facebook" && <FacebookTab isAdmin={user.role === "admin"} />}
         {tab === "Migration" && <MigrationTab />}
       </div>
     </div>
@@ -188,15 +189,147 @@ function DropdownsTab() {
   );
 }
 
-/* ---------- Case 4: self-service custom field builder (like Odoo Studio) ---------- */
+/* ---------- Case 2: Odoo-Studio-style drag-drop form builder ---------- */
+const FIELD_TYPES = [
+  { t: "char", label: "Text" },
+  { t: "text", label: "Multiline Text" },
+  { t: "integer", label: "Integer" },
+  { t: "float", label: "Decimal" },
+  { t: "monetary", label: "Monetary (₹)" },
+  { t: "date", label: "Date" },
+  { t: "datetime", label: "Date & Time" },
+  { t: "boolean", label: "Checkbox" },
+  { t: "selection", label: "Dropdown" },
+];
+const SECTIONS = [
+  { key: "qa", title: "Meta / Google Q&A card" },
+  { key: "general", title: "Custom Fields card" },
+];
+
 function CustomFieldsTab() {
   const { refreshCatalogs } = useCatalogs();
   const [fields, setFields] = useState(null);
-  const [form, setForm] = useState({ label: "", field_type: "char", options: "", section: "qa", aliases: "" });
+  const [drag, setDrag] = useState(null); // {kind:'new'|'field', type?, id?}
+  const [overSection, setOverSection] = useState(null);
+  const [modal, setModal] = useState(null); // {section, field_type}
 
   const load = () => API.get("/catalogs/custom-fields/all").then(({ data }) => setFields(data));
   useEffect(() => { load(); }, []);
 
+  const persistOrder = async (ordered) => {
+    setFields(ordered);
+    await API.post("/catalogs/custom-fields/reorder", { order: ordered.map((f) => f.id) });
+    refreshCatalogs();
+  };
+
+  const onDropToSection = async (sectionKey, beforeId = null) => {
+    if (!drag) return;
+    setOverSection(null);
+    if (drag.kind === "new") {
+      setModal({ section: sectionKey, field_type: drag.type });
+      setDrag(null);
+      return;
+    }
+    // move existing field
+    const moving = fields.find((f) => f.id === drag.id);
+    if (!moving) { setDrag(null); return; }
+    if (moving.section !== sectionKey) {
+      await API.patch(`/catalogs/custom-fields/${moving.id}`, { section: sectionKey });
+      moving.section = sectionKey;
+    }
+    const rest = fields.filter((f) => f.id !== moving.id);
+    let idx = rest.length;
+    if (beforeId != null) { const i = rest.findIndex((f) => f.id === beforeId); if (i >= 0) idx = i; }
+    rest.splice(idx, 0, moving);
+    await persistOrder(rest);
+    setDrag(null);
+  };
+
+  const toggle = async (f) => { await API.patch(`/catalogs/custom-fields/${f.id}`, { active: f.active === false }); load(); refreshCatalogs(); };
+  const del = async (f) => { if (window.confirm(`Disable field '${f.label}'?`)) { await API.delete(`/catalogs/custom-fields/${f.id}`); load(); refreshCatalogs(); } };
+
+  if (!fields) return <Spinner />;
+  const active = fields.filter((f) => f.active !== false);
+
+  return (
+    <div className="grid grid-cols-1 gap-4 lg:grid-cols-4" data-testid="form-builder">
+      {/* Components palette */}
+      <div className="hivf-card p-4 lg:col-span-1">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Components</h3>
+        <p className="mt-1 text-[11px] text-slate-400">Drag a field type onto a card → or click to add.</p>
+        <div className="mt-3 space-y-1.5" data-testid="components-palette">
+          {FIELD_TYPES.map((ft) => (
+            <div key={ft.t} draggable data-testid={`palette-${ft.t}`}
+              onDragStart={() => setDrag({ kind: "new", type: ft.t })}
+              onDragEnd={() => setDrag(null)}
+              onClick={() => setModal({ section: "general", field_type: ft.t })}
+              className="flex cursor-grab items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-600 transition-colors hover:border-[#4A90E2] hover:bg-[#4A90E2]/5 active:cursor-grabbing">
+              <DotsSixVertical size={14} className="text-slate-300" /> {ft.label}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Form canvas */}
+      <div className="space-y-4 lg:col-span-3">
+        {SECTIONS.map((sec) => {
+          const secFields = active.filter((f) => f.section === sec.key);
+          return (
+            <div key={sec.key}
+              onDragOver={(e) => { e.preventDefault(); setOverSection(sec.key); }}
+              onDragLeave={() => setOverSection((s) => (s === sec.key ? null : s))}
+              onDrop={(e) => { e.preventDefault(); onDropToSection(sec.key); }}
+              data-testid={`section-dropzone-${sec.key}`}
+              className={`hivf-card p-4 transition-colors ${overSection === sec.key ? "ring-2 ring-[#4A90E2] ring-offset-1" : ""}`}>
+              <h3 className="font-display text-sm font-extrabold text-slate-800">{sec.title} <span className="text-[11px] font-normal text-slate-400">({secFields.length})</span></h3>
+              <div className="mt-3 space-y-2 min-h-[56px]" data-testid={`section-fields-${sec.key}`}>
+                {secFields.length === 0 && (
+                  <div className="rounded-xl border-2 border-dashed border-slate-200 py-6 text-center text-xs text-slate-400">Drag a component here</div>
+                )}
+                {secFields.map((f) => (
+                  <div key={f.id} draggable data-testid={`field-card-${f.id}`}
+                    onDragStart={() => setDrag({ kind: "field", id: f.id })}
+                    onDragEnd={() => setDrag(null)}
+                    onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    onDrop={(e) => { e.preventDefault(); e.stopPropagation(); onDropToSection(sec.key, f.id); }}
+                    className="flex items-center gap-3 rounded-xl border border-slate-100 bg-white p-3 shadow-sm">
+                    <DotsSixVertical size={16} className="shrink-0 cursor-grab text-slate-300" />
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-bold text-slate-700">{f.label}</p>
+                      <p className="text-[11px] text-slate-400">
+                        {FIELD_TYPES.find((t) => t.t === f.field_type)?.label || f.field_type}
+                        {f.field_type === "selection" && (f.options || []).length > 0 && ` · ${f.options.join(", ")}`}
+                        {(f.aliases || []).length > 0 && ` · aliases: ${f.aliases.join(", ")}`}
+                      </p>
+                    </div>
+                    <code className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-400">{f.key}</code>
+                    <button onClick={() => del(f)} className="text-slate-300 hover:text-rose-500"><Trash size={15} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+        {fields.some((f) => f.active === false) && (
+          <div className="hivf-card p-4">
+            <h3 className="font-display text-xs font-extrabold uppercase tracking-wider text-slate-400">Disabled fields</h3>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {fields.filter((f) => f.active === false).map((f) => (
+                <button key={f.id} onClick={() => toggle(f)} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-400 hover:text-emerald-600" data-testid={`reenable-field-${f.id}`}>{f.label} · enable</button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {modal && <AddFieldModal section={modal.section} fieldType={modal.field_type} onClose={() => setModal(null)}
+        onCreated={() => { setModal(null); load(); refreshCatalogs(); }} />}
+    </div>
+  );
+}
+
+function AddFieldModal({ section, fieldType, onClose, onCreated }) {
+  const [form, setForm] = useState({ label: "", field_type: fieldType || "char", section, options: "", aliases: "" });
   const create = async (e) => {
     e.preventDefault();
     if (!form.label.trim()) return;
@@ -208,92 +341,52 @@ function CustomFieldsTab() {
         section: form.section,
         aliases: form.aliases.split(",").map((s) => s.trim()).filter(Boolean),
       });
-      toast.success("Custom field created — it now shows on every lead");
-      setForm({ label: "", field_type: "char", options: "", section: "qa", aliases: "" });
-      load(); refreshCatalogs();
+      toast.success("Field added — it now shows on every lead");
+      onCreated();
     } catch (err) { toast.error(apiErr(err)); }
   };
-
-  const patch = async (fid, updates) => {
-    await API.patch(`/catalogs/custom-fields/${fid}`, updates);
-    load(); refreshCatalogs();
-  };
-
-  if (!fields) return <Spinner />;
   return (
-    <div className="space-y-4">
-      <div className="hivf-card p-4" data-testid="custom-fields-tab">
-        <h3 className="font-display text-sm font-extrabold text-slate-800">Custom Lead Fields</h3>
-        <p className="mt-1 text-xs text-slate-500">
-          Works like Odoo Studio — add your own fields here and they instantly appear on every lead form.
-          Add <b>aliases</b> (comma-separated) to auto-capture matching fields from your webhook leads
-          (landing pages, Google Ads / Meta lead forms).
-        </p>
-        <form onSubmit={create} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2" data-testid="custom-field-form">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <form onSubmit={create} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="add-field-modal">
+        <h3 className="font-display text-lg font-extrabold">New Field</h3>
+        <div className="mt-4 space-y-3">
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field label</label>
-            <input data-testid="custom-field-label-input" required className="hivf-input mt-1" placeholder="e.g. Preferred Clinic Location"
+            <input data-testid="field-label-input" required autoFocus className="hivf-input mt-1" placeholder="e.g. Preferred Clinic Location"
               value={form.label} onChange={(e) => setForm((f) => ({ ...f, label: e.target.value }))} />
           </div>
-          <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field type</label>
-            <select data-testid="custom-field-type-select" className="hivf-select mt-1 w-full" value={form.field_type}
-              onChange={(e) => setForm((f) => ({ ...f, field_type: e.target.value }))}>
-              <option value="char">Text</option>
-              <option value="selection">Dropdown (selection)</option>
-            </select>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Type</label>
+              <select data-testid="field-type-select" className="hivf-select mt-1 w-full" value={form.field_type} onChange={(e) => setForm((f) => ({ ...f, field_type: e.target.value }))}>
+                {FIELD_TYPES.map((ft) => <option key={ft.t} value={ft.t}>{ft.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Show under</label>
+              <select data-testid="field-section-select" className="hivf-select mt-1 w-full" value={form.section} onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
+                {SECTIONS.map((s) => <option key={s.key} value={s.key}>{s.title}</option>)}
+              </select>
+            </div>
           </div>
           {form.field_type === "selection" && (
-            <div className="md:col-span-2">
+            <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Dropdown options (comma-separated)</label>
-              <input data-testid="custom-field-options-input" className="hivf-input mt-1" placeholder="e.g. Delhi, Noida, Gurgaon"
+              <input data-testid="field-options-input" className="hivf-input mt-1" placeholder="e.g. Delhi, Noida, Gurgaon"
                 value={form.options} onChange={(e) => setForm((f) => ({ ...f, options: e.target.value }))} />
             </div>
           )}
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Show under</label>
-            <select data-testid="custom-field-section-select" className="hivf-select mt-1 w-full" value={form.section}
-              onChange={(e) => setForm((f) => ({ ...f, section: e.target.value }))}>
-              <option value="qa">Meta / Google Q&A card</option>
-              <option value="general">Custom Fields card</option>
-            </select>
-          </div>
-          <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Webhook / ads aliases (optional)</label>
-            <input data-testid="custom-field-aliases-input" className="hivf-input mt-1" placeholder="e.g. preferred_location, clinic_city"
+            <input data-testid="field-aliases-input" className="hivf-input mt-1" placeholder="e.g. preferred_location, clinic_city"
               value={form.aliases} onChange={(e) => setForm((f) => ({ ...f, aliases: e.target.value }))} />
           </div>
-          <div className="md:col-span-2">
-            <button data-testid="custom-field-create-button" type="submit" className="hivf-btn-primary !py-2"><Plus size={14} /> Add custom field</button>
-          </div>
-        </form>
-      </div>
-
-      <div className="hivf-card p-4">
-        <h3 className="font-display text-sm font-extrabold text-slate-800">Existing custom fields ({fields.length})</h3>
-        <div className="mt-3 space-y-2" data-testid="custom-fields-list">
-          {fields.map((f) => (
-            <div key={f.id} className={`flex flex-wrap items-center gap-3 rounded-xl border border-slate-100 p-3 ${f.active === false ? "opacity-40" : ""}`} data-testid={`custom-field-row-${f.id}`}>
-              <div className="min-w-48 flex-1">
-                <p className="text-sm font-bold text-slate-700">{f.label}</p>
-                <p className="text-[11px] text-slate-400">
-                  {f.field_type === "selection" ? `Dropdown: ${(f.options || []).join(", ")}` : "Text"} ·
-                  shows in {f.section === "qa" ? "Meta/Google Q&A" : "Custom Fields"} card
-                  {(f.aliases || []).length > 0 && <> · aliases: {f.aliases.join(", ")}</>}
-                </p>
-              </div>
-              <code className="rounded-lg bg-slate-50 px-2 py-1 text-[10px] text-slate-500">{f.key}</code>
-              <button data-testid={`custom-field-toggle-${f.id}`} onClick={() => patch(f.id, { active: f.active === false })}
-                className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${f.active !== false ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
-                {f.active !== false ? "ACTIVE" : "OFF"}
-              </button>
-              <button onClick={async () => { if (window.confirm(`Disable field '${f.label}'?`)) { await API.delete(`/catalogs/custom-fields/${f.id}`); load(); refreshCatalogs(); } }}
-                className="text-slate-300 hover:text-rose-500"><Trash size={16} /></button>
-            </div>
-          ))}
-          {fields.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No custom fields yet — add your first one above.</p>}
         </div>
-      </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+          <button type="submit" className="hivf-btn-primary" data-testid="field-create-submit"><Plus size={14} /> Add field</button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -348,7 +441,7 @@ function AutomationsTab() {
   const { catalogs } = useCatalogs();
   const [rules, setRules] = useState(null);
   const [show, setShow] = useState(false);
-  const [form, setForm] = useState({ name: "", trigger: "on_create", tag_id: "", action_type: "send_whatsapp_template", action_value: "", lead_stage: "" });
+  const [form, setForm] = useState({ name: "", trigger: "on_create", tag_id: "", lead_stage: "", actions: [{ type: "send_whatsapp_template", value: "" }] });
   const [waTemplates, setWaTemplates] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
 
@@ -364,15 +457,25 @@ function AutomationsTab() {
     const condition = {};
     if (form.trigger === "on_tag_set" && form.tag_id) condition.tag_id = parseInt(form.tag_id);
     if (form.trigger === "on_stage_set" && form.lead_stage) condition.lead_stage = form.lead_stage;
-    const action = { type: form.action_type };
-    if (["send_whatsapp_template", "send_email_template"].includes(form.action_type)) action.value = parseInt(form.action_value) || form.action_value;
-    else if (form.action_type === "add_tag") action.value = parseInt(form.action_value);
-    else action.value = form.action_value;
+    const actions = form.actions
+      .filter((a) => a.value !== "" && a.value != null)
+      .map((a) => ({
+        type: a.type,
+        value: ["send_whatsapp_template", "send_email_template", "add_tag", "assign_user"].includes(a.type)
+          ? (parseInt(a.value) || a.value) : a.value,
+      }));
+    if (!actions.length) { toast.error("Add at least one action"); return; }
     try {
-      await API.post("/admin/automations", { name: form.name, trigger: form.trigger, condition, actions: [action] });
-      toast.success("Automation created"); setShow(false); load();
+      await API.post("/admin/automations", { name: form.name, trigger: form.trigger, condition, actions });
+      toast.success("Automation created"); setShow(false);
+      setForm({ name: "", trigger: "on_create", tag_id: "", lead_stage: "", actions: [{ type: "send_whatsapp_template", value: "" }] });
+      load();
     } catch (err) { toast.error(apiErr(err)); }
   };
+
+  const addAction = () => setForm((f) => ({ ...f, actions: [...f.actions, { type: "add_tag", value: "" }] }));
+  const removeAction = (idx) => setForm((f) => ({ ...f, actions: f.actions.filter((_, i) => i !== idx) }));
+  const updateAction = (idx, patch) => setForm((f) => ({ ...f, actions: f.actions.map((a, i) => (i === idx ? { ...a, ...patch } : a)) }));
 
   if (!rules) return <Spinner />;
   return (
@@ -425,36 +528,32 @@ function AutomationsTab() {
                   {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
                 </select>
               )}
-              <select className="hivf-select w-full" value={form.action_type} onChange={(e) => setForm((f) => ({ ...f, action_type: e.target.value, action_value: "" }))}>
-                <option value="send_whatsapp_template">Send WhatsApp template</option>
-                <option value="send_email_template">Send Email template</option>
-                <option value="add_tag">Add tag</option>
-                <option value="set_lead_stage">Set lead stage</option>
-              </select>
-              {form.action_type === "send_whatsapp_template" && (
-                <select required className="hivf-select w-full" value={form.action_value} onChange={(e) => setForm((f) => ({ ...f, action_value: e.target.value }))}>
-                  <option value="">Choose template…</option>
-                  {waTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              )}
-              {form.action_type === "send_email_template" && (
-                <select required className="hivf-select w-full" value={form.action_value} onChange={(e) => setForm((f) => ({ ...f, action_value: e.target.value }))}>
-                  <option value="">Choose template…</option>
-                  {emailTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              )}
-              {form.action_type === "add_tag" && (
-                <select required className="hivf-select w-full" value={form.action_value} onChange={(e) => setForm((f) => ({ ...f, action_value: e.target.value }))}>
-                  <option value="">Choose tag…</option>
-                  {(catalogs?.tag || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </select>
-              )}
-              {form.action_type === "set_lead_stage" && (
-                <select required className="hivf-select w-full" value={form.action_value} onChange={(e) => setForm((f) => ({ ...f, action_value: e.target.value }))}>
-                  <option value="">Choose stage…</option>
-                  {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
-                </select>
-              )}
+              <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Actions to do (runs all, in order)</label>
+                {form.actions.map((a, idx) => (
+                  <div key={idx} className="flex gap-2" data-testid={`action-row-${idx}`}>
+                    <select className="hivf-select flex-1" value={a.type} onChange={(e) => updateAction(idx, { type: e.target.value, value: "" })} data-testid={`action-type-${idx}`}>
+                      <option value="send_whatsapp_template">Send WhatsApp template</option>
+                      <option value="send_email_template">Send Email template</option>
+                      <option value="add_tag">Add tag</option>
+                      <option value="set_lead_stage">Set lead stage</option>
+                      <option value="assign_user">Assign to user</option>
+                    </select>
+                    <select required className="hivf-select flex-1" value={a.value} onChange={(e) => updateAction(idx, { value: e.target.value })} data-testid={`action-value-${idx}`}>
+                      <option value="">Choose…</option>
+                      {a.type === "send_whatsapp_template" && waTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {a.type === "send_email_template" && emailTemplates.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {a.type === "add_tag" && (catalogs?.tag || []).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      {a.type === "set_lead_stage" && (catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                      {a.type === "assign_user" && (catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+                    </select>
+                    {form.actions.length > 1 && (
+                      <button type="button" onClick={() => removeAction(idx)} className="shrink-0 text-slate-300 hover:text-rose-500" data-testid={`remove-action-${idx}`}><Trash size={16} /></button>
+                    )}
+                  </div>
+                ))}
+                <button type="button" onClick={addAction} className="text-xs font-bold text-[#357ABD]" data-testid="add-action-row">+ Add another action</button>
+              </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button type="button" onClick={() => setShow(false)} className="hivf-btn-secondary">Cancel</button>
@@ -635,6 +734,151 @@ function TelephonyTab({ isAdmin }) {
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+const FB_CRM_FIELDS = [
+  ["contact_name", "Contact Name"], ["phone", "Phone"], ["email_from", "Email"],
+  ["city", "City"], ["state_name", "State"], ["gender", "Gender"],
+  ["male_age", "Male Age"], ["female_age", "Female Age"], ["query", "Query"],
+  ["campaign_name", "Campaign"],
+];
+
+function FacebookTab({ isAdmin }) {
+  const { catalogs } = useCatalogs();
+  const [cfg, setCfg] = useState(null);
+  const [status, setStatus] = useState(null);
+  const [maps, setMaps] = useState([]); // [{fb, crm}]
+  const [test, setTest] = useState([{ name: "full_name", value: "" }, { name: "phone_number", value: "" }, { name: "email", value: "" }]);
+  const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/facebook`;
+  const customFields = (catalogs?.custom_fields || []).filter((f) => f.active !== false);
+
+  const load = () => {
+    API.get("/admin/settings").then(({ data }) => {
+      const fb = data.facebook || { graph_api_version: "v25.0", source_default: "Meta Lead Ads" };
+      setCfg(fb);
+      setMaps(Object.entries(fb.field_mapping || {}).map(([k, v]) => ({ fb: k, crm: v })));
+    });
+    API.get("/admin/facebook/status").then(({ data }) => setStatus(data));
+  };
+  useEffect(() => { load(); }, []);
+
+  const save = async (e) => {
+    e?.preventDefault();
+    const field_mapping = {};
+    maps.forEach((m) => { if (m.fb.trim() && m.crm) field_mapping[m.fb.trim()] = m.crm; });
+    try {
+      await API.patch("/admin/settings", {
+        key: "facebook",
+        value: {
+          app_id: (cfg.app_id || "").trim(), app_secret: (cfg.app_secret || "").trim(),
+          page_id: (cfg.page_id || "").trim(), page_access_token: (cfg.page_access_token || "").trim(),
+          verify_token: (cfg.verify_token || "").trim(),
+          graph_api_version: (cfg.graph_api_version || "v25.0").trim(),
+          source_default: (cfg.source_default || "Meta Lead Ads").trim(),
+          field_mapping,
+        },
+      });
+      toast.success("Facebook settings saved"); load();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const subscribe = async () => {
+    try { const { data } = await API.post("/admin/facebook/subscribe"); toast.success("Page subscribed to leadgen ✓"); console.log(data); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const sendTest = async () => {
+    const field_data = test.filter((t) => t.name.trim() && t.value.trim()).map((t) => ({ name: t.name.trim(), values: [t.value.trim()] }));
+    if (!field_data.length) { toast.error("Add at least one test field"); return; }
+    try {
+      const { data } = await API.post("/admin/facebook/test", { field_data, leadgen_id: "MANUAL_TEST" });
+      toast.success(`Test lead #${data.lead_id} created — open it to verify mapping`);
+      load();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  if (!cfg) return <Spinner />;
+  return (
+    <div className="space-y-4" data-testid="facebook-tab">
+      <div className="hivf-card p-4">
+        <div className="flex items-center gap-2">
+          <FacebookLogo size={20} weight="fill" className="text-[#1877F2]" />
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Facebook Lead Ads</h3>
+          {status && <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.configured ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{status.configured ? "CONFIGURED" : "NOT CONNECTED"}</span>}
+          {status && <span className="text-[11px] text-slate-400">· {status.leads_captured} leads captured</span>}
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Auto-capture leads from your Facebook Page lead forms. Connect your Meta app below, paste the callback URL into Meta, then map the form fields.</p>
+
+        <div className="mt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2 rounded-xl bg-[#1877F2]/5 p-3">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Webhook Callback URL</span>
+            <code className="flex-1 truncate rounded-lg bg-white px-2 py-1.5 text-[11px] text-slate-600" data-testid="fb-callback-url">{callbackUrl}</code>
+            <button title="Copy" onClick={() => { navigator.clipboard.writeText(callbackUrl); toast.success("Copied"); }} className="text-slate-400 hover:text-[#1877F2]"><Copy size={16} /></button>
+          </div>
+        </div>
+
+        <form onSubmit={save} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+          {[["app_id", "App ID", "text"], ["app_secret", "App Secret", "password"], ["page_id", "Page ID", "text"],
+            ["page_access_token", "Page Access Token", "password"], ["verify_token", "Verify Token (you choose)", "text"],
+            ["graph_api_version", "Graph API Version", "text"]].map(([k, label, type]) => (
+            <div key={k}>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</label>
+              <input data-testid={`fb-${k}-input`} type={type} disabled={!isAdmin} className="hivf-input mt-1"
+                value={cfg[k] || ""} onChange={(e) => setCfg((c) => ({ ...c, [k]: e.target.value }))} />
+            </div>
+          ))}
+          {isAdmin && (
+            <div className="flex items-end gap-2 md:col-span-2">
+              <button data-testid="fb-save-button" type="submit" className="hivf-btn-primary !py-2"><FacebookLogo size={14} /> Save Settings</button>
+              <button type="button" onClick={subscribe} className="hivf-btn-secondary !py-2" data-testid="fb-subscribe-button">Subscribe Page to leadgen</button>
+            </div>
+          )}
+        </form>
+      </div>
+
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Field Mapping</h3>
+        <p className="mt-1 text-xs text-slate-500">Map each Facebook lead-form field name to a CRM field. Unmapped answers are still saved to the lead's Q&A card. Custom fields you build appear here too.</p>
+        <div className="mt-3 space-y-2" data-testid="fb-mapping-list">
+          {maps.map((m, idx) => (
+            <div key={idx} className="flex items-center gap-2" data-testid={`fb-map-row-${idx}`}>
+              <input className="hivf-input !py-1" placeholder="Facebook field (e.g. full_name)" value={m.fb}
+                onChange={(e) => setMaps((arr) => arr.map((x, i) => (i === idx ? { ...x, fb: e.target.value } : x)))} data-testid={`fb-map-fbname-${idx}`} />
+              <span className="text-slate-400">→</span>
+              <select className="hivf-select !py-1 flex-1" value={m.crm} onChange={(e) => setMaps((arr) => arr.map((x, i) => (i === idx ? { ...x, crm: e.target.value } : x)))} data-testid={`fb-map-crm-${idx}`}>
+                <option value="">Choose CRM field…</option>
+                {FB_CRM_FIELDS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+                {customFields.map((f) => <option key={f.key} value={f.key}>{f.label} (custom)</option>)}
+              </select>
+              <button type="button" onClick={() => setMaps((arr) => arr.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500"><Trash size={15} /></button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setMaps((arr) => [...arr, { fb: "", crm: "" }])} className="text-xs font-bold text-[#357ABD]" data-testid="fb-add-map">+ Add mapping</button>
+            {isAdmin && <button type="button" onClick={save} className="hivf-btn-primary !py-1 text-xs" data-testid="fb-save-mapping">Save mapping</button>}
+          </div>
+        </div>
+      </div>
+
+      <div className="hivf-card p-4">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Test a Lead</h3>
+        <p className="mt-1 text-xs text-slate-500">Simulate a Facebook lead to verify your mapping end-to-end (creates a real lead you can delete afterwards).</p>
+        <div className="mt-3 space-y-2" data-testid="fb-test-rows">
+          {test.map((t, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <input className="hivf-input !py-1" placeholder="FB field name" value={t.name} onChange={(e) => setTest((arr) => arr.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))} data-testid={`fb-test-name-${idx}`} />
+              <input className="hivf-input !py-1 flex-1" placeholder="Value" value={t.value} onChange={(e) => setTest((arr) => arr.map((x, i) => (i === idx ? { ...x, value: e.target.value } : x)))} data-testid={`fb-test-value-${idx}`} />
+              <button type="button" onClick={() => setTest((arr) => arr.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500"><Trash size={15} /></button>
+            </div>
+          ))}
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setTest((arr) => [...arr, { name: "", value: "" }])} className="text-xs font-bold text-[#357ABD]">+ Add field</button>
+            <button type="button" onClick={sendTest} className="hivf-btn-primary !py-1 text-xs" data-testid="fb-send-test">Send test lead</button>
+          </div>
+        </div>
       </div>
     </div>
   );

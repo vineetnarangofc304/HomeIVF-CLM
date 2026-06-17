@@ -1,0 +1,47 @@
+{
+  "summary": "Iteration 5 — End-to-end validation of the new Odoo-parity changes (Custom Fields drag-drop builder, Lead Detail typed inputs, multi-action Automations, Facebook Lead Ads tab + webhook). Backend: re-ran /app/backend/tests/test_changes.py → 6/6 PASS (field types/reorder, multi-action automations, FB verify/signature/test-lead/status). Frontend (admin@homeivf.com): all four cases verified via Playwright against REACT_APP_BACKEND_URL. (1) CUSTOM FIELDS: form-builder + components-palette + section-dropzone-qa + section-dropzone-general all present; all 9 palette items render (palette-char/text/integer/float/monetary/date/datetime/boolean/selection); click-to-add Date and Dropdown both opened add-field-modal, persisted with field-label-input + field-section-select + field-options-input (only on selection type) + field-create-submit, and rendered field-card-<id> in section-fields-general. (2) LEAD DETAIL: opened real lead id=500045 (the FB-created one) → custom-fields-card renders the newly created field, custom-fields-edit-button opens edit mode, custom-field-input-x_custom_qa2_date is a real <input type=\"date\">, save persists & custom-field-value-x_custom_qa2_date shows '2026-01-15'. (3) AUTOMATIONS: add-automation-button → automation-modal opens with action-row-0; trigger options include on_create; action-type-0 supports add_tag/set_lead_stage/send_whatsapp_template/send_email_template/assign_user; add-action-row creates action-row-1; submit returned 'Automation created' toast and both rules (id=17 QA Multi Action Rule, id=18 QA2 Rule) appeared in automations-list with 'Trigger: on_create → add_tag, set_lead_stage'. (4) FACEBOOK: facebook-tab + fb-callback-url ('https://homeivf-crm-preview.preview.emergentagent.com/api/webhooks/facebook') + all config inputs (app_id/app_secret/page_id/page_access_token/verify_token/graph_api_version) + fb-save-button + fb-subscribe-button + fb-mapping-list + fb-add-map + fb-save-mapping + fb-send-test all rendered; saved verify_token='QA_VERIFY_TOKEN_123'; added mapping fbname=full_name → crm=contact_name (Save mapping → toast); fb-send-test posted to /api/admin/facebook/test → 200 with lead_id=500045 (real lead created, name='QA FB Lead', tags=[56], stage='Contact Attempt', source_lead='Meta Lead Ads', ads_platform='Facebook' — confirms mapping mapped full_name→contact_name).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "AutomationsTab → rules list rows", "issue": "Each rule row in automations-list is missing a data-testid (only admin-tab-automations, add-automation-button, automations-list are present). The review-request expected data-testid='automation-rule-<id>' per row plus a delete-icon testid (e.g. automation-delete-<id>). Functionality works (toast 'Automation created', rule appears with trigger summary, ACTIVE badge + trash button visible) but per-row automation is hard to target in tests/UI automation.", "selector": "[data-testid=automation-rule-<id>]", "priority": "MEDIUM"},
+      {"component": "CustomFieldsTab → field card delete", "issue": "Trash button on a field card performs a SOFT-DELETE (field moves into a 'Disabled Fields' chip strip with '<label> · enable' actions) instead of hard-delete. There is also no DELETE endpoint exposed (GET /api/admin/custom-fields returns 404 — list endpoint isn't reachable via this path). Soft-delete is fine for product UX, but for E2E/test cleanup there is no way for the test agent to hard-purge created fields — leaves dummy 'Disabled Fields' entries (QA Test Field, QA Test Dropdown, QA2 Date). Suggest exposing GET /api/admin/custom-fields + a DELETE …?hard=true (or making the disable-chip's other action a real delete).", "selector": "field-card-<id> trash", "priority": "MEDIUM"},
+      {"component": "FacebookTab → fb-test-rows", "issue": "Per-row testids fb-test-row-0/1/2 not rendered as wrappers; only the inner fb-test-name-N/fb-test-value-N inputs exist. fb-send-test still works correctly (POSTs to /api/admin/facebook/test → 200), but the wrapper row testid the spec mentioned is missing.", "selector": "[data-testid=fb-test-row-0]", "priority": "LOW"},
+      {"component": "FacebookTab → mapping <option> children", "issue": "React hydration warning in console: 'In HTML, <span> cannot be a child of <option>. This will cause a hydration error.' Inside one of the CRM-field <select>s in the mapping rows. Cosmetic, but worth fixing — wrap option labels as plain text only.", "selector": "[data-testid=fb-map-crm-0] option", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_changes.py",
+    "/app/test_reports/pytest/iter4_calls.xml"
+  ],
+  "action_items": [
+    "PURGE QA leftovers — main agent must clean these up at the DB/code level (UI cannot delete them):",
+    "  • Lead id=500045 ('QA FB Lead', phone 9999000111, email qa.fb@example.com) — DELETE /api/leads/500045 returns 405 (no delete route). Main agent: db.leads.delete_one({id:500045}) or expose hard-delete.",
+    "  • Custom fields created during E2E (now in 'Disabled Fields'): ids 25 (QA Test Field, date), 26 (QA Test Dropdown, selection), 27 (QA2 Date, date). DELETE /api/custom-fields/<id> and /api/admin/custom-fields/<id> both 404 — main agent: db.custom_fields.delete_many({label:{$in:['QA Test Field','QA Test Dropdown','QA2 Date']}}).",
+    "  • Both QA automation rules (id=17 QA Multi Action Rule, id=18 QA2 Rule) were successfully removed via DELETE /api/admin/automations/<id> (200). No DB cleanup needed.",
+    "ADD per-row data-testid to AutomationsTab rule cards: data-testid='automation-rule-<id>' on the row + 'automation-delete-<id>' on the trash icon (review-spec requirement).",
+    "ADD wrapper data-testid='fb-test-row-<i>' to FacebookTab test-lead rows (spec mentioned fb-test-rows wrappers).",
+    "Fix hydration warning by ensuring mapping <select><option> contains text only — no <span> children inside <option>.",
+    "(Optional UX) Surface a hard-delete affordance on field cards in the form-builder so QA / admins can fully purge unused custom fields beyond soft-disable."
+  ],
+  "critical_code_review_comments": [
+    "CASE 1 form-builder is rock-solid — click-to-add works for ALL palette types we tested, options input correctly appears only for selection type, section dropdown correctly defaults; field-card-<id> testids are emitted for downstream tests. ✓",
+    "CASE 2 typed field rendering: confirmed that x_custom_<key> fields are emitted into the lead detail; <input type='date'> is used (not browser-default text input), Dropdown renders <select>, Save persists. This is exactly the Odoo-Studio parity behavior. ✓",
+    "CASE 3 backend correctly accepts and persists multi-action arrays (verified via /api/admin/automations GET — both rules show action_type list). Frontend list row, however, is missing per-row data-testid (see ui_bugs). ✓ (with UI testid gap)",
+    "CASE 4 /api/admin/facebook/test correctly simulates a leadgen webhook locally (no Meta call) and proves the field mapping pipeline end-to-end — the response lead.tags=[56], lead_stage='Contact Attempt' (from the rule we created!), source_lead='Meta Lead Ads' confirm the automation engine fires on Meta-sourced leads. Powerful integration test. ✓",
+    "Soft-delete semantics for custom fields ('Disabled Fields' chip strip) is good UX (preserves historic lead values) but should be paired with an admin-only hard-purge for QA hygiene. Main agent to decide.",
+    "Hydration warning from <option> > <span> nesting is the only console error we observed across the four flows — cheap to fix."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "6/6 (100%) on test_changes.py",
+    "frontend": "100% functional — all 4 cases pass core flows; 4 cosmetic/testid gaps logged"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created during E2E (need main-agent purge): Lead id=500045 'QA FB Lead' / 9999000111 / qa.fb@example.com; Custom fields id=25 'QA Test Field' (date), id=26 'QA Test Dropdown' (selection, options Alpha,Beta,Gamma), id=27 'QA2 Date' (date) — all currently in 'Disabled Fields' soft-state. Automation rules id=17, id=18 — ALREADY PURGED by this agent via DELETE /api/admin/automations/<id>. Saved facebook settings under admin settings (verify_token='QA_VERIFY_TOKEN_123', one mapping row full_name→contact_name) — non-destructive, main agent can either keep or reset.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Run `cd /app/backend && pytest tests/test_changes.py -v` for the 6 covering custom-field-types/reorder + multi-action automations + FB verify/signature/test-lead/status. Endpoint map discovered: Automations live at /api/admin/automations (GET list, POST create, DELETE /<id>); FB at /api/admin/facebook/{test,subscribe,status} + GET/POST /api/admin/settings?key=facebook + GET /api/webhooks/facebook (verify) + POST /api/webhooks/facebook (leadgen w/ X-Hub-Signature-256). Lead delete is intentionally not exposed (DELETE /api/leads/<id> → 405) — purge via DB. For frontend tests, the rule-row in automations-list is currently NOT addressable via data-testid (gap reported).",
+  "rca of the issue": "N/A — no blocking bugs. Four minor testid/console gaps documented in frontend_issues with concrete selectors and priorities."
+}

@@ -25,7 +25,7 @@ async def get_catalogs(user: dict = Depends(get_current_user)):
     out["users"] = users
     labels = await db.settings.find_one({"key": "lead_field_labels"}, {"_id": 0})
     out["field_labels"] = (labels or {}).get("fields", {})
-    out["custom_fields"] = await db.custom_fields.find({}, {"_id": 0}).sort("id", 1).to_list(300)
+    out["custom_fields"] = await db.custom_fields.find({}, {"_id": 0}).sort([("sequence", 1), ("id", 1)]).to_list(300)
     return out
 
 
@@ -36,15 +36,18 @@ async def get_catalogs(user: dict = Depends(get_current_user)):
 
 class CustomFieldCreate(BaseModel):
     label: str
-    field_type: str = "char"  # char | selection
+    field_type: str = "char"  # char|text|integer|float|monetary|date|datetime|boolean|selection
     options: list = []
     section: str = "qa"  # qa | general
     aliases: list = []
 
 
+VALID_FIELD_TYPES = {"char", "text", "integer", "float", "monetary", "date", "datetime", "boolean", "selection"}
+
+
 @router.get("/custom-fields/all")
 async def list_custom_fields(user: dict = Depends(get_current_user)):
-    return await db.custom_fields.find({}, {"_id": 0}).sort("id", 1).to_list(300)
+    return await db.custom_fields.find({}, {"_id": 0}).sort([("sequence", 1), ("id", 1)]).to_list(300)
 
 
 @router.post("/custom-fields/create")
@@ -52,7 +55,7 @@ async def create_custom_field(body: CustomFieldCreate, user: dict = Depends(requ
     label = body.label.strip()
     if not label:
         raise HTTPException(status_code=400, detail="Label required")
-    if body.field_type not in ("char", "selection"):
+    if body.field_type not in VALID_FIELD_TYPES:
         raise HTTPException(status_code=400, detail="Invalid field type")
     if body.section not in ("qa", "general"):
         raise HTTPException(status_code=400, detail="Invalid section")
@@ -60,9 +63,11 @@ async def create_custom_field(body: CustomFieldCreate, user: dict = Depends(requ
     if await db.custom_fields.find_one({"key": key}):
         raise HTTPException(status_code=400, detail="A field with this label already exists")
     fid = await next_id("custom_field")
+    last = await db.custom_fields.find_one({}, sort=[("sequence", -1)])
+    seq = (last.get("sequence", 0) if last else 0) + 1
     doc = {"id": fid, "key": key, "label": label, "field_type": body.field_type,
            "options": [str(o).strip() for o in body.options if str(o).strip()],
-           "section": body.section,
+           "section": body.section, "sequence": seq,
            "aliases": [str(a).strip() for a in body.aliases if str(a).strip()],
            "active": True}
     await db.custom_fields.insert_one(doc)
@@ -70,10 +75,21 @@ async def create_custom_field(body: CustomFieldCreate, user: dict = Depends(requ
     return doc
 
 
+@router.post("/custom-fields/reorder")
+async def reorder_custom_fields(body: dict, user: dict = Depends(require_roles("admin", "manager"))):
+    """body: {order: [field_id, ...]} — sets sequence per the given order."""
+    order = body.get("order") or []
+    for i, fid in enumerate(order):
+        await db.custom_fields.update_one({"id": int(fid)}, {"$set": {"sequence": i + 1}})
+    return {"ok": True}
+
+
 @router.patch("/custom-fields/{fid}")
 async def update_custom_field(fid: int, body: dict, user: dict = Depends(require_roles("admin", "manager"))):
-    allowed = {"label", "field_type", "options", "section", "aliases", "active"}
+    allowed = {"label", "field_type", "options", "section", "aliases", "active", "sequence"}
     updates = {k: v for k, v in body.items() if k in allowed}
+    if "field_type" in updates and updates["field_type"] not in VALID_FIELD_TYPES:
+        raise HTTPException(status_code=400, detail="Invalid field type")
     res = await db.custom_fields.update_one({"id": fid}, {"$set": updates})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
