@@ -97,8 +97,11 @@ async def update_custom_field(fid: int, body: dict, user: dict = Depends(require
 
 
 @router.delete("/custom-fields/{fid}")
-async def delete_custom_field(fid: int, user: dict = Depends(require_roles("admin"))):
-    await db.custom_fields.update_one({"id": fid}, {"$set": {"active": False}})
+async def delete_custom_field(fid: int, hard: bool = False, user: dict = Depends(require_roles("admin"))):
+    if hard:
+        await db.custom_fields.delete_one({"id": fid})
+    else:
+        await db.custom_fields.update_one({"id": fid}, {"$set": {"active": False}})
     return {"ok": True}
 
 

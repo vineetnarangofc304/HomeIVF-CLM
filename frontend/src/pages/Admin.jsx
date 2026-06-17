@@ -247,6 +247,7 @@ function CustomFieldsTab() {
 
   const toggle = async (f) => { await API.patch(`/catalogs/custom-fields/${f.id}`, { active: f.active === false }); load(); refreshCatalogs(); };
   const del = async (f) => { if (window.confirm(`Disable field '${f.label}'?`)) { await API.delete(`/catalogs/custom-fields/${f.id}`); load(); refreshCatalogs(); } };
+  const hardDelete = async (f) => { if (window.confirm(`Permanently delete '${f.label}'? This removes it from the builder for good.`)) { await API.delete(`/catalogs/custom-fields/${f.id}`, { params: { hard: true } }); load(); refreshCatalogs(); } };
 
   if (!fields) return <Spinner />;
   const active = fields.filter((f) => f.active !== false);
@@ -315,7 +316,10 @@ function CustomFieldsTab() {
             <h3 className="font-display text-xs font-extrabold uppercase tracking-wider text-slate-400">Disabled fields</h3>
             <div className="mt-2 flex flex-wrap gap-2">
               {fields.filter((f) => f.active === false).map((f) => (
-                <button key={f.id} onClick={() => toggle(f)} className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-400 hover:text-emerald-600" data-testid={`reenable-field-${f.id}`}>{f.label} · enable</button>
+                <span key={f.id} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-400" data-testid={`disabled-field-${f.id}`}>
+                  <button onClick={() => toggle(f)} className="hover:text-emerald-600" data-testid={`reenable-field-${f.id}`}>{f.label} · enable</button>
+                  <button onClick={() => hardDelete(f)} className="hover:text-rose-500" data-testid={`harddelete-field-${f.id}`} title="Delete permanently"><Trash size={12} /></button>
+                </span>
               ))}
             </div>
           </div>
@@ -489,18 +493,18 @@ function AutomationsTab() {
       </div>
       <div className="mt-4 space-y-2" data-testid="automations-list">
         {rules.map((r) => (
-          <div key={r.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
+          <div key={r.id} data-testid={`automation-rule-${r.id}`} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3">
             <div className="flex-1">
               <p className="text-sm font-bold text-slate-700">{r.name}</p>
               <p className="text-[11px] text-slate-400">
                 Trigger: {r.trigger} {r.condition?.tag_id ? `(tag #${r.condition.tag_id})` : ""}{r.condition?.lead_stage ? `(stage ${r.condition.lead_stage})` : ""} → {(r.actions || []).map((a) => a.type).join(", ")}
               </p>
             </div>
-            <button onClick={async () => { await API.patch(`/admin/automations/${r.id}`, { active: !r.active }); load(); }}
+            <button data-testid={`automation-toggle-${r.id}`} onClick={async () => { await API.patch(`/admin/automations/${r.id}`, { active: !r.active }); load(); }}
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${r.active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
               {r.active ? "ACTIVE" : "OFF"}
             </button>
-            <button onClick={async () => { if (window.confirm("Delete rule?")) { await API.delete(`/admin/automations/${r.id}`); load(); } }} className="text-slate-300 hover:text-rose-500"><Trash size={16} /></button>
+            <button data-testid={`automation-delete-${r.id}`} onClick={async () => { if (window.confirm("Delete rule?")) { await API.delete(`/admin/automations/${r.id}`); load(); } }} className="text-slate-300 hover:text-rose-500"><Trash size={16} /></button>
           </div>
         ))}
         {rules.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No automation rules yet.</p>}
@@ -868,7 +872,7 @@ function FacebookTab({ isAdmin }) {
         <p className="mt-1 text-xs text-slate-500">Simulate a Facebook lead to verify your mapping end-to-end (creates a real lead you can delete afterwards).</p>
         <div className="mt-3 space-y-2" data-testid="fb-test-rows">
           {test.map((t, idx) => (
-            <div key={idx} className="flex items-center gap-2">
+            <div key={idx} className="flex items-center gap-2" data-testid={`fb-test-row-${idx}`}>
               <input className="hivf-input !py-1" placeholder="FB field name" value={t.name} onChange={(e) => setTest((arr) => arr.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)))} data-testid={`fb-test-name-${idx}`} />
               <input className="hivf-input !py-1 flex-1" placeholder="Value" value={t.value} onChange={(e) => setTest((arr) => arr.map((x, i) => (i === idx ? { ...x, value: e.target.value } : x)))} data-testid={`fb-test-value-${idx}`} />
               <button type="button" onClick={() => setTest((arr) => arr.filter((_, i) => i !== idx))} className="text-slate-300 hover:text-rose-500"><Trash size={15} /></button>
