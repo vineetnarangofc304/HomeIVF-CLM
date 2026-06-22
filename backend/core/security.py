@@ -46,14 +46,16 @@ def create_refresh_token(user_id: int) -> str:
 
 
 def set_auth_cookies(response, access_token: str, refresh_token: str = None):
+    # SameSite=None so the cookie is sent on cross-site XHR (the frontend custom
+    # domain calls the backend on a different domain). Requires Secure (set).
     response.set_cookie(
         key="access_token", value=access_token, httponly=True, secure=True,
-        samesite="lax", max_age=86400, path="/",
+        samesite="none", max_age=86400, path="/",
     )
     if refresh_token:
         response.set_cookie(
             key="refresh_token", value=refresh_token, httponly=True, secure=True,
-            samesite="lax", max_age=604800, path="/",
+            samesite="none", max_age=604800, path="/",
         )
 
 

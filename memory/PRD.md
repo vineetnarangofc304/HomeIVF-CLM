@@ -23,6 +23,10 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Bug fix (2026-06-22) — Production "logs in then instantly logs out"
+- Root cause: production frontend is served from custom domain https://crm.homeivfmarketing.com but its bundle calls the backend at https://hi-connect-1687.emergent.host (cross-site). Auth cookies were `SameSite=lax`, so the browser set them on login but refused to send them on the background `auth/me`/`refresh` XHR → 401 → redirect to /login (instant logout). Backend auth itself was fine (curl login + auth/me → 200 on both envs).
+- Fix: `core/security.set_auth_cookies` now issues cookies with `SameSite=None; Secure` (was lax) so they ride cross-site XHR. CORS already reflects the origin with credentials. Verified on preview: login → auth/me → refresh all 200 with SameSite=None. REQUIRES REDEPLOY to take effect on production.
+
 ## Implemented (2026-06-17, batch 7) — Live WhatsApp Cloud API + Facebook app creds — 17/17 + 8/8 backend tests pass
 - **WhatsApp Business Cloud API** (`core/whatsapp_cloud.py`, `routes/wa_cloud.py`): live template + session-text sending wired into per-lead WhatsApp send (leads.py), automation `send_whatsapp_template` action (utils.py), and free-text WhatsApp thread (whatsapp.py). Inbound webhook GET/POST `/api/webhooks/whatsapp` (verify handshake + X-Hub-Signature-256 + mirrors to wa thread + logs to matching lead chatter). Admin endpoints: status, phone-numbers, templates, send-test. Admin → WhatsApp tab (config form w/ masked secrets, copy-able callback URL, fetch phone numbers/templates, "Use" to set phone_number_id, send test). Live send gated on access_token+phone_number_id; otherwise safely queues (pending_api_credentials) — no behavior change for unconnected state.
 - **Facebook** Admin tab now pre-seeded with user's App ID + App Secret. Lead Ads still needs Page ID + Page Access Token to go live.
