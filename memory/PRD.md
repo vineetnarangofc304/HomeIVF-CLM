@@ -23,6 +23,13 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Implemented (2026-06-24, batch 9) — Ozonetel Auto-Dialer Phase 2 (call-center) — 21/21 tests + 6/6 frontend e2e (iteration_6)
+- **§5 Agent break/status system** (`routes/agent.py`): statuses Available / On Call / Lunch Break / Washroom Break / Refreshment Break / Meeting / Offline. POST/GET `/api/agent/status`, `/api/agent/me`; `status_logs` collection tracks every status span with durations; break time = time in break statuses. Header **AgentStatusSwitcher** (all roles) persists status.
+- **§4 In-call disposition popup**: IncomingCallBanner now logs an outcome — Interested / Not interested / Call back later (+ follow-up datetime) / Converted (+ notes). `POST /api/calls/{id}/disposition` updates the call, tags the lead with the disposition, sets stage "Converted" on Converted, sets follow_up_date on Call back later, and logs to chatter.
+- **§7 Call Center page** (`/call-center`, nav added): tabs Call Logs (with recording audio player + disposition), Missed Calls (status=missed), Agent Live Status (admin/manager — live agent grid w/ status + break-today, auto-refresh), Break Reports (admin/manager — per-date break log table). `GET /api/calls` gained a `status` filter; `GET /api/agent/live` & `/api/agent/status-logs`.
+- All QA/test artifacts purged. Removed a test that hit the live dialer once campaign was configured.
+- **Still TODO (Phase 3 of brief)**: §6 Agent productivity & call analytics dashboard (daily per-agent calls/connected/missed/avg duration/talk time/break time/conversion), and a Pending Queue view (leads pushed to dialer awaiting dial).
+
 ## Implemented (2026-06-24, batch 8) — Ozonetel Auto-Dialer Phase 1 (per "Auto Dialer Logic Brief") — 20/20 calls+changes tests pass
 Campaign confirmed: **Autocallback_homeivf** (Progressive, Nonagentwise, DID 919262104390) → Ozonetel's own dialer handles FCFS + agent assignment; the CRM feeds leads + records outcomes.
 - **§3 Autodialer feed**: `POST /api/calls/push-to-dialer` {lead_ids[]} → AddCampaignData to the campaign (checkDuplicate=true, no agentId since Nonagentwise). Leads page → select leads → **"Push to Dialer"** button (bulk bar). Click-to-dial ("Call" on a lead) now works too (campaign_name set).

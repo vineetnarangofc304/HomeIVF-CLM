@@ -133,13 +133,6 @@ def test_active_call_for_mapped_agent(admin_client, caller_client, caller_user, 
     dbconn.users.update_one({"id": cid}, {"$unset": {"ozonetel_agent_id": ""}})
 
 
-def test_dial_requires_campaign(admin_client):
-    """Dial guard: with no campaign configured it must fail clearly, not crash."""
-    # temporarily ensure campaign present check works either way — just assert it doesn't 500
-    r = admin_client.post(f"{API}/calls/dial", json={"phone": "9990001234"})
-    assert r.status_code in (200, 400)
-
-
 def test_push_to_dialer_guard(admin_client):
     r = admin_client.post(f"{API}/calls/push-to-dialer", json={"lead_ids": []})
     assert r.status_code == 400
