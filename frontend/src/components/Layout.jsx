@@ -2,15 +2,17 @@ import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   SquaresFour, UsersThree, ClockCountdown, WhatsappLogo, ChartBar,
-  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle,
+  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall,
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
 import IncomingCallBanner from "./IncomingCallBanner";
+import AgentStatusSwitcher from "./AgentStatusSwitcher";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard" },
   { to: "/leads", label: "Leads", icon: UsersThree, testid: "nav-leads" },
   { to: "/followups", label: "Follow-ups", icon: ClockCountdown, testid: "nav-followups" },
+  { to: "/call-center", label: "Call Center", icon: PhoneCall, testid: "nav-call-center" },
   { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp" },
   { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports" },
   { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates" },
@@ -90,6 +92,7 @@ export default function Layout({ children }) {
             />
           </form>
           <div className="flex items-center gap-3">
+            <AgentStatusSwitcher />
             <div className="text-right">
               <p className="text-sm font-bold text-slate-800" data-testid="topbar-user-name">{user.name}</p>
               <p className="text-[11px] capitalize text-slate-500">{user.role}</p>

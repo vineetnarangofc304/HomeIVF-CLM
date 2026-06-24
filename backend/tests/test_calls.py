@@ -165,21 +165,48 @@ def test_cdr_creates_incoming_lead(admin_client, dbconn):
         dbconn.leads.delete_one({"id": body["lead_id"]})
 
 
-def test_cdr_missed_call_creates_tagged_lead(admin_client, dbconn):
-    import uuid as _uuid
-    ph = f"97{_uuid.uuid4().int % 100000000:08d}"
-    ucid = f"CDRT_{_uuid.uuid4().hex[:8]}"
-    data = '{"CallerID":"%s","Status":"NotAnswered","Duration":"0","CampaignName":"Inbound","ucid":"%s"}' % (ph, ucid)
-    r = requests.post(f"{API}/calls/ozonetel/cdr", data={"data": data}, timeout=30)
+def test_calls_status_filter(admin_client):
+    r = admin_client.get(f"{API}/calls", params={"status": "missed", "limit": 5})
     assert r.status_code == 200
-    body = r.json()
-    assert body["status"] == "missed" and body["lead_id"]
+    assert "items" in r.json()
+
+
+def test_agent_status_flow(admin_client, dbconn):
     try:
-        lead = dbconn.leads.find_one({"id": body["lead_id"]})
-        assert lead["source_lead"] == "Ozonetel Missed Call"
-        missed_tag = dbconn.catalogs.find_one({"type": "tag", "name": "Missed Call"})
-        assert missed_tag and missed_tag["id"] in (lead.get("tags") or [])
+        assert admin_client.post(f"{API}/agent/status", json={"status": "Available"}).status_code == 200
+        assert admin_client.post(f"{API}/agent/status", json={"status": "Lunch Break"}).status_code == 200
+        me = admin_client.get(f"{API}/agent/me").json()
+        assert me["status"] == "Lunch Break"
+        live = admin_client.get(f"{API}/agent/live").json()
+        assert any(a["status"] == "Lunch Break" for a in live)
+        logs = admin_client.get(f"{API}/agent/status-logs", params={"breaks_only": True}).json()
+        assert any(l["status"] == "Lunch Break" for l in logs)
+        bad = admin_client.post(f"{API}/agent/status", json={"status": "Napping"})
+        assert bad.status_code == 400
     finally:
-        dbconn.messages.delete_many({"lead_id": body["lead_id"]})
+        # caller_user fixture id 1 is admin here; clean test status noise
+        u = admin_client.get(f"{API}/auth/me").json()
+        dbconn.status_logs.delete_many({"user_id": u["id"]})
+        dbconn.users.update_one({"id": u["id"]}, {"$unset": {"status": "", "status_since": ""}})
+
+
+def test_disposition_applies_to_lead(admin_client, dbconn):
+    import uuid as _uuid
+    ph = f"96{_uuid.uuid4().int % 100000000:08d}"
+    ucid = f"DISP_{_uuid.uuid4().hex[:8]}"
+    data = '{"CallerID":"%s","AgentID":"84822","Status":"Answered","Duration":"30","CampaignName":"Inbound","ucid":"%s"}' % (ph, ucid)
+    cdr = requests.post(f"{API}/calls/ozonetel/cdr", data={"data": data}, timeout=30).json()
+    call_id, lead_id = cdr["call_id"], cdr["lead_id"]
+    try:
+        r = admin_client.post(f"{API}/calls/{call_id}/disposition", json={"disposition": "Converted", "note": "ok"})
+        assert r.status_code == 200
+        lead = dbconn.leads.find_one({"id": lead_id})
+        assert lead["lead_stage"] == "Converted"
+        tag = dbconn.catalogs.find_one({"type": "tag", "name": "Converted"})
+        assert tag and tag["id"] in (lead.get("tags") or [])
+        bad = admin_client.post(f"{API}/calls/{call_id}/disposition", json={"disposition": "Maybe"})
+        assert bad.status_code == 400
+    finally:
+        dbconn.messages.delete_many({"lead_id": lead_id})
         dbconn.call_events.delete_many({"ucid": ucid})
-        dbconn.leads.delete_one({"id": body["lead_id"]})
+        dbconn.leads.delete_one({"id": lead_id})

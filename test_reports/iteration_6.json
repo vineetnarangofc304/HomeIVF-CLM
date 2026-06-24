@@ -1,0 +1,35 @@
+{
+  "summary": "Iteration 6 — Frontend-only validation of HomeIVF CRM Call-Center Phase 2 (Auto-Dialer Logic Brief §4/§5/§7). All 6 review-request cases PASS end-to-end against REACT_APP_BACKEND_URL with admin@homeivf.com. (1) AGENT STATUS SWITCHER: data-testid='agent-status-switcher' + 'agent-status-button' render in header on every page; opens 'agent-status-menu'; all 7 options present (agent-status-option-available/-on-call/-lunch-break/-washroom-break/-refreshment-break/-meeting/-offline). Selecting 'Lunch Break' updates the button label to 'Lunch Break' and survives full page reload (persisted via POST/GET /api/agent/status). Reset to 'Available' at the end. (2) CALL CENTER NAV: sidebar 'nav-call-center' navigates to /call-center which renders 'call-center-page' + as admin shows all 4 tabs (cc-tab-call-logs, cc-tab-missed-calls, cc-tab-agent-live-status, cc-tab-break-reports). (3) CALL LOGS tab: 'call-list-table' rendered with 4 rows (call-list-row-<id>) covering all 9 columns; MISSED CALLS tab shows the friendly empty state 'No missed calls 🎉' (table=0, rows=0) — works correctly. (4) AGENT LIVE STATUS tab: 'agent-live-grid' renders with 28 'agent-live-<id>' cards (one per active agent) each showing name, colored status dot and 'Break today' time; 'agent-live-refresh' button reloads (28 cards persist). (5) BREAK REPORTS tab: 'break-report-date' input renders with today as default (2026-06-24), 'break-report-table' present with 1 'break-row-<id>'. (6) DISPOSITION POPUP (§4): set admin user's ozonetel_agent_id='QADISPO1' via PATCH /api/users/1; POSTed /api/calls/ozonetel/screenpop?phoneNumber=9990001212&ucid=QADISP49254&agentID=QADISPO1 → 200 (call_id=63, user_id=1). Within ~5s on /dashboard, 'incoming-call-banner' appeared with 'banner-phone' = '9990001212', all 4 disposition buttons present (disposition-interested/-not-interested/-call-back-later/-converted). Clicked 'disposition-converted' → 'disposition-note' textarea + 'disposition-save' button appeared. Saved with note 'QA test - auto closed' → toast 'Logged: Converted' shown (verified) and banner closed (count=0). CLEANED UP: cleared admin's ozonetel_agent_id (PATCH 200, verified null) and reset agent status to Available.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_calls.py (13/13 pass per agent-to-agent context, not re-run this iter)",
+    "/app/test_reports/iteration_5.json"
+  ],
+  "action_items": [
+    "PURGE call_events created during this E2E test (no leftover leads, since phone 9990001212 did not match any lead — matched=false): call_event ids 62 and 63, both with ucid QADISP57555 / QADISP49254, agent_ozonetel_id='QADISPO1', phone='9990001212'. call_id=63 has disposition='Converted' logged. Main agent: db.call_events.delete_many({phone_digits:'9990001212', agent_ozonetel_id:'QADISPO1'}) or equivalent.",
+    "(Optional) Surface a UI endpoint to manage/delete CallEvent rows from Admin → Call Center for E2E test cleanup hygiene."
+  ],
+  "critical_code_review_comments": [
+    "§5 STATUS SYSTEM: AgentStatusSwitcher correctly persists via /api/agent/status (POST) and rehydrates via /api/agent/me (GET) — status survives reload. All 7 status values per the Brief render with distinct colored dots. ✓",
+    "§7 CALL CENTER VIEWS: CallCenter.jsx cleanly tabbed; CallList works for both Call Logs and Missed Calls (status filter); AgentLive uses 15-second polling; BreakReports filters status-logs by date & breaks_only=true. Manager/admin gating (`isMgr`) correctly hides Agent Live and Break Reports tabs from caller role. ✓",
+    "§4 INCOMING BANNER: IncomingCallBanner polls /api/calls/active every 5s and renders a non-blocking floating popup. Dismissed-call dedupe via useRef set (`dismissedRef`) is a nice touch — prevents the banner re-appearing for an already-handled call. Save flow correctly posts to /api/calls/<id>/disposition with disposition + note + (conditionally) follow_up_date, then toasts and dismisses. ✓",
+    "BANNER PHONE DISPLAY: 'banner-phone' shows the raw 10-digit phone ('9990001212') when the caller doesn't match a lead. May want to format as +91-prefixed/grouped for readability. Cosmetic only.",
+    "POLLING FREQUENCY: 5s polling for /api/calls/active for every logged-in user is fine at this scale but consider switching to a long-poll or Server-Sent Events / WebSocket when agent count grows, to reduce backend QPS and battery drain on idle tabs."
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (testing_type=frontend only; backend already at 13/13 per agent-to-agent context)",
+    "frontend": "6/6 cases pass (100%) — agent status switcher, call-center nav, call logs, missed calls, agent live, break reports, AND incoming-call banner + disposition flow all verified end-to-end"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Two CallEvent rows created via /api/calls/ozonetel/screenpop (public endpoint): id=62 (ucid=QADISP57555, status=ringing, no disposition) and id=63 (ucid=QADISP49254, status=ringing, disposition='Converted', note='QA test - auto closed'). Both for phone 9990001212 mapped to admin user id=1 via temporary ozonetel_agent_id='QADISPO1'. No leads were created (phone did not match). Admin's ozonetel_agent_id has been cleared (verified null). Status reset to Available.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All Phase-2 call-center frontend testids are stable: agent-status-switcher/-button/-menu/-option-{slug}, nav-call-center, call-center-page, cc-tab-{call-logs|missed-calls|agent-live-status|break-reports}, call-list-table, call-list-row-<id>, agent-live-grid, agent-live-<id>, agent-live-refresh, break-report-date, break-report-table, break-row-<id>, incoming-call-banner, banner-phone, banner-lead-name, banner-open-lead, dismiss-call-banner, disposition-{interested|not-interested|call-back-later|converted}, disposition-detail, disposition-note, disposition-followup, disposition-save. To re-trigger banner: PATCH /api/users/1 {ozonetel_agent_id:'QADISPO1'} → GET /api/calls/ozonetel/screenpop?phoneNumber=...&ucid=...&agentID=QADISPO1 (public, no auth) → within 5s banner appears on any in-app page. Polling interval is 5s. Don't forget to clear ozonetel_agent_id and purge CallEvent rows after E2E.",
+  "rca of the issue": "N/A — no defects found. All Phase 2 call-center UI flows work as specified in the Auto Dialer Logic Brief §4 (in-call disposition popup), §5 (agent status system) and §7 (Call Center views: Call Logs, Missed Calls, Agent Live Status, Break Reports)."
+}

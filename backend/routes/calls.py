@@ -196,7 +196,7 @@ async def active_call(user: dict = Depends(get_current_user)):
 # ---- Call logs ----
 @router.get("")
 async def list_calls(
-    page: int = 1, limit: int = 50, direction: Optional[str] = None,
+    page: int = 1, limit: int = 50, direction: Optional[str] = None, status: Optional[str] = None,
     user: dict = Depends(get_current_user),
 ):
     q = {}
@@ -204,6 +204,8 @@ async def list_calls(
         q["user_id"] = user["id"]
     if direction:
         q["direction"] = direction
+    if status:
+        q["status"] = status
     total = await db.call_events.count_documents(q)
     skip = (max(page, 1) - 1) * limit
     items = await db.call_events.find(q, {"_id": 0, "raw": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
@@ -296,6 +298,51 @@ async def click_to_dial(body: DialBody, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail=f"Ozonetel: {data.get('message', 'dial failed')}")
     return {"ok": True, "response": data}
 
+
+
+# ---- Agent disposition + notes after a call (§4) ----
+DISPOSITIONS = {"Interested", "Not interested", "Call back later", "Converted"}
+
+
+class DispositionBody(BaseModel):
+    disposition: str
+    note: Optional[str] = None
+    follow_up_date: Optional[str] = None
+
+
+@router.post("/{call_id}/disposition")
+async def set_disposition(call_id: int, body: DispositionBody, user: dict = Depends(get_current_user)):
+    if body.disposition not in DISPOSITIONS:
+        raise HTTPException(status_code=400, detail="Invalid disposition")
+    call = await db.call_events.find_one({"id": call_id}, {"_id": 0})
+    if not call:
+        raise HTTPException(status_code=404, detail="Call not found")
+    await db.call_events.update_one({"id": call_id}, {"$set": {
+        "disposition": body.disposition, "disposition_note": body.note,
+        "disposition_by": user["name"], "disposition_at": now_utc_str(),
+    }})
+    lead_id = call.get("lead_id")
+    if lead_id:
+        lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+        if lead:
+            updates = {}
+            if body.disposition == "Converted":
+                stage = await _ensure_catalog("lead_stage", "Converted")
+                updates["lead_stage"] = stage["name"]
+            elif body.disposition == "Call back later" and body.follow_up_date:
+                updates["follow_up_date"] = body.follow_up_date
+                updates["follow_up_tag"] = "To Follow Up"
+            # tag the lead with the disposition for easy filtering
+            tag = await _ensure_catalog("tag", body.disposition)
+            tags = list(lead.get("tags") or [])
+            if tag["id"] not in tags:
+                tags.append(tag["id"])
+            updates["tags"] = tags
+            if updates:
+                await db.leads.update_one({"id": lead_id}, {"$set": updates})
+            note = f"<br/><span style='color:#64748b'>{body.note}</span>" if body.note else ""
+            await log_message(lead_id, f"📋 Call disposition: <b>{body.disposition}</b> by {user['name']}{note}", author=user, subtype="comment")
+    return {"ok": True, "disposition": body.disposition}
 
 
 # ---- Batch push to the progressive autodialer campaign (§3) ----

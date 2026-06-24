@@ -17,6 +17,7 @@ from routes import auth as auth_routes
 from routes import calls as call_routes
 from routes import facebook as facebook_routes
 from routes import wa_cloud as wa_cloud_routes
+from routes import agent as agent_routes
 from routes import catalogs as catalog_routes
 from routes import chatter as chatter_routes
 from routes import filters as filter_routes
@@ -57,6 +58,7 @@ api.include_router(admin_routes.router)
 api.include_router(call_routes.router)
 api.include_router(facebook_routes.router)
 api.include_router(wa_cloud_routes.router)
+api.include_router(agent_routes.router)
 
 
 @api.get("/health")
@@ -123,6 +125,8 @@ async def startup():
     await db.counters.update_one({"_id": "wa_message"}, {"$max": {"seq": 5000000}}, upsert=True)
     await db.counters.update_one({"_id": "activity"}, {"$max": {"seq": 1000}}, upsert=True)
     await db.counters.update_one({"_id": "call"}, {"$max": {"seq": 1}}, upsert=True)
+    await db.status_logs.create_index([("user_id", 1), ("start", -1)])
+    await db.status_logs.create_index("date")
 
     # Seed default lead stages / follow-up tags
     for i, name in enumerate(DEFAULT_LEAD_STAGES):
