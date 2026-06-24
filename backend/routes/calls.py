@@ -1,13 +1,9 @@
-"""Ozonetel telephony integration — incoming-call screen-pop, call logging & click-to-dial.
-
-Ozonetel hits the Screen-Pop URL on each incoming call with query params
-(phoneNumber, callerID, ucid, did, agentID, phoneName, agentPhoneNumber,
-campaignID, type, dataID, uui, ...). We record the call, match it to a lead by
-phone, log it to the lead chatter, and surface a live incoming-call banner to the
-mapped CRM agent. Click-to-dial pushes a number into an Ozonetel outbound
-campaign via the Add Campaign Data API.
+"""Ozonetel telephony integration — incoming-call screen-pop, call logging,
+CDR callback (status/duration/recording/disposition), auto lead creation,
+click-to-dial & batch push to the progressive autodialer campaign.
 """
 import re
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -17,7 +13,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, to_ist_str
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str
 
 router = APIRouter(prefix="/calls", tags=["calls"])
 
@@ -59,6 +55,49 @@ async def _match_agent(agent_oid: Optional[str], phone_name: Optional[str]):
         if u:
             return u
     return None
+
+
+async def _ensure_catalog(ctype: str, name: str) -> dict:
+    doc = await db.catalogs.find_one({"type": ctype, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}, {"_id": 0})
+    if doc:
+        return doc
+    # safe id: max existing id for this type + 1 (migrated catalogs bypassed the counter)
+    last = await db.catalogs.find_one({"type": ctype}, sort=[("id", -1)])
+    cid = (last.get("id", 0) if last else 0) + 1
+    for _ in range(5):
+        try:
+            doc = {"id": cid, "type": ctype, "name": name, "active": True}
+            await db.catalogs.insert_one(doc)
+            doc.pop("_id", None)
+            return doc
+        except Exception:
+            cid += 1
+    raise HTTPException(status_code=500, detail="Could not create catalog item")
+
+
+async def _create_call_lead(phone: str, source_name: str, missed: bool = False, agent: Optional[dict] = None, name: Optional[str] = None) -> dict:
+    pdig = norm_phone(phone)
+    src = await _ensure_catalog("source_lead", source_name)
+    tags = []
+    if missed:
+        t = await _ensure_catalog("tag", "Missed Call")
+        tags = [t["id"]]
+    lid = await next_id("lead")
+    now = now_utc_str()
+    doc = {
+        "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
+        "name": name or phone or "Ozonetel Lead", "contact_name": name,
+        "phone": phone, "phone_digits": pdig, "tags": tags,
+        "source_lead": src["name"], "lead_stage": None,
+        "user_id": agent["id"] if agent else None,
+        "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
+        "custom": {}, "ozonetel_lead": True,
+    }
+    await db.leads.insert_one(doc)
+    await log_message(lid, f"Lead auto-created from {source_name} (via Ozonetel)")
+    await run_automations("on_create", doc)
+    doc.pop("_id", None)
+    return doc
 
 
 async def _record_incoming(params: dict) -> dict:
@@ -256,3 +295,140 @@ async def click_to_dial(body: DialBody, user: dict = Depends(get_current_user)):
     if not ok:
         raise HTTPException(status_code=400, detail=f"Ozonetel: {data.get('message', 'dial failed')}")
     return {"ok": True, "response": data}
+
+
+
+# ---- Batch push to the progressive autodialer campaign (§3) ----
+class PushBody(BaseModel):
+    lead_ids: list[int] = []
+
+
+@router.post("/push-to-dialer")
+async def push_to_dialer(body: PushBody, user: dict = Depends(get_current_user)):
+    cfg = await db.settings.find_one({"key": "ozonetel"}, {"_id": 0})
+    if not cfg or not all(cfg.get(k) for k in ("api_key", "username", "campaign_name")):
+        raise HTTPException(status_code=400, detail="Ozonetel is not configured (Admin → Telephony). Need API key, username & campaign name.")
+    domain = cfg.get("domain") or "in1-ccaas-api.ozonetel.com"
+    ids = [int(i) for i in (body.lead_ids or [])][:1000]
+    if not ids:
+        raise HTTPException(status_code=400, detail="No leads selected")
+    out = {"queued": 0, "failed": 0, "skipped": 0, "errors": []}
+    url = f"https://{domain}/ca_apis/AddCampaignData"
+    async with httpx.AsyncClient(timeout=30) as client:
+        for lid in ids:
+            lead = await db.leads.find_one({"id": lid}, LEAD_SUMMARY)
+            if not lead or not lead.get("phone"):
+                out["skipped"] += 1
+                continue
+            payload = {
+                "apiKey": cfg["api_key"], "userName": cfg["username"],
+                "campaignName": cfg["campaign_name"], "phoneNumber": str(lead["phone"]),
+                "name": lead.get("contact_name") or lead.get("name") or "Lead",
+                "checkDuplicate": "true",  # progressive Nonagentwise → skip dup numbers
+            }
+            try:
+                resp = await client.post(url, json=payload, headers={"Content-Type": "application/json"})
+                data = resp.json() if resp.headers.get("content-type", "").startswith("application/json") else {"raw": resp.text}
+                ok = str(data.get("status", "")).lower() in ("success", "true")
+            except Exception as e:
+                ok, data = False, {"error": str(e)}
+            cid = await next_id("call")
+            now = now_utc_str()
+            await db.call_events.insert_one({
+                "id": cid, "direction": "outbound", "status": "queued" if ok else "failed",
+                "phone": str(lead["phone"]), "phone_digits": norm_phone(lead["phone"]),
+                "lead_id": lid, "lead_name": lead.get("contact_name") or lead.get("name"),
+                "user_id": user["id"], "campaign": cfg["campaign_name"],
+                "created_at": now, "created_at_ist": to_ist_str(now), "ozonetel_response": data,
+            })
+            if ok:
+                out["queued"] += 1
+                await log_message(lid, f"📲 Pushed to Ozonetel autodialer ({cfg['campaign_name']}) by {user['name']}", user, subtype="tracking")
+            else:
+                out["failed"] += 1
+                out["errors"].append({"lead_id": lid, "error": data.get("message") or data.get("error") or "failed"})
+    return out
+
+
+# ---- CDR callback (§1/§2/§6): Ozonetel POSTs final call data after each call ----
+def _cdr_get(p: dict, *keys):
+    for k in keys:
+        if p.get(k) not in (None, ""):
+            return p[k]
+    return None
+
+
+@router.api_route("/ozonetel/cdr", methods=["GET", "POST"])
+async def ozonetel_cdr(request: Request):
+    # Ozonetel sends application/x-www-form-urlencoded with a `data` JSON string.
+    payload = {}
+    try:
+        form = dict(await request.form())
+    except Exception:
+        form = {}
+    if form.get("data"):
+        try:
+            payload = json.loads(form["data"])
+        except Exception:
+            payload = form
+    elif form:
+        payload = form
+    else:
+        try:
+            payload = await request.json()
+        except Exception:
+            payload = dict(request.query_params)
+
+    phone = _cdr_get(payload, "CallerID", "callerID", "customer", "customerNumber", "phoneNumber", "phone")
+    ucid = _cdr_get(payload, "ucid", "UCID", "monitorUcid")
+    status_raw = str(_cdr_get(payload, "Status", "status") or "")
+    answered = "answer" in status_raw.lower() and "not" not in status_raw.lower()
+    duration = _cdr_get(payload, "CallDuration", "Duration", "duration")
+    talk_time = _cdr_get(payload, "TalkTime", "talkTime")
+    recording = _cdr_get(payload, "AudioFile", "RecordingURL", "recording")
+    disposition = _cdr_get(payload, "Disposition", "disposition")
+    agent_oid = str(_cdr_get(payload, "AgentID", "agentID") or "").strip() or None
+    agent_name = _cdr_get(payload, "AgentName", "agentName")
+    phone_name = _cdr_get(payload, "phoneName", "PhoneName")
+    campaign = _cdr_get(payload, "CampaignName", "campaignName", "campaignID")
+    did = _cdr_get(payload, "DID", "did")
+
+    cfg = await db.settings.find_one({"key": "ozonetel"}, {"_id": 0}) or {}
+    out_campaign = cfg.get("campaign_name")
+    direction = "outbound" if (campaign and out_campaign and str(campaign) == str(out_campaign)) else "incoming"
+    pdig = norm_phone(phone)
+    agent = await _match_agent(agent_oid, phone_name)
+
+    ce = await db.call_events.find_one({"ucid": ucid}) if ucid else None
+    lead = await _match_lead(pdig)
+    if not lead and pdig and len(pdig) >= 8:
+        if direction == "incoming":
+            src = "Ozonetel Missed Call" if not answered else "Ozonetel Incoming Call"
+            lead = await _create_call_lead(phone, src, missed=not answered, agent=agent)
+        else:
+            lead = await _create_call_lead(phone, "Ozonetel Outbound Call", missed=False, agent=agent)
+
+    status = "connected" if answered else ("missed" if direction == "incoming" else "not_connected")
+    fields = {
+        "status": status, "call_status_raw": status_raw, "duration": duration, "talk_time": talk_time,
+        "recording_url": recording, "disposition": disposition, "did": did, "campaign": campaign,
+        "direction": direction, "ended_at": _cdr_get(payload, "EndTime"), "started_at": _cdr_get(payload, "StartTime"),
+        "agent_ozonetel_id": agent_oid, "agent_phone_name": phone_name, "agent_name": agent_name,
+        "user_id": (agent["id"] if agent else (ce.get("user_id") if ce else (lead.get("user_id") if lead else None))),
+        "lead_id": lead["id"] if lead else (ce.get("lead_id") if ce else None),
+        "lead_name": (lead.get("contact_name") or lead.get("name")) if lead else (ce.get("lead_name") if ce else None),
+        "cdr": payload,
+    }
+    if ce:
+        await db.call_events.update_one({"id": ce["id"]}, {"$set": fields})
+        cid = ce["id"]
+    else:
+        cid = await next_id("call")
+        now = now_utc_str()
+        await db.call_events.insert_one({"id": cid, "ucid": ucid, "phone": phone, "phone_digits": pdig,
+                                         "created_at": now, "created_at_ist": to_ist_str(now), **fields})
+    if lead:
+        rec = f" · <a href='{recording}' target='_blank'>recording</a>" if recording else ""
+        disp = f" · {disposition}" if disposition else ""
+        await log_message(lead["id"], f"📞 {direction.title()} call <b>{status}</b> ({duration or '0'}s) with {agent_name or 'agent'}{disp}{rec}", subtype="tracking")
+    return {"ok": True, "call_id": cid, "lead_id": lead["id"] if lead else None, "status": status}

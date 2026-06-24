@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall } from "@phosphor-icons/react";
 import { API, apiErr, fmtDay, fmtDate } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { TagChip, StageBadge, Spinner, EmptyState } from "../components/Bits";
@@ -148,6 +148,15 @@ export default function Leads() {
     } catch (e) { toast.error(apiErr(e)); }
   };
 
+  const pushToDialer = async () => {
+    if (!window.confirm(`Push ${selected.length} lead(s) into the Ozonetel auto-dialer (Autocallback_homeivf)? The dialer will start calling them.`)) return;
+    try {
+      const { data } = await API.post("/calls/push-to-dialer", { lead_ids: selected });
+      toast.success(`Auto-dialer → ${data.queued} queued${data.failed ? `, ${data.failed} failed` : ""}${data.skipped ? `, ${data.skipped} skipped (no phone)` : ""}`);
+      load();
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+
   const activeChips = FILTER_DEFS.filter((f) => params.get(f.key));
 
   const toggleSort = (field) => {
@@ -263,6 +272,7 @@ export default function Leads() {
             {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
           </select>
           <button className="hivf-btn-secondary !py-1 text-xs" data-testid="bulk-archive-button" onClick={() => bulk("archive")}>Archive</button>
+          <button className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-500 px-3 py-1 text-xs font-bold text-white hover:bg-indigo-600" data-testid="bulk-push-dialer-button" onClick={pushToDialer}><PhoneCall size={14} weight="bold" /> Push to Dialer</button>
         </div>
       )}
 

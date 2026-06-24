@@ -23,6 +23,15 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Implemented (2026-06-24, batch 8) — Ozonetel Auto-Dialer Phase 1 (per "Auto Dialer Logic Brief") — 20/20 calls+changes tests pass
+Campaign confirmed: **Autocallback_homeivf** (Progressive, Nonagentwise, DID 919262104390) → Ozonetel's own dialer handles FCFS + agent assignment; the CRM feeds leads + records outcomes.
+- **§3 Autodialer feed**: `POST /api/calls/push-to-dialer` {lead_ids[]} → AddCampaignData to the campaign (checkDuplicate=true, no agentId since Nonagentwise). Leads page → select leads → **"Push to Dialer"** button (bulk bar). Click-to-dial ("Call" on a lead) now works too (campaign_name set).
+- **§1/§2 CDR callback**: `POST /api/calls/ozonetel/cdr` (Ozonetel form-encoded `data` JSON) → enriches the screen-pop call_event (status/duration/TalkTime/recording AudioFile/disposition) by ucid, or creates one; **auto-creates a lead** if the number is new — source "Ozonetel Incoming Call" (answered) / "Ozonetel Missed Call" (NotAnswered, tagged "Missed Call") / "Ozonetel Outbound Call"; logs to chatter with recording link. Lead creation happens at CDR (has duration+recording), NOT on the ring (avoids spam-lead creation).
+- catalog `_ensure_catalog` get-or-creates source/tag with max-id+1 (migrated catalogs bypassed the counter).
+- campaign_name="Autocallback_homeivf", dial_did="919262104390" seeded in preview settings.
+- **Production URLs** (live after redeploy): Screen-Pop (frontend) `https://crm.homeivfmarketing.com/screen-pop?phoneNumber={phoneNumber}&ucid={ucid}&callerID={callerID}&did={did}&agentID={agentID}&phoneName={phoneName}` ; CDR callback (backend) `https://crm.homeivfmarketing.com/api/calls/ozonetel/cdr`.
+- **STILL TODO (Phase 2/3 of brief)**: agent status/break system (§5) + Agent Live Status, enhanced agent popup with disposition buttons & notes (§4), agent productivity & call analytics (§6), dedicated tabs (Pending Queue, Call Logs, Missed Calls, Agent Analytics, Break Reports) (§7).
+
 ## Bug fix (2026-06-22) — Production "logs in then instantly logs out"
 - Root cause: production frontend is served from custom domain https://crm.homeivfmarketing.com but its bundle calls the backend at https://hi-connect-1687.emergent.host (cross-site). Auth cookies were `SameSite=lax`, so the browser set them on login but refused to send them on the background `auth/me`/`refresh` XHR → 401 → redirect to /login (instant logout). Backend auth itself was fine (curl login + auth/me → 200 on both envs).
 - Fix: `core/security.set_auth_cookies` now issues cookies with `SameSite=None; Secure` (was lax) so they ride cross-site XHR. CORS already reflects the origin with credentials. Verified on preview: login → auth/me → refresh all 200 with SameSite=None. REQUIRES REDEPLOY to take effect on production.
