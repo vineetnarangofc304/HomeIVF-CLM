@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { PhoneIncoming, PhoneOutgoing, PhoneX, ArrowsClockwise } from "@phosphor-icons/react";
+import { PhoneIncoming, PhoneOutgoing, PhoneX, ArrowsClockwise, ChartLineUp, Trophy } from "@phosphor-icons/react";
 import { API, fmtDate } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 
@@ -18,7 +18,10 @@ const STATUS_BADGE = {
 export default function CallCenter() {
   const { user } = useAuth();
   const isMgr = user.role === "admin" || user.role === "manager";
-  const TABS = ["Call Logs", "Missed Calls", ...(isMgr ? ["Agent Live Status", "Break Reports"] : [])];
+  const TABS = [
+    "Call Logs", "Missed Calls", "Pending Queue",
+    ...(isMgr ? ["Agent Analytics", "Agent Live Status", "Break Reports"] : ["My Stats"]),
+  ];
   const [tab, setTab] = useState("Call Logs");
 
   return (
@@ -34,7 +37,10 @@ export default function CallCenter() {
         ))}
       </div>
       <div className="mt-4">
-        {(tab === "Call Logs" || tab === "Missed Calls") && <CallList status={tab === "Missed Calls" ? "missed" : null} />}
+        {tab === "Call Logs" && <CallList status={null} />}
+        {tab === "Missed Calls" && <CallList status="missed" />}
+        {tab === "Pending Queue" && <CallList status="queued" />}
+        {(tab === "Agent Analytics" || tab === "My Stats") && <AgentAnalytics isMgr={isMgr} />}
         {tab === "Agent Live Status" && <AgentLive />}
         {tab === "Break Reports" && <BreakReports />}
       </div>
@@ -47,7 +53,7 @@ function CallList({ status }) {
   const load = () => API.get("/calls", { params: { limit: 100, ...(status ? { status } : {}) } }).then(({ data }) => setData(data));
   useEffect(() => { load(); }, [status]);
   if (!data) return <Spinner />;
-  if (data.items.length === 0) return <Empty msg={status === "missed" ? "No missed calls 🎉" : "No calls logged yet."} />;
+  if (data.items.length === 0) return <Empty msg={status === "missed" ? "No missed calls 🎉" : status === "queued" ? "No leads waiting in the dialer queue." : "No calls logged yet."} />;
   return (
     <div className="hivf-card overflow-hidden">
       <table className="w-full text-sm" data-testid="call-list-table">
@@ -144,3 +150,78 @@ function BreakReports() {
 
 const Spinner = () => <div className="flex justify-center py-12"><div className="h-7 w-7 animate-spin rounded-full border-2 border-[#4A90E2] border-t-transparent" /></div>;
 const Empty = ({ msg }) => <div className="hivf-card p-10 text-center text-sm text-slate-400">{msg}</div>;
+
+function AgentAnalytics({ isMgr }) {
+  const [data, setData] = useState(null);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const load = () => { setData(null); API.get("/agent/analytics", { params: { date } }).then(({ data }) => setData(data)); };
+  useEffect(() => { load(); }, [date]);
+
+  const t = data?.totals;
+  const cards = t ? [
+    { label: "Total Calls", value: t.total, cls: "text-slate-900" },
+    { label: "Connected", value: t.connected, cls: "text-emerald-600" },
+    { label: "Connect Rate", value: `${t.connect_rate}%`, cls: "text-[#357ABD]" },
+    { label: "Missed", value: t.missed, cls: "text-rose-600" },
+    { label: "Conversions", value: t.conversions, cls: "text-[#8B5CF6]" },
+    { label: "Talk Time", value: fmtSecs(t.talk_time), cls: "text-amber-600" },
+  ] : [];
+
+  return (
+    <div data-testid="agent-analytics">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <ChartLineUp size={18} className="text-[#357ABD]" weight="duotone" />
+          <label className="text-xs font-bold text-slate-500">Date</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="hivf-input !w-44 !py-1.5 text-sm" data-testid="agent-analytics-date" />
+        </div>
+        <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="agent-analytics-refresh"><ArrowsClockwise size={14} /> Refresh</button>
+      </div>
+      {!data ? <Spinner /> : (
+        <>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" data-testid="agent-analytics-cards">
+            {cards.map((c) => (
+              <div key={c.label} className="hivf-card p-3">
+                <p className="text-[10px] uppercase tracking-wider text-slate-400">{c.label}</p>
+                <p className={`mt-1 font-display text-xl font-extrabold ${c.cls}`}>{c.value}</p>
+              </div>
+            ))}
+          </div>
+          {data.agents.length === 0 ? <Empty msg="No agent activity for this date." /> : (
+            <div className="hivf-card overflow-x-auto">
+              <table className="w-full text-sm" data-testid="agent-analytics-table">
+                <thead><tr className="border-b border-slate-100 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                  <th className="px-3 py-2">{isMgr ? "Agent" : "Me"}</th>
+                  <th className="px-3 py-2 text-right">Total</th><th className="px-3 py-2 text-right">Connected</th>
+                  <th className="px-3 py-2 text-right">Connect %</th><th className="px-3 py-2 text-right">Missed</th>
+                  <th className="px-3 py-2 text-right">Outbound</th><th className="px-3 py-2 text-right">Incoming</th>
+                  <th className="px-3 py-2 text-right">Avg Dur</th><th className="px-3 py-2 text-right">Talk Time</th>
+                  <th className="px-3 py-2 text-right">Conversions</th><th className="px-3 py-2 text-right">Break Time</th></tr></thead>
+                <tbody>
+                  {data.agents.map((a, i) => (
+                    <tr key={a.user_id} className="border-b border-slate-50 hover:bg-slate-50/50" data-testid={`agent-analytics-row-${a.user_id}`}>
+                      <td className="px-3 py-2 font-semibold text-slate-700">
+                        {isMgr && i === 0 && a.total > 0 && <Trophy size={14} weight="fill" className="mr-1 inline text-amber-500" />}
+                        {a.name}
+                      </td>
+                      <td className="px-3 py-2 text-right font-bold text-slate-800">{a.total}</td>
+                      <td className="px-3 py-2 text-right text-emerald-600">{a.connected}</td>
+                      <td className="px-3 py-2 text-right font-semibold text-[#357ABD]">{a.connect_rate}%</td>
+                      <td className="px-3 py-2 text-right text-rose-600">{a.missed}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{a.outbound}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{a.incoming}</td>
+                      <td className="px-3 py-2 text-right text-slate-500">{fmtSecs(a.avg_duration)}</td>
+                      <td className="px-3 py-2 text-right text-amber-600">{fmtSecs(a.talk_time)}</td>
+                      <td className="px-3 py-2 text-right font-bold text-[#8B5CF6]">{a.conversions}</td>
+                      <td className="px-3 py-2 text-right text-amber-600">{fmtSecs(a.break_seconds)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

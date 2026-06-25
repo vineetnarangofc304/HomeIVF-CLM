@@ -78,6 +78,78 @@ async def live_agents(user: dict = Depends(require_roles("admin", "manager"))):
     return out
 
 
+def _to_int(v) -> int:
+    try:
+        return int(float(v))
+    except Exception:
+        return 0
+
+
+@router.get("/analytics")
+async def agent_analytics(date: str = None, user: dict = Depends(get_current_user)):
+    """§6 Agent productivity & call analytics for a single day (IST).
+    Managers/admins see the full agent roster; callers see only their own row."""
+    day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    is_mgr = user["role"] in ("admin", "manager")
+
+    uq = {"active": True} if is_mgr else {"id": user["id"]}
+    users = await db.users.find(uq, {"_id": 0, "id": 1, "name": 1, "role": 1}).to_list(500)
+    umap = {u["id"]: u for u in users}
+    rows = {uid: {"total": 0, "connected": 0, "missed": 0, "outbound": 0, "incoming": 0,
+                  "_dur_sum": 0, "talk_time": 0, "conversions": 0, "break_seconds": 0}
+            for uid in umap}
+
+    cq = {"created_at_ist": {"$regex": f"^{day}"}}
+    if not is_mgr:
+        cq["user_id"] = user["id"]
+    async for c in db.call_events.find(cq, {"_id": 0, "user_id": 1, "direction": 1, "status": 1,
+                                            "duration": 1, "talk_time": 1, "disposition": 1}):
+        uid = c.get("user_id")
+        if uid not in rows:
+            continue
+        r = rows[uid]
+        r["total"] += 1
+        if c.get("direction") == "outbound":
+            r["outbound"] += 1
+        else:
+            r["incoming"] += 1
+        if c.get("status") == "connected":
+            r["connected"] += 1
+            r["_dur_sum"] += _to_int(c.get("duration"))
+        elif c.get("status") == "missed":
+            r["missed"] += 1
+        r["talk_time"] += _to_int(c.get("talk_time"))
+        if (c.get("disposition") or "") == "Converted":
+            r["conversions"] += 1
+
+    bq = {"date": day, "is_break": True}
+    if not is_mgr:
+        bq["user_id"] = user["id"]
+    async for lg in db.status_logs.find(bq):
+        uid = lg.get("user_id")
+        if uid in rows:
+            rows[uid]["break_seconds"] += lg.get("duration_sec") if lg.get("duration_sec") is not None else _secs_since(lg["start"])
+
+    out = []
+    for uid, r in rows.items():
+        avg = int(r["_dur_sum"] / r["connected"]) if r["connected"] else 0
+        rate = round(r["connected"] / r["total"] * 100) if r["total"] else 0
+        out.append({
+            "user_id": uid, "name": umap[uid]["name"], "role": umap[uid].get("role"),
+            "total": r["total"], "connected": r["connected"], "missed": r["missed"],
+            "outbound": r["outbound"], "incoming": r["incoming"], "avg_duration": avg,
+            "talk_time": r["talk_time"], "conversions": r["conversions"],
+            "break_seconds": r["break_seconds"], "connect_rate": rate,
+        })
+    if is_mgr:
+        out = [o for o in out if o["total"] > 0 or o["break_seconds"] > 0]
+    out.sort(key=lambda x: (-x["total"], -x["connected"], x["name"]))
+
+    totals = {k: sum(o[k] for o in out) for k in ("total", "connected", "missed", "outbound", "incoming", "talk_time", "conversions", "break_seconds")}
+    totals["connect_rate"] = round(totals["connected"] / totals["total"] * 100) if totals["total"] else 0
+    return {"date": day, "is_manager": is_mgr, "agents": out, "totals": totals}
+
+
 @router.get("/status-logs")
 async def status_logs(date: str = None, user_id: int = None, breaks_only: bool = True,
                       user: dict = Depends(require_roles("admin", "manager"))):
