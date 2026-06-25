@@ -23,6 +23,13 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
+## Implemented (2026-06-25, batch 10) — Ozonetel Auto-Dialer Phase 3 (Agent Analytics) — 11/11 backend + frontend 100% (iteration_7)
+- **§6 Agent Productivity & Call Analytics** (`routes/agent.py` GET `/api/agent/analytics?date=`): role-aware daily per-agent metrics from call_events grouped by created_at_ist day — total, connected, missed, outbound, incoming, avg_duration, talk_time, conversions (disposition=Converted), break_seconds (status_logs), connect_rate. Returns {date, is_manager, agents[], totals{}}. Managers/admins see full active-agent roster (zero-activity rows hidden); callers see only their own row.
+- **Call Center page** (`CallCenter.jsx`): new tabs — **Agent Analytics** (admin/manager, 6 summary cards + per-agent leaderboard table w/ trophy on top row + date picker), **My Stats** (callers — own analytics), **Pending Queue** (all roles — queued outbound calls awaiting dial via `/api/calls?status=queued`). Manager-only tabs (Agent Analytics, Agent Live Status, Break Reports) hidden from callers.
+- **Dedicated test Agent login** created for agent-level functionality testing: agent@homeivf.com / Agent@2026 (role=caller, id 1001). Sample call_events + break status_logs seeded for today (preview only) so dashboards are demonstrable.
+- Login bug ("can't login from interface") was NOT reproducible on preview — backend curl + UI login both succeed (200, cookies set). Concluded production-only / stale-deploy; awaiting user confirmation.
+
+
 ## Implemented (2026-06-24, batch 9) — Ozonetel Auto-Dialer Phase 2 (call-center) — 21/21 tests + 6/6 frontend e2e (iteration_6)
 - **§5 Agent break/status system** (`routes/agent.py`): statuses Available / On Call / Lunch Break / Washroom Break / Refreshment Break / Meeting / Offline. POST/GET `/api/agent/status`, `/api/agent/me`; `status_logs` collection tracks every status span with durations; break time = time in break statuses. Header **AgentStatusSwitcher** (all roles) persists status.
 - **§4 In-call disposition popup**: IncomingCallBanner now logs an outcome — Interested / Not interested / Call back later (+ follow-up datetime) / Converted (+ notes). `POST /api/calls/{id}/disposition` updates the call, tags the lead with the disposition, sets stage "Converted" on Converted, sets follow_up_date on Call back later, and logs to chatter.
