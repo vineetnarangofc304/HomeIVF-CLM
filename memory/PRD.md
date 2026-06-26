@@ -23,7 +23,19 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Implemented (2026-06-25, batch 10) — Ozonetel Auto-Dialer Phase 3 (Agent Analytics) — 11/11 backend + frontend 100% (iteration_7)
+## Implemented (2026-06-27, batch 11) — Requirements doc Cases 5,6,7,11,14,15,16/17 — backend 14/14, frontend verified
+- **Case 7 — Exports** (`routes/export.py`): `GET /api/export/leads.xlsx` (date range + all lead filters, styled openpyxl, role-scoped) and `GET /api/export/report.pdf` (reportlab summary: totals, conversion rate, by stage/source/agent). UI: Reports page **Export bar** with date pickers + Excel/PDF buttons.
+- **Case 11 — Lead attachments** (`routes/attachments.py` + `core/storage.py`): multiple files per lead (medical reports etc.) via Emergent object storage; upload/list/download(soft-auth via cookie/?auth=/Bearer)/soft-delete. UI: **Attachments tab** on LeadDetail with drag-drop dropzone (25MB cap), download & delete.
+- **Case 14 — Marketing** (`routes/marketing.py`): campaigns CRUD + `/audience-count` + `/send`. Audience = lead filters (stage/source/tag/city/state). WhatsApp sends live via Cloud API when configured else QUEUES; email always QUEUES (no provider yet). New **/marketing** page + nav (Megaphone).
+- **Case 5 — Calls tab** on LeadDetail now shows recording `<audio>` player + duration + disposition (click-to-dial already existed).
+- **Case 16/17 — Template editor**: live preview pane (renders {{1}}→sample name); WhatsApp templates gained `wa_template_name` + `lang` fields (used by live Cloud send).
+- **Case 15 — "Undefined" lead stage** relabeled to **"New / Unassigned"** in dashboard funnel, trends, and pivot.
+- **Case 6 — Robust auth**: Bearer-token fallback — login stores JWT in localStorage (`hivf_token`), axios attaches it as Authorization header so auth survives browsers that block cross-site cookies (Safari ITP / mobile in-app browsers / strict 3p-cookie). Cookie path unchanged.
+- **WhatsApp token**: user-provided System User token stored (valid/decrypts) but WABA `30291513857161871` returns Meta (#200) permission errors → needs `whatsapp_business_management`+`whatsapp_business_messaging` perms + System User assigned to WABA + a Phone Number ID. Until then WA marketing/template sends QUEUE.
+- **Already complete from prior batches (verified)**: Case 1 & 3 (automation triggers on tag/stage + WA/email/assign/tag actions), Case 2 (drag-drop custom-field builder + typed rendering in lead form), Case 4 (Facebook Page field-mapping + test), Case 9/10 (webhook capture + new setup guide & sample HTML form in Admin→Webhooks), Case 12/13 (Manage Users: create/role/activate/reset-pwd).
+- **STILL NEEDS USER INPUT**: email provider for live email (Resend/SendGrid/SMTP) — currently queued; WhatsApp WABA permissions + Phone Number ID for live WA.
+
+
 - **§6 Agent Productivity & Call Analytics** (`routes/agent.py` GET `/api/agent/analytics?date=`): role-aware daily per-agent metrics from call_events grouped by created_at_ist day — total, connected, missed, outbound, incoming, avg_duration, talk_time, conversions (disposition=Converted), break_seconds (status_logs), connect_rate. Returns {date, is_manager, agents[], totals{}}. Managers/admins see full active-agent roster (zero-activity rows hidden); callers see only their own row.
 - **Call Center page** (`CallCenter.jsx`): new tabs — **Agent Analytics** (admin/manager, 6 summary cards + per-agent leaderboard table w/ trophy on top row + date picker), **My Stats** (callers — own analytics), **Pending Queue** (all roles — queued outbound calls awaiting dial via `/api/calls?status=queued`). Manager-only tabs (Agent Analytics, Agent Live Status, Break Reports) hidden from callers.
 - **Dedicated test Agent login** created for agent-level functionality testing: agent@homeivf.com / Agent@2026 (role=caller, id 1001). Sample call_events + break status_logs seeded for today (preview only) so dashboards are demonstrable.

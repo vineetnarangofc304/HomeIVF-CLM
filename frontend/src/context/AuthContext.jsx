@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { API } from "../lib/api";
+import { API, setToken, clearToken } from "../lib/api";
 
 const AuthContext = createContext(null);
 const CatalogContext = createContext(null);

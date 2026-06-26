@@ -14,6 +14,7 @@ const NAV = [
   { to: "/followups", label: "Follow-ups", icon: ClockCountdown, testid: "nav-followups" },
   { to: "/call-center", label: "Call Center", icon: PhoneCall, testid: "nav-call-center" },
   { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp" },
+  { to: "/marketing", label: "Marketing", icon: Megaphone, testid: "nav-marketing" },
   { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports" },
   { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates" },
 ];
