@@ -102,7 +102,7 @@ async def pivot(body: PivotBody, user: dict = Depends(get_current_user)):
 
     def label(slot, key):
         if key in (None, False, ""):
-            return "Undefined"
+            return "New / Unassigned"
         return str(label_maps.get(slot, {}).get(key, key))
 
     # column definitions (raw key + label)
@@ -175,13 +175,13 @@ async def trends(granularity: str = "day", date_from: Optional[str] = None,
         p = r["_id"].get("p")
         if not p:
             continue
-        s = r["_id"].get("s") or "Undefined"
+        s = r["_id"].get("s") or "New / Unassigned"
         node = periods.setdefault(p, {"period": p, "total": 0})
         node[s] = node.get(s, 0) + r["count"]
         node["total"] += r["count"]
     out = sorted(periods.values(), key=lambda x: x["period"])
     stages = [s["name"] for s in await db.catalogs.find({"type": "lead_stage"}, {"_id": 0, "name": 1}).to_list(20)]
-    return {"series": out, "stages": stages + ["Undefined"]}
+    return {"series": out, "stages": stages + ["New / Unassigned"]}
 
 
 @router.get("/heatmap")
@@ -235,6 +235,9 @@ async def dashboard(user: dict = Depends(get_current_user)):
         {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]).to_list(20)
+    for s in by_stage:
+        if s["_id"] in (None, False, ""):
+            s["_id"] = "New / Unassigned"
 
     by_day = await db.leads.aggregate([
         {"$match": {**base, "create_date_ist": {"$gte": ""}}},

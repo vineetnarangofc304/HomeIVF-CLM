@@ -97,32 +97,57 @@ function TemplateModal({ channel, template, onClose, onSave }) {
   const [form, setForm] = useState({
     id: template.id, name: template.name || "", subject: template.subject || "",
     body: template.body || "", template_type: template.template_type || "utility", status: template.status || "draft",
+    wa_template_name: template.wa_template_name || "", lang: template.lang || "en",
   });
+  const SAMPLE = { "{{1}}": "Riya Sharma", "{{2}}": "HomeIVF", "{{3}}": "12 Jun" };
+  const rendered = (form.body || "").replace(/\{\{(\d+)\}\}/g, (m) => SAMPLE[m] || m);
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-xl rounded-2xl bg-white p-6 shadow-xl" data-testid="template-modal">
-        <h3 className="font-display text-lg font-extrabold text-slate-900">{form.id ? "Edit" : "New"} {channel} template</h3>
-        <div className="mt-4 space-y-3">
-          <input data-testid="template-name-input" required className="hivf-input" placeholder="Template name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
-          {channel === "email" && (
-            <input className="hivf-input" placeholder="Subject" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} />
-          )}
-          {channel === "whatsapp" && (
-            <div className="flex gap-2">
-              <select className="hivf-select flex-1" value={form.template_type} onChange={(e) => setForm((f) => ({ ...f, template_type: e.target.value }))}>
-                <option value="utility">Utility</option><option value="marketing">Marketing</option>
-              </select>
-              <select className="hivf-select flex-1" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                <option value="draft">Draft</option><option value="pending">Pending</option><option value="approved">Approved</option>
-              </select>
-            </div>
-          )}
-          <textarea data-testid="template-body-input" required rows={8} className="hivf-input font-mono text-xs" placeholder="Body — use {{1}}, {{2}} placeholders for WhatsApp variables" value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
+        className="grid w-full max-w-3xl grid-cols-1 gap-5 rounded-2xl bg-white p-6 shadow-xl md:grid-cols-2" data-testid="template-modal">
+        <div>
+          <h3 className="font-display text-lg font-extrabold text-slate-900">{form.id ? "Edit" : "New"} {channel} template</h3>
+          <div className="mt-4 space-y-3">
+            <input data-testid="template-name-input" required className="hivf-input" placeholder="Template name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} />
+            {channel === "email" && (
+              <input className="hivf-input" placeholder="Subject" value={form.subject} onChange={(e) => setForm((f) => ({ ...f, subject: e.target.value }))} data-testid="template-subject-input" />
+            )}
+            {channel === "whatsapp" && (
+              <>
+                <div className="flex gap-2">
+                  <select className="hivf-select flex-1" value={form.template_type} onChange={(e) => setForm((f) => ({ ...f, template_type: e.target.value }))}>
+                    <option value="utility">Utility</option><option value="marketing">Marketing</option>
+                  </select>
+                  <select className="hivf-select flex-1" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+                    <option value="draft">Draft</option><option value="pending">Pending</option><option value="approved">Approved</option>
+                  </select>
+                </div>
+                <div className="flex gap-2">
+                  <input className="hivf-input flex-1" placeholder="Meta approved template name (optional)" value={form.wa_template_name} onChange={(e) => setForm((f) => ({ ...f, wa_template_name: e.target.value }))} data-testid="template-wa-name-input" />
+                  <input className="hivf-input !w-24" placeholder="lang (en)" value={form.lang} onChange={(e) => setForm((f) => ({ ...f, lang: e.target.value }))} />
+                </div>
+              </>
+            )}
+            <textarea data-testid="template-body-input" required rows={8} className="hivf-input font-mono text-xs" placeholder="Body — use {{1}}, {{2}} for variables (e.g. Hi {{1}}, your appointment is on {{3}})" value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
+            <p className="text-[11px] text-slate-400">Variables: <b>{"{{1}}"}</b> = lead name, <b>{"{{2}}"}</b>, <b>{"{{3}}"}</b> = extra params. Preview shows sample values.</p>
+          </div>
         </div>
-        <div className="mt-5 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className="hivf-btn-secondary">Cancel</button>
-          <button data-testid="template-save-button" type="submit" className="hivf-btn-primary">Save</button>
+        <div className="flex flex-col">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Live Preview</p>
+          <div className="mt-2 flex-1 rounded-xl border border-slate-100 bg-slate-50 p-4" data-testid="template-preview">
+            {channel === "whatsapp" ? (
+              <div className="rounded-xl rounded-tl-sm bg-[#dcf8c6] p-3 text-sm text-slate-800 shadow-sm whitespace-pre-wrap">{rendered || "Your message preview appears here…"}</div>
+            ) : (
+              <div className="rounded-xl bg-white p-3 text-sm shadow-sm">
+                <p className="border-b border-slate-100 pb-2 font-bold text-slate-800">{form.subject || "(no subject)"}</p>
+                <div className="mt-2 whitespace-pre-wrap text-slate-600">{rendered || "Your email body preview appears here…"}</div>
+              </div>
+            )}
+          </div>
+          <div className="mt-5 flex justify-end gap-2">
+            <button type="button" onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+            <button data-testid="template-save-button" type="submit" className="hivf-btn-primary">Save</button>
+          </div>
         </div>
       </form>
     </div>

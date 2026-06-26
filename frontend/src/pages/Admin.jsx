@@ -438,6 +438,40 @@ function WebhooksTab() {
         ))}
         {hooks.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No webhooks yet — create your first one above.</p>}
       </div>
+
+      <div className="mt-6 rounded-xl border border-slate-100 bg-slate-50/60 p-4" data-testid="lead-form-guide">
+        <h4 className="font-display text-sm font-extrabold text-slate-800">📘 Website / Google Ads Lead Form — Setup Guide</h4>
+        <p className="mt-1 text-xs text-slate-500">Send a POST request (JSON or form-encoded) to your webhook URL above. These standard field names are auto-mapped:</p>
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {["name", "phone", "email", "city", "state", "gender", "male_age", "female_age", "query", "campaign_name", "ads_platform", "ads_name"].map((f) => (
+            <code key={f} className="rounded bg-white px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200">{f}</code>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-slate-500">Any extra fields are saved under the lead's custom data. To map a specific extra field, create it in <b>Admin → Custom Fields</b> (matching the form field name).</p>
+        <p className="mt-3 text-[10px] font-bold uppercase tracking-wider text-slate-400">Sample HTML lead form</p>
+        <pre className="mt-1 overflow-x-auto rounded-lg bg-slate-900 p-3 text-[11px] leading-relaxed text-emerald-200" data-testid="lead-form-sample">{`<form id="leadForm">
+  <input name="name" placeholder="Full name" required />
+  <input name="phone" placeholder="Phone" required />
+  <input name="email" placeholder="Email" />
+  <input name="city" placeholder="City" />
+  <select name="state">...</select>
+  <button type="submit">Submit</button>
+</form>
+<script>
+leadForm.onsubmit = async (e) => {
+  e.preventDefault();
+  const data = Object.fromEntries(new FormData(leadForm));
+  await fetch("${base}/api/webhook/lead/${hooks[0]?.token || "YOUR_TOKEN"}", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data)
+  });
+  alert("Thank you! We'll call you shortly.");
+};
+</script>`}</pre>
+        <button onClick={() => { navigator.clipboard.writeText(document.querySelector('[data-testid="lead-form-sample"]').innerText); toast.success("Sample form copied"); }}
+          className="mt-2 text-xs font-bold text-[#357ABD]" data-testid="copy-sample-form">Copy sample form</button>
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Play, CaretDown, CaretRight, CaretUp, ChartBar, ChartLineUp } from "@phosphor-icons/react";
+import { Play, CaretDown, CaretRight, CaretUp, ChartBar, ChartLineUp, FileXls, FilePdf } from "@phosphor-icons/react";
 import { API, apiErr, todayStr, dimFilterParams, leadsUrl } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, EmptyState } from "../components/Bits";
@@ -51,7 +51,50 @@ export default function Reports() {
           </button>
         </div>
       </div>
+      <ExportBar />
       {tab === "pivot" ? <PivotBuilder /> : <Analytics />}
+    </div>
+  );
+}
+
+function ExportBar() {
+  const [from, setFrom] = useState(todayStr().slice(0, 7) + "-01");
+  const [to, setTo] = useState(todayStr());
+  const [busy, setBusy] = useState("");
+
+  const download = async (kind) => {
+    setBusy(kind);
+    try {
+      const url = kind === "xlsx"
+        ? `/export/leads.xlsx?date_from=${from}&date_to=${to}&active=all`
+        : `/export/report.pdf?date_from=${from}&date_to=${to}`;
+      const res = await API.get(url, { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = kind === "xlsx" ? `homeivf_leads_${to}.xlsx` : `homeivf_report_${to}.pdf`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      toast.success(kind === "xlsx" ? "Excel exported" : "PDF report exported");
+    } catch (e) { toast.error(apiErr(e)); } finally { setBusy(""); }
+  };
+
+  return (
+    <div className="mt-4 flex flex-wrap items-end gap-3 rounded-xl border border-slate-200 bg-white p-4" data-testid="export-bar">
+      <div>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</label>
+        <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="hivf-input !py-1.5 !w-40 text-sm" data-testid="export-date-from" />
+      </div>
+      <div>
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</label>
+        <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="hivf-input !py-1.5 !w-40 text-sm" data-testid="export-date-to" />
+      </div>
+      <button onClick={() => download("xlsx")} disabled={busy} className="hivf-btn-secondary !py-2" data-testid="export-excel-button">
+        <FileXls size={16} className="text-emerald-600" /> {busy === "xlsx" ? "Exporting…" : "Export Excel"}
+      </button>
+      <button onClick={() => download("pdf")} disabled={busy} className="hivf-btn-secondary !py-2" data-testid="export-pdf-button">
+        <FilePdf size={16} className="text-rose-600" /> {busy === "pdf" ? "Generating…" : "PDF Report"}
+      </button>
     </div>
   );
 }

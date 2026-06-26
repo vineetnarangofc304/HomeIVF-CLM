@@ -19,6 +19,7 @@ class TemplateBody(BaseModel):
     template_type: Optional[str] = None
     status: Optional[str] = None
     lang: Optional[str] = None
+    wa_template_name: Optional[str] = None
 
 
 @router.get("/{channel}")
@@ -44,7 +45,7 @@ async def create_template(channel: str, body: TemplateBody, user: dict = Depends
 async def update_template(channel: str, tid: int, body: dict, user: dict = Depends(require_roles("admin", "manager"))):
     if channel not in COLLECTIONS:
         raise HTTPException(status_code=400, detail="Invalid channel")
-    allowed = {"name", "subject", "body", "template_type", "status", "lang", "active"}
+    allowed = {"name", "subject", "body", "template_type", "status", "lang", "wa_template_name", "active"}
     updates = {k: v for k, v in body.items() if k in allowed}
     res = await db[COLLECTIONS[channel]].update_one({"id": tid}, {"$set": updates})
     if res.matched_count == 0:

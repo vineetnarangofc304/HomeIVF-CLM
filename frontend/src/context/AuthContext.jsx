@@ -29,6 +29,7 @@ export function AuthProvider({ children }) {
 
   const login = async (email, password) => {
     const { data } = await API.post("/auth/login", { email, password });
+    setToken(data.access_token);
     setUser(data);
     return data;
   };
@@ -37,6 +38,7 @@ export function AuthProvider({ children }) {
     try {
       await API.post("/auth/logout");
     } finally {
+      clearToken();
       setUser(false);
       setCatalogs(null);
     }

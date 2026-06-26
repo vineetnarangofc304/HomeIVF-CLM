@@ -1,0 +1,58 @@
+{
+  "summary": "Iteration 8 (Cases 5,7,11,14,15,16/17 + Case 6 Bearer-token fallback). Backend pytest: 14/14 PASS (auth Bearer-only, export xlsx+pdf, attachments upload/list/download/delete, marketing campaign create+audience-count+send+delete, email campaign queues, template wa_template_name/lang persistence, 'New / Unassigned' relabel on dashboard/pivot/trends, calls list). Frontend: 9/11 PASS — Excel download, PDF export bar, attachments upload via dropzone, marketing modal with audience-count (99511), template live preview, lead-detail Calls/Attachments tabs all work. 2 real frontend bugs found.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AuthContext.jsx",
+        "issue": "CRITICAL: `setToken` and `clearToken` are referenced but NOT imported from ../lib/api. login() silently throws ReferenceError on setToken(data.access_token) after the await — so `hivf_token` is NEVER written to localStorage. Logout throws 'ReferenceError: clearToken is not defined' (visible as a runtime-error overlay in the browser). This DEFEATS the entire purpose of Case 6's Bearer-token fallback: if a browser blocks cross-site cookies (Safari ITP, strict 3p-cookie mode), login appears to succeed but no token is stored → next request fails. Today it 'works' only because the httpOnly cookie path still authenticates.",
+        "selector": "src/context/AuthContext.jsx line 1 import { API } from '../lib/api'",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Layout.jsx",
+        "issue": "Sidebar nav is missing a Marketing entry. /marketing route + page exist in App.js, but there is no nav-marketing link (only Dashboard, Leads, Follow-ups, Call Center, WhatsApp, Reports, Templates, Admin). End users have no UI path to reach Marketing. Review-request explicitly calls for `nav-marketing` testid.",
+        "selector": "src/components/Layout.jsx (nav array around line 17)",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter8_new_features.py",
+    "/app/test_reports/pytest/iter8_new_features.xml"
+  ],
+  "action_items": [
+    "1) In /app/frontend/src/context/AuthContext.jsx change `import { API } from '../lib/api'` → `import { API, setToken, clearToken } from '../lib/api'`. Without this, Case 6 (Bearer-token fallback) is non-functional and logout throws a visible runtime error. Verify after fix: after admin login, `localStorage.getItem('hivf_token')` should be a non-empty JWT; logout should clear it without an overlay error.",
+    "2) Add Marketing entry to the sidebar in Layout.jsx, e.g. `{ to: '/marketing', label: 'Marketing', icon: <appropriate icon>, testid: 'nav-marketing' }`, ideally gated to admin/manager roles since marketing endpoints require those roles.",
+    "3) (Cosmetic, optional) Consider redirecting to /login after logout instead of staying on the protected page; currently the user remains on /leads/{id} after logout (the Protected wrapper presumably handles it on next render)."
+  ],
+  "critical_code_review_comments": [
+    "BACKEND IS CLEAN. /api/export/leads.xlsx streams a real .xlsx (PK zip, ~spreadsheetml ctype, formatted headers), /api/export/report.pdf returns a real %PDF with summary + by_stage/by_source/by_agent tables — both use build_query so they respect role-scoping (caller would only export own leads). ✓",
+    "/api/leads/{lead_id}/attachments correctly checks lead existence, enforces 25MB cap, picks ctype from MIME map, stores via Emergent object storage (path = homeivf-crm/leads/{lead_id}/{uuid}.{ext}) and logs a chatter message. Download endpoint supports cookie / ?auth= query / Authorization header (good for inline media tags). Delete is soft (is_deleted=True). ✓",
+    "/api/marketing/campaigns/{cid}/send writes one outbound_queue row per audience lead with status='pending_api_credentials' when WA isn't configured, and per-email always (no email provider) — exactly the expected 'queue, don't error' behaviour. Status transitions: draft → sending → (sent | queued | partial). Audience query reuses build_query and additionally filters out leads with no phone_digits (WA) / no email_from (email). ✓",
+    "Case 15: dashboard.by_stage replaces None/False/'' with 'New / Unassigned' (loop), trends labels null stage as 'New / Unassigned' and adds it to the stages array, pivot.label() falls back to 'New / Unassigned' for null keys. Verified via backend tests — no 'Undefined' anywhere. ✓",
+    "Case 16/17: TemplateBody now accepts wa_template_name; PATCH whitelist includes wa_template_name + lang; persistence verified end-to-end. ✓",
+    "FRONTEND BUG — AuthContext.jsx missing imports for setToken/clearToken (see ui_bugs[0]). This is a *regression* introduced with the Case 6 Bearer-token fallback. It silently breaks login on cookie-blocking browsers (Safari ITP / 3p-cookie blocked / mobile in-app browsers) and surfaces a visible runtime-error overlay on logout. One-line fix.",
+    "FRONTEND BUG — Marketing sidebar link missing (see ui_bugs[1]). Users can only reach /marketing by typing the URL.",
+    "MINOR — Logout doesn't navigate to /login afterwards; user stays on the previous route until next protected guard fires.",
+    "MINOR — /api/marketing/campaigns/{cid}/send loops over up to MAX_SEND=5000 leads synchronously inside the request. With WhatsApp live mode that would block for a long time. Consider moving to a background task / queue for production scale."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter8_new_features.py (new)"
+  ],
+  "success_rate": {
+    "backend": "100% (14/14)",
+    "frontend": "82% (9/11) — passing: excel download, pdf button, export-bar, lead-detail tab-attachments, attachment-file-input, attachments-list (upload → toast + row shown), tab-calls, campaign-modal, campaign-preview-button + campaign-audience-count (99511 recipients), template-modal + template-preview; failing: nav-marketing missing, hivf_token never written to localStorage after login (silent setToken ReferenceError) — login still works only because httpOnly cookie is set."
+  },
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026 ; agent@homeivf.com/Agent@2026 (verified)",
+  "seed_data_creation": "Created and cleaned up: 1 test attachment on lead 118704, 2 test campaigns (TEST_iter8_campaign + TEST_iter8_email_camp), 1 test wa template (TEST_iter8_persist). All deleted by the tests themselves. One UI-uploaded attachment 'tmp_j70jjmf.txt' remains on lead 118704 (orphan from playwright run — main agent may clean if desired).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Stable testids verified: export-bar, export-date-from/to, export-excel-button, export-pdf-button, tab-attachments, tab-calls, attachment-file-input, attachments-list, campaign-modal, campaign-preview-button, campaign-audience-count, template-modal, template-preview, logout-button. MISSING (need to be added by main agent): nav-marketing in sidebar; and the import fix for setToken/clearToken in AuthContext.jsx. After the import fix, re-verify: 1) localStorage.getItem('hivf_token') is set right after login, 2) logout clears it without runtime-error overlay, 3) login still works when cookies are blocked (e.g. test with a fresh context that strips Set-Cookie or uses a Bearer-only fetch). Backend regression suite is /app/backend/tests/test_iter8_new_features.py — re-run with `pytest tests/test_iter8_new_features.py -v`.",
+  "rca of the issue": "AuthContext.jsx line 1 only imports { API } from '../lib/api' but lines 32 and 41 call setToken() and clearToken() respectively. Those are exported from lib/api.js but never imported into AuthContext.jsx, so at runtime they resolve to undefined globals → ReferenceError. The login error is swallowed because it occurs after `await API.post(...)` resolves and the surrounding component .then chain ignores it; subsequent navigations succeed only because the server's httpOnly cookie was set in the same response. Logout throws synchronously inside the .finally block which surfaces React's error overlay. Fix: change the import to `import { API, setToken, clearToken } from '../lib/api';`."
+}

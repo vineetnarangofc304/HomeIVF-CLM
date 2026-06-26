@@ -5,6 +5,18 @@ export const API = axios.create({
   withCredentials: true,
 });
 
+const TOKEN_KEY = "hivf_token";
+export const setToken = (t) => { if (t) localStorage.setItem(TOKEN_KEY, t); };
+export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
+
+// Attach a Bearer token fallback so auth works even when a browser blocks
+// the cross-site httpOnly cookie (Safari ITP, strict 3rd-party cookie modes).
+API.interceptors.request.use((config) => {
+  const t = localStorage.getItem(TOKEN_KEY);
+  if (t) config.headers.Authorization = `Bearer ${t}`;
+  return config;
+});
+
 let refreshing = null;
 
 API.interceptors.response.use(
@@ -14,12 +26,16 @@ API.interceptors.response.use(
     if (error.response?.status === 401 && !original._retry && !original.url.includes("/auth/")) {
       original._retry = true;
       try {
-        refreshing = refreshing || API.post("/auth/refresh");
+        refreshing = refreshing || API.post("/auth/refresh").then((r) => {
+          if (r.data?.access_token) setToken(r.data.access_token);
+          return r;
+        });
         await refreshing;
         refreshing = null;
         return API(original);
       } catch (e) {
         refreshing = null;
+        clearToken();
         window.location.href = "/login";
       }
     }

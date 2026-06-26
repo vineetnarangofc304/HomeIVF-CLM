@@ -19,6 +19,9 @@ from routes import facebook as facebook_routes
 from routes import wa_cloud as wa_cloud_routes
 from routes import agent as agent_routes
 from routes import catalogs as catalog_routes
+from routes import attachments as attachment_routes
+from routes import export as export_routes
+from routes import marketing as marketing_routes
 from routes import chatter as chatter_routes
 from routes import filters as filter_routes
 from routes import leads as lead_routes
@@ -59,6 +62,9 @@ api.include_router(call_routes.router)
 api.include_router(facebook_routes.router)
 api.include_router(wa_cloud_routes.router)
 api.include_router(agent_routes.router)
+api.include_router(attachment_routes.router)
+api.include_router(export_routes.router)
+api.include_router(marketing_routes.router)
 
 
 @api.get("/health")
@@ -74,6 +80,12 @@ DEFAULT_FOLLOW_UP_TAGS = ["Follow UP 1", "Follow UP 2", "Follow UP 3", "Follow U
 
 @app.on_event("startup")
 async def startup():
+    try:
+        from core.storage import init_storage
+        await init_storage()
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
     # Indexes
     await db.users.create_index("email", unique=True)
     await db.users.create_index("id", unique=True)

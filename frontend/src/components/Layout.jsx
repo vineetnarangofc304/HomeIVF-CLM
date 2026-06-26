@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   SquaresFour, UsersThree, ClockCountdown, WhatsappLogo, ChartBar,
-  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall,
+  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall, Megaphone,
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
 import IncomingCallBanner from "./IncomingCallBanner";

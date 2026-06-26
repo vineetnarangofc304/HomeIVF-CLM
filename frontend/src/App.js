@@ -15,6 +15,7 @@ import Templates from "./pages/Templates";
 import Admin from "./pages/Admin";
 import ScreenPop from "./pages/ScreenPop";
 import CallCenter from "./pages/CallCenter";
+import Marketing from "./pages/Marketing";
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -43,6 +44,7 @@ function App() {
           <Route path="/whatsapp" element={<Protected><WhatsAppInbox /></Protected>} />
           <Route path="/reports" element={<Protected><Reports /></Protected>} />
           <Route path="/templates" element={<Protected><Templates /></Protected>} />
+          <Route path="/marketing" element={<Protected><Marketing /></Protected>} />
           <Route path="/admin" element={<Protected><Admin /></Protected>} />
         </Routes>
       </BrowserRouter>

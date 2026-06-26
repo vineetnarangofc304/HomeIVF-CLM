@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
   ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
-  Phone, PhoneIncoming, PhoneOutgoing,
+  Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
@@ -23,6 +23,7 @@ export default function LeadDetail() {
   const [activities, setActivities] = useState([]);
   const [waChannels, setWaChannels] = useState([]);
   const [calls, setCalls] = useState([]);
+  const [attachments, setAttachments] = useState([]);
   const [dialing, setDialing] = useState(false);
   const [tab, setTab] = useState("chatter");
   const [note, setNote] = useState("");
@@ -34,12 +35,13 @@ export default function LeadDetail() {
 
   const load = useCallback(async () => {
     try {
-      const [{ data: l }, { data: m }, { data: a }, { data: w }, { data: c }] = await Promise.all([
+      const [{ data: l }, { data: m }, { data: a }, { data: w }, { data: c }, { data: at }] = await Promise.all([
         API.get(`/leads/${id}`),
         API.get(`/leads/${id}/messages`, { params: { page: 1 } }),
         API.get(`/leads/${id}/activities`),
         API.get(`/whatsapp/lead/${id}`),
         API.get(`/calls/lead/${id}`),
+        API.get(`/leads/${id}/attachments`),
       ]);
       setLead(l);
       setMessages(m.items);
@@ -48,6 +50,7 @@ export default function LeadDetail() {
       setActivities(a);
       setWaChannels(w);
       setCalls(c);
+      setAttachments(at);
     } catch (e) {
       toast.error(apiErr(e));
     }
@@ -95,6 +98,44 @@ export default function LeadDetail() {
       await reloadMessages();
     } catch (e) { toast.error(apiErr(e)); }
     finally { setDialing(false); }
+  };
+
+  const reloadAttachments = async () => {
+    const { data } = await API.get(`/leads/${id}/attachments`);
+    setAttachments(data);
+  };
+
+  const uploadFiles = async (fileList) => {
+    const files = Array.from(fileList || []);
+    if (!files.length) return;
+    for (const f of files) {
+      if (f.size > 25 * 1024 * 1024) { toast.error(`${f.name} exceeds 25MB`); continue; }
+      const fd = new FormData();
+      fd.append("file", f);
+      try {
+        await API.post(`/leads/${id}/attachments`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+        toast.success(`Uploaded ${f.name}`);
+      } catch (e) { toast.error(apiErr(e)); }
+    }
+    await reloadAttachments();
+    await reloadMessages();
+  };
+
+  const deleteAttachment = async (att) => {
+    if (!window.confirm(`Delete ${att.original_filename}?`)) return;
+    await API.delete(`/attachments/${att.id}`);
+    await reloadAttachments();
+  };
+
+  const downloadAttachment = async (att) => {
+    try {
+      const res = await API.get(`/attachments/${att.id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = att.original_filename || "file";
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { toast.error(apiErr(e)); }
   };
 
   if (!lead) return <Spinner />;
@@ -256,7 +297,7 @@ export default function LeadDetail() {
         <div className="lg:col-span-3">
           <div className="hivf-card">
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 pt-3">
-              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length]].map(([k, l, c]) => (
+              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length], ["attachments", "Attachments", attachments.length]].map(([k, l, c]) => (
                 <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
                   className={`rounded-t-lg px-3 py-2 text-sm font-bold transition-colors ${tab === k ? "border-b-2 border-[#4A90E2] text-[#357ABD]" : "text-slate-500 hover:text-slate-700"}`}>
                   {l} {c > 0 && <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">{c}</span>}
@@ -336,20 +377,53 @@ export default function LeadDetail() {
                     {c.direction === "incoming"
                       ? <PhoneIncoming size={18} weight="duotone" className="text-emerald-500" />
                       : <PhoneOutgoing size={18} weight="duotone" className="text-indigo-500" />}
-                    <div className="flex-1">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-bold text-slate-700">
                         {c.direction === "incoming" ? "Incoming call" : "Outbound (click-to-dial)"} · {c.phone || "—"}
                       </p>
                       <p className="text-xs text-slate-500">
                         {fmtDate(c.created_at)}{c.agent_name ? ` · ${c.agent_name}` : ""}
-                        {c.status ? ` · ${c.status}` : ""}
+                        {c.status ? ` · ${c.status}` : ""}{c.duration ? ` · ${c.duration}s` : ""}
+                        {c.disposition ? ` · ${c.disposition}` : ""}
                       </p>
+                      {c.recording_url && (
+                        <audio controls preload="none" src={c.recording_url} className="mt-2 h-8 w-full max-w-xs" data-testid={`call-recording-${c.id}`} />
+                      )}
                     </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "failed" ? "bg-rose-50 text-rose-600" : "bg-slate-100 text-slate-500"}`}>
-                      {c.call_type || c.direction}
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${c.status === "failed" ? "bg-rose-50 text-rose-600" : c.status === "connected" ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                      {c.status || c.call_type || c.direction}
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+            {tab === "attachments" && (
+              <div className="p-4" data-testid="lead-attachments-panel">
+                <label className="mb-3 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-8 text-center transition-colors hover:border-[#4A90E2] hover:bg-[#4A90E2]/5"
+                  data-testid="attachment-dropzone">
+                  <UploadSimple size={24} className="text-[#4A90E2]" />
+                  <span className="text-sm font-bold text-slate-600">Click to upload medical reports / documents</span>
+                  <span className="text-xs text-slate-400">PDF, images, docs — up to 25MB each</span>
+                  <input type="file" multiple className="hidden" data-testid="attachment-file-input"
+                    onChange={(e) => { uploadFiles(e.target.files); e.target.value = ""; }} />
+                </label>
+                {attachments.length === 0 ? (
+                  <EmptyState title="No attachments yet" subtitle="Upload patient reports, scans and documents here" />
+                ) : (
+                  <div className="space-y-2" data-testid="attachments-list">
+                    {attachments.map((a) => (
+                      <div key={a.id} className="flex items-center gap-3 rounded-xl border border-slate-100 p-3" data-testid={`attachment-row-${a.id}`}>
+                        <Paperclip size={18} className="text-slate-400" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-700">{a.original_filename}</p>
+                          <p className="text-xs text-slate-500">{(a.size / 1024).toFixed(0)} KB · {a.uploaded_by} · {fmtDate(a.created_at)}</p>
+                        </div>
+                        <button onClick={() => downloadAttachment(a)} className="text-slate-400 hover:text-[#4A90E2]" data-testid={`attachment-download-${a.id}`} title="Download"><DownloadSimple size={18} /></button>
+                        <button onClick={() => deleteAttachment(a)} className="text-slate-400 hover:text-rose-500" data-testid={`attachment-delete-${a.id}`} title="Delete"><Trash size={18} /></button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
