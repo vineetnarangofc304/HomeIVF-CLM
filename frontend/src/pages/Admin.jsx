@@ -965,6 +965,12 @@ function WhatsAppTab({ isAdmin }) {
     try { await API.post("/admin/whatsapp/send-test", { to: testTo.trim() }); toast.success("Test message sent ✓"); }
     catch (err) { toast.error(apiErr(err)); }
   };
+  const syncOdooTemplates = async () => {
+    try {
+      const { data } = await API.post("/admin/whatsapp/sync-odoo-templates");
+      toast.success(`Linked ${data.linked_updated} approved templates from Odoo (${data.created} new)`);
+    } catch (err) { toast.error(apiErr(err)); }
+  };
 
   if (!cfg) return <Spinner />;
   return (
@@ -998,6 +1004,7 @@ function WhatsAppTab({ isAdmin }) {
               <button data-testid="wa-save-button" type="submit" className="hivf-btn-primary !py-2"><WhatsappLogo size={14} /> Save Settings</button>
               <button type="button" onClick={fetchPhones} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-phones">Fetch phone numbers</button>
               <button type="button" onClick={fetchTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-templates">Fetch templates</button>
+              <button type="button" onClick={syncOdooTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-sync-odoo-templates">Sync approved templates from Odoo</button>
             </div>
           )}
         </form>

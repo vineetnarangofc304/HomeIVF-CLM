@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import sys
 from datetime import datetime, timedelta, timezone
@@ -79,6 +80,55 @@ async def update_automation(aid: int, body: dict, user: dict = Depends(require_r
 async def delete_automation(aid: int, user: dict = Depends(require_roles("admin"))):
     await db.automations.delete_one({"id": aid})
     return {"ok": True}
+
+
+@router.post("/whatsapp/sync-odoo-templates")
+async def sync_odoo_wa_templates(user: dict = Depends(require_roles("admin"))):
+    """Pull approved Meta template names (template_name) + language from Odoo's
+    whatsapp.template records and link them onto the CRM WhatsApp templates so
+    live Cloud-API sending uses the exact approved template."""
+    import asyncio
+    import xmlrpc.client
+
+    def fetch():
+        url, dbn = os.environ["ODOO_URL"], os.environ["ODOO_DB"]
+        login, pwd = os.environ["ODOO_LOGIN"], os.environ["ODOO_PASSWORD"]
+        common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
+        uid = common.authenticate(dbn, login, pwd, {})
+        if not uid:
+            raise HTTPException(status_code=503, detail="Odoo authentication failed")
+        models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
+        return models.execute_kw(dbn, uid, pwd, "whatsapp.template", "search_read", [[]],
+            {"fields": ["name", "template_name", "status", "lang_code", "template_type", "body"]})
+
+    recs = await asyncio.to_thread(fetch)
+    updated = created = skipped = 0
+    for r in recs:
+        meta_name = (r.get("template_name") or "").strip()
+        name = (r.get("name") or "").strip()
+        if not meta_name or not name:
+            skipped += 1
+            continue
+        fields = {
+            "wa_template_name": meta_name,
+            "lang": r.get("lang_code") or "en",
+            "status": (r.get("status") or "approved"),
+            "template_type": (r.get("template_type") or "").lower() or "utility",
+        }
+        existing = await db.templates_whatsapp.find_one(
+            {"$or": [{"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}},
+                     {"wa_template_name": meta_name}]})
+        if existing:
+            await db.templates_whatsapp.update_one({"id": existing["id"]}, {"$set": fields})
+            updated += 1
+        else:
+            tid = await next_id("template_whatsapp")
+            await db.templates_whatsapp.insert_one({
+                "id": tid, "name": name, "body": r.get("body") or "",
+                "active": True, "created_at": now_utc_str(), **fields})
+            created += 1
+    return {"ok": True, "odoo_templates": len(recs), "linked_updated": updated,
+            "created": created, "skipped_no_meta_name": skipped}
 
 
 @router.get("/outbound_queue")

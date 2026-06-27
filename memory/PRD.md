@@ -23,7 +23,12 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Implemented (2026-06-27, batch 11) — Requirements doc Cases 5,6,7,11,14,15,16/17 — backend 14/14, frontend verified
+## Implemented (2026-06-27, batch 12) — WhatsApp approved-template linking from Odoo
+- Added `POST /api/admin/whatsapp/sync-odoo-templates` (admin): pulls Odoo `whatsapp.template` records (`template_name`, `lang_code`, `status`, `template_type`) and links them onto CRM `templates_whatsapp` by name → sets `wa_template_name` + `lang` + `status`. Ran it: **54/54 approved templates linked** (e.g. "Appointment Booking 2" → `appointment_booking_2`). UI button: Admin → WhatsApp → "Sync approved templates from Odoo".
+- Template editor now shows the approved Meta name pre-filled + live preview.
+- ⚠️ Multi-variable templates (e.g. appointment_booking_3 uses {{1}}..{{5}}) — `send_lead_template` currently only auto-fills {{1}} (lead name). Live multi-variable sending will need per-variable→lead-field mapping. Live WA send still blocked on WABA `30291513857161871` permissions (#200) + Phone Number ID.
+
+
 - **Case 7 — Exports** (`routes/export.py`): `GET /api/export/leads.xlsx` (date range + all lead filters, styled openpyxl, role-scoped) and `GET /api/export/report.pdf` (reportlab summary: totals, conversion rate, by stage/source/agent). UI: Reports page **Export bar** with date pickers + Excel/PDF buttons.
 - **Case 11 — Lead attachments** (`routes/attachments.py` + `core/storage.py`): multiple files per lead (medical reports etc.) via Emergent object storage; upload/list/download(soft-auth via cookie/?auth=/Bearer)/soft-delete. UI: **Attachments tab** on LeadDetail with drag-drop dropzone (25MB cap), download & delete.
 - **Case 14 — Marketing** (`routes/marketing.py`): campaigns CRUD + `/audience-count` + `/send`. Audience = lead filters (stage/source/tag/city/state). WhatsApp sends live via Cloud API when configured else QUEUES; email always QUEUES (no provider yet). New **/marketing** page + nav (Megaphone).
