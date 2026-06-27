@@ -23,7 +23,14 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Implemented (2026-06-27, batch 12) — WhatsApp approved-template linking from Odoo
+## Implemented (2026-06-27, batch 13) — Live Email via Gmail OAuth (Case 14/17)
+- Integrated **Gmail API send via Google OAuth 2.0** (`core/gmail_send.py`, `routes/gmail.py`): auth-url → consent → callback stores refresh token in `settings.key=gmail`; auto-refreshes access token; sends MIME email via `users.messages.send`. Endpoints: `/api/admin/gmail/auth-url`, `/api/oauth/gmail/callback`, `/api/admin/gmail/status`, `/api/admin/gmail/disconnect`, `/api/admin/gmail/send-test`.
+- Wired live send: lead `send_email` and marketing **email** campaigns now send live via Gmail when connected (subject/body with {{1}}→lead name), else QUEUE.
+- New **Admin → Email** tab: Connect Google account, shows required redirect URI to register, status (connected email), test-send, disconnect. Query-param toast on `?gmail=connected`.
+- Creds in backend/.env: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GMAIL_REDIRECT_URI (preview). Verified: auth-url generates valid Google consent URL; status endpoint works; UI renders.
+- ⚠️ ACTION REQUIRED by user to go live: in Google Cloud Console add redirect URI `https://homeivf-crm-preview.preview.emergentagent.com/api/oauth/gmail/callback` (and the production one after deploy), enable Gmail API, add gmail.send scope, add account as test user if app in Testing, then click Connect. The previously-registered `homeivf.com/google_account/authentication` URI does NOT work for the CRM. Live send unverified until connected.
+
+
 - Added `POST /api/admin/whatsapp/sync-odoo-templates` (admin): pulls Odoo `whatsapp.template` records (`template_name`, `lang_code`, `status`, `template_type`) and links them onto CRM `templates_whatsapp` by name → sets `wa_template_name` + `lang` + `status`. Ran it: **54/54 approved templates linked** (e.g. "Appointment Booking 2" → `appointment_booking_2`). UI button: Admin → WhatsApp → "Sync approved templates from Odoo".
 - Template editor now shows the approved Meta name pre-filled + live preview.
 - ⚠️ Multi-variable templates (e.g. appointment_booking_3 uses {{1}}..{{5}}) — `send_lead_template` currently only auto-fills {{1}} (lead name). Live multi-variable sending will need per-variable→lead-field mapping. Live WA send still blocked on WABA `30291513857161871` permissions (#200) + Phone Number ID.

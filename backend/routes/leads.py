@@ -381,10 +381,17 @@ async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get
     to = (body.to or lead.get("email_from") or "").strip()
     if not to:
         raise HTTPException(status_code=400, detail="Lead has no email address — enter one")
+    from core import gmail_send as gm
+    sent_live = False
+    send_err = None
+    if await gm.is_connected():
+        res = await gm.send_email(to, body.subject, body.body, html=True)
+        sent_live = res.get("ok", False)
+        send_err = res.get("error")
     await db.outbound_queue.insert_one({
         "channel": "email", "lead_id": lead_id, "to": to, "subject": body.subject,
-        "body": body.body, "status": "pending_api_credentials",
-        "requested_by": user["name"], "created_at": now_utc_str(),
+        "body": body.body, "status": "sent" if sent_live else "pending_api_credentials",
+        "error": send_err, "requested_by": user["name"], "created_at": now_utc_str(),
     })
     if body.save_as_template:
         tid = await next_id("template_email")
@@ -392,10 +399,11 @@ async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get
             "id": tid, "name": body.save_as_template, "subject": body.subject,
             "body": body.body, "active": True, "created_at": now_utc_str(),
         })
+    note = (f"📧 Email sent to <b>{to}</b> by {user['name']}" if sent_live
+            else f"Email queued to <b>{to}</b> by {user['name']} (sends automatically once Gmail is connected)")
     await log_message(
         lead_id,
-        f"Email queued to <b>{to}</b> by {user['name']} (sends automatically once SMTP is connected)"
-        f"<br/><b>Subject:</b> {body.subject}<br/><span style='color:#64748b'>{body.body[:500]}</span>",
+        f"{note}<br/><b>Subject:</b> {body.subject}<br/><span style='color:#64748b'>{body.body[:500]}</span>",
         author=user, subtype="comment",
     )
     return {"ok": True, "status": "queued", "to": to}

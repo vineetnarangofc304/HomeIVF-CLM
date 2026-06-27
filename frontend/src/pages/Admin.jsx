@@ -1,15 +1,21 @@
 import React, { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo } from "@phosphor-icons/react";
+import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo, EnvelopeSimple, GoogleLogo } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Email", "Migration"];
 
 export default function Admin() {
   const { user } = useAuth();
   const [tab, setTab] = useState("Users");
+  useEffect(() => {
+    const p = new URLSearchParams(window.location.search);
+    if (p.get("tab")) setTab(p.get("tab"));
+    if (p.get("gmail") === "connected") toast.success("Gmail connected — live email is now active ✓");
+    else if (p.get("gmail")) toast.error("Gmail connection failed — check redirect URI & consent");
+  }, []);
   return (
     <div className="p-6" data-testid="admin-page">
       <h1 className="font-display text-2xl font-extrabold text-slate-900">Admin</h1>
@@ -33,6 +39,7 @@ export default function Admin() {
         {tab === "Telephony" && <TelephonyTab isAdmin={user.role === "admin"} />}
         {tab === "Facebook" && <FacebookTab isAdmin={user.role === "admin"} />}
         {tab === "WhatsApp" && <WhatsAppTab isAdmin={user.role === "admin"} />}
+        {tab === "Email" && <EmailTab isAdmin={user.role === "admin"} />}
         {tab === "Migration" && <MigrationTab />}
       </div>
     </div>
@@ -918,6 +925,71 @@ function FacebookTab({ isAdmin }) {
             <button type="button" onClick={sendTest} className="hivf-btn-primary !py-1 text-xs" data-testid="fb-send-test">Send test lead</button>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function EmailTab({ isAdmin }) {
+  const [status, setStatus] = useState(null);
+  const [testTo, setTestTo] = useState("");
+  const load = () => API.get("/admin/gmail/status").then(({ data }) => setStatus(data)).catch(() => setStatus({ connected: false }));
+  useEffect(() => { load(); }, []);
+
+  const connect = async () => {
+    try { const { data } = await API.get("/admin/gmail/auth-url"); window.location.href = data.url; }
+    catch (e) { toast.error(apiErr(e)); }
+  };
+  const disconnect = async () => {
+    if (!window.confirm("Disconnect Gmail? Emails will queue until reconnected.")) return;
+    await API.post("/admin/gmail/disconnect"); toast.success("Gmail disconnected"); load();
+  };
+  const sendTest = async () => {
+    if (!testTo.trim()) { toast.error("Enter a recipient email"); return; }
+    try { await API.post("/admin/gmail/send-test", { to: testTo.trim() }); toast.success("Test email sent ✓"); }
+    catch (e) { toast.error(apiErr(e)); }
+  };
+
+  const redirectUri = `${process.env.REACT_APP_BACKEND_URL}/api/oauth/gmail/callback`;
+
+  if (!status) return <Spinner />;
+  return (
+    <div className="space-y-4" data-testid="email-tab">
+      <div className="hivf-card p-4">
+        <div className="flex items-center gap-2">
+          <EnvelopeSimple size={20} weight="fill" className="text-[#EA4335]" />
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Email Sending — Gmail (Google OAuth)</h3>
+          <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${status.connected ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>
+            {status.connected ? "CONNECTED" : "NOT CONNECTED"}
+          </span>
+        </div>
+        <p className="mt-1 text-xs text-slate-500">Connect a Google account once. Lead emails & marketing email campaigns then send live via Gmail.</p>
+
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-[#4A90E2]/5 p-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add this exact Redirect URI in Google Cloud Console</span>
+          <code className="flex-1 truncate rounded-lg bg-white px-2 py-1.5 text-[11px] text-slate-600" data-testid="gmail-redirect-uri">{redirectUri}</code>
+          <button title="Copy" onClick={() => { navigator.clipboard.writeText(redirectUri); toast.success("Copied"); }} className="text-slate-400 hover:text-[#357ABD]"><Copy size={16} /></button>
+        </div>
+
+        {status.connected ? (
+          <div className="mt-4">
+            <p className="text-sm text-slate-700">Connected as <b>{status.email}</b></p>
+            <div className="mt-3 flex flex-wrap items-end gap-2">
+              <div className="flex-1 min-w-[220px]">
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Send test email to</label>
+                <input data-testid="gmail-test-to" className="hivf-input mt-1" placeholder="someone@example.com" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
+              </div>
+              <button onClick={sendTest} className="hivf-btn-primary !py-2" data-testid="gmail-send-test">Send test</button>
+              {isAdmin && <button onClick={disconnect} className="hivf-btn-secondary !py-2" data-testid="gmail-disconnect">Disconnect</button>}
+            </div>
+          </div>
+        ) : (
+          isAdmin && (
+            <button onClick={connect} className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 shadow-sm hover:bg-slate-50" data-testid="gmail-connect">
+              <GoogleLogo size={18} weight="bold" className="text-[#EA4335]" /> Connect Google account
+            </button>
+          )
+        )}
       </div>
     </div>
   );

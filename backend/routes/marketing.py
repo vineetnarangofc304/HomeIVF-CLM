@@ -92,6 +92,10 @@ async def send_campaign(cid: int, user: dict = Depends(require_roles("admin", "m
     await db.campaigns.update_one({"id": cid}, {"$set": {"status": "sending", "started_at": now_utc_str()}})
 
     wa_live = await wac.is_configured() if camp["channel"] == "whatsapp" else False
+    email_live = False
+    if camp["channel"] == "email":
+        from core import gmail_send as gm
+        email_live = await gm.is_connected()
     sent = failed = queued = total = 0
     cursor = db.leads.find(q, {"_id": 0}).limit(MAX_SEND)
     async for lead in cursor:
@@ -113,16 +117,30 @@ async def send_campaign(cid: int, user: dict = Depends(require_roles("admin", "m
                     "template_id": template["id"], "status": "pending_api_credentials",
                     "campaign_id": cid, "created_at": now_utc_str()})
         else:
-            queued += 1
-            body = (template.get("body") or "")
-            await db.outbound_queue.insert_one({"channel": "email", "lead_id": lead["id"],
-                "to": lead.get("email_from"), "subject": template.get("subject") or camp["name"],
-                "body": body, "template_id": template["id"], "status": "pending_api_credentials",
-                "campaign_id": cid, "created_at": now_utc_str()})
+            to = (lead.get("email_from") or "").strip()
+            name = lead.get("contact_name") or "there"
+            body_txt = (template.get("body") or "").replace("{{1}}", name)
+            subject = template.get("subject") or camp["name"]
+            if email_live and to:
+                from core import gmail_send as gm
+                res = await gm.send_email(to, subject, body_txt, html=True)
+                if res.get("ok"):
+                    sent += 1
+                else:
+                    failed += 1
+                    await db.outbound_queue.insert_one({"channel": "email", "lead_id": lead["id"],
+                        "to": to, "subject": subject, "body": body_txt, "status": "failed",
+                        "error": res.get("error"), "template_id": template["id"], "campaign_id": cid,
+                        "created_at": now_utc_str()})
+            else:
+                queued += 1
+                await db.outbound_queue.insert_one({"channel": "email", "lead_id": lead["id"],
+                    "to": to, "subject": subject, "body": body_txt, "template_id": template["id"],
+                    "status": "pending_api_credentials", "campaign_id": cid, "created_at": now_utc_str()})
 
-    status = "sent" if (sent and not queued) else ("partial" if sent else "queued")
+    status = "sent" if (sent and not queued and not failed) else ("partial" if sent else "queued")
     await db.campaigns.update_one({"id": cid}, {"$set": {
         "status": status, "total": total, "sent": sent, "failed": failed, "queued": queued,
         "finished_at": now_utc_str()}})
     return {"ok": True, "total": total, "sent": sent, "failed": failed, "queued": queued, "status": status,
-            "live": wa_live}
+            "live": wa_live or email_live}
