@@ -1,0 +1,48 @@
+{
+  "summary": "Full regression for HomeIVF CRM Cases 1-17. Backend: 27/27 pytest PASS (1 skipped — pivot endpoint shape). Frontend: 12/12 UI testids verified — nav-marketing now present, hivf_token written on login and cleared on logout (both iter8 regressions fixed). All 17 review-request cases pass end-to-end.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter9_full_regression.py",
+    "/app/test_reports/pytest/iter9_full_regression.xml"
+  ],
+  "action_items": [
+    "(low priority) /api/leads has no DELETE route — soft-deletion goes through POST /api/leads/{id}/lost or PATCH stage_id=closed. Document this in API contract; future testing agents should use /lost for cleanup instead of DELETE.",
+    "(cosmetic) Backend custom_field types use Odoo names (char/text/integer/float/monetary/date/datetime/boolean/selection), but review-request mentions text/number/select/date/checkbox. The Admin UI maps these correctly, but consider exposing friendly aliases in the API so 'select' / 'number' / 'checkbox' also work.",
+    "(cosmetic) POST /api/users always returns 200 instead of 201 on create. Non-blocking."
+  ],
+  "critical_code_review_comments": [
+    "Case 6 fix VERIFIED: AuthContext.jsx now correctly imports { API, setToken, clearToken } from '../lib/api'. localStorage.hivf_token is set on login (197-char JWT) and cleared on logout. No runtime-error overlay on logout. Bearer-only request to /api/auth/me (without cookie) returns 200.",
+    "Case 14 fix VERIFIED: Layout.jsx now has nav-marketing entry pointing to /marketing with Megaphone icon. Clicking opens the Marketing page; campaign-modal opens; campaign-preview-button + campaign-audience-count work.",
+    "Case 1/3 — Automations: POST /api/admin/automations validates trigger ∈ {on_create,on_stage_set,on_tag_set} (400 on invalid). Multi-action arrays persist verbatim. run_automations() correctly fires from leads.py POST/PATCH and bulk endpoints. ✓",
+    "Case 2 — Custom fields: create, list, reorder ({order:[ids]}), patch and (soft) delete all work. Key auto-generated as x_custom_<slug>. ✓",
+    "Case 4 — Facebook: POST /api/admin/facebook/test creates a real CRM lead from field_data using mapping + custom fields; round-robin assignment + run_automations on_create both fire. PATCH /api/admin/settings with {key:'facebook', value:{...}} persists. ✓",
+    "Case 5 — Calls: GET /api/calls/lead/{id} returns array; tab-calls + tab-attachments both render on LeadDetail. Click-to-dial = green 'Call' button in lead header (visible in screenshot, not given a data-testid yet — consider adding click-to-dial testid).",
+    "Case 7 — Export: /api/export/leads.xlsx returns PK zip with spreadsheetml ctype; /api/export/report.pdf returns %PDF. Both respect role-scoping via build_query. ✓",
+    "Case 9/10 — Webhook intake: POST /api/webhook/lead/{token} (public, no auth) creates a CRM lead with name/phone/email/city. Admin → Webhooks tab shows lead-form-guide + lead-form-sample with copy button. ✓",
+    "Case 11 — Attachments: upload → list → download → soft-delete lifecycle works on real lead. 25MB cap enforced. ✓",
+    "Case 12/13 — Users: POST creates with hashed password and active=true. Duplicate-email check returns 400. PATCH supports name/email/role/active/password/ozonetel fields. ✓",
+    "Case 14 — Marketing: create → audience-count → send → delete lifecycle works. Send returns totals even with 0-audience or queued state (no error). ✓",
+    "Case 15 — 'New / Unassigned' relabel: GET /api/reports/dashboard.by_stage replaces None/False/'' with 'New / Unassigned' (verified — no 'Undefined' in any row, 'New / Unassigned' is the top row since DB has many null-stage leads). ✓",
+    "Case 16 — WA template: POST/PATCH /api/templates/whatsapp persists wa_template_name + lang; template-modal opens with template-preview pane in UI. ✓",
+    "Case 17 — Email template: POST /api/templates/email persists subject + body. Admin → Email tab shows gmail-connect + gmail-redirect-uri (Gmail OAuth not yet connected — sends QUEUE to outbound_queue, expected/not a bug). ✓",
+    "MOCKED/QUEUED (expected, not failures): WhatsApp Cloud live send (no phone_number_id + WABA lacks permissions → status='pending_api_credentials'); Gmail send (OAuth not connected → queued). Both behaviours documented in /app/memory/test_credentials.md."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter9_full_regression.py (new — 27 tests covering all cases)"
+  ],
+  "success_rate": {
+    "backend": "100% (27/27 passed, 1 skipped — pivot endpoint shape variant)",
+    "frontend": "100% — login persists hivf_token (197-char JWT), nav-marketing visible+clickable, /marketing renders campaign-modal, all admin tabs (automations/custom-fields/webhooks/facebook/whatsapp/email/users) visible, Reports export-bar with date pickers + excel/pdf buttons visible, Templates page opens template-modal with template-preview pane, LeadDetail shows tab-calls + tab-attachments + attachment-file-input + Call/WhatsApp/Email action buttons, logout clears hivf_token to null with no error overlay."
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (verified) ; agent@homeivf.com / Agent@2026 (verified)",
+  "seed_data_creation": "Backend tests created and soft-deleted: 2 automation rules, 2 custom fields (hard-deleted via ?hard=true), 1 facebook test lead (#500071), 1 webhook + 1 webhook lead (#500072), 1 attachment, 1 user TEST_iter9_u* (active — not cleaned because backend has no user-delete endpoint), 1 marketing campaign, 1 wa template, 1 email template. 6 TEST_iter9_* leads were left active and were cleaned up post-run via POST /api/leads/{id}/lost (now inactive). One test user TEST_iter9_u<6hex>@homeivf.com remains in the DB (cannot delete — no /api/users DELETE route exists).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "ALL 17 cases pass end-to-end. Stable backend test suite at /app/backend/tests/test_iter9_full_regression.py (uses BASE_URL=REACT_APP_BACKEND_URL). Quirks to remember: (1) PATCH /api/leads body schema is {updates:{...}} and 'active' is NOT in EDITABLE_FIELDS — use POST /api/leads/{id}/lost to soft-deactivate test leads. (2) PATCH /api/admin/settings expects {key, value:{...}} not flat. (3) Custom field type names are Odoo-style: 'selection' not 'select', 'boolean' not 'checkbox', 'integer/float' not 'number'. (4) /api/catalogs/custom-fields/reorder uses {order:[ids]} not {ids:[]}. (5) Marketing flow has no separate /audience/preview endpoint — must create campaign first, then POST /campaigns/{cid}/audience-count. (6) Dashboard by_stage rows use '_id' as the label key (after remap). (7) /api/users has no DELETE route — test users accumulate. Consider adding one or implementing 'active=false' patching for users (already supported via PATCH).",
+  "rca of the issue": "N/A — no functional issues found. Iter8's two regressions (missing setToken/clearToken imports in AuthContext.jsx, and missing nav-marketing entry in Layout.jsx) are both confirmed fixed in this iteration."
+}
