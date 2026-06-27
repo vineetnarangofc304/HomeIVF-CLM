@@ -23,7 +23,13 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Implemented (2026-06-27, batch 13) — Live Email via Gmail OAuth (Case 14/17)
+## Full regression (2026-06-27, batch 14) — ALL 17 doc cases PASS (testing_agent iteration_9)
+- Comprehensive test across Cases 1-17: backend 27/27 pytest pass, frontend 100%. No functional bugs found. Suite saved at `/app/backend/tests/test_iter9_full_regression.py`.
+- Verified: Case1/3 automations (multi-action, on_stage_set/on_tag_set), Case2 custom fields render+save in lead form, Case4 Facebook test-lead, Case5 click-to-dial (`click-to-dial-button`) + Calls tab recordings, Case6 multi-device auth + Bearer token, Case7 Excel/PDF export, Case9/10 webhook intake + setup guide, Case11 attachments lifecycle, Case12/13 Manage Users, Case14 Marketing, Case15 "New / Unassigned", Case16/17 template editor+preview.
+- Polish added this batch: `DELETE /api/users/{id}` (admin-only; blocks self/last-admin/users-with-active-leads) + Delete button in Manage Users (`delete-user-{id}`). Cleaned up leftover test users (1002-1004).
+- Still MOCKED/QUEUED pending user action: WhatsApp live send (WABA #200 perms + no phone_number_id) and Gmail email (OAuth not yet connected) — both QUEUE, not bugs.
+
+
 - Integrated **Gmail API send via Google OAuth 2.0** (`core/gmail_send.py`, `routes/gmail.py`): auth-url → consent → callback stores refresh token in `settings.key=gmail`; auto-refreshes access token; sends MIME email via `users.messages.send`. Endpoints: `/api/admin/gmail/auth-url`, `/api/oauth/gmail/callback`, `/api/admin/gmail/status`, `/api/admin/gmail/disconnect`, `/api/admin/gmail/send-test`.
 - Wired live send: lead `send_email` and marketing **email** campaigns now send live via Gmail when connected (subject/body with {{1}}→lead name), else QUEUE.
 - New **Admin → Email** tab: Connect Google account, shows required redirect URI to register, status (connected email), test-send, disconnect. Query-param toast on `?gmail=connected`.

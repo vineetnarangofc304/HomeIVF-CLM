@@ -79,3 +79,22 @@ async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(requ
         await db.users.update_one({"id": user_id}, {"$set": updates})
     out = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
     return out
+
+
+@router.delete("/{user_id}")
+async def delete_user(user_id: int, user: dict = Depends(require_roles("admin"))):
+    if user_id == user["id"]:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+    target = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "role": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.get("role") == "admin":
+        admins = await db.users.count_documents({"role": "admin", "active": True})
+        if admins <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last admin")
+    assigned = await db.leads.count_documents({"user_id": user_id, "active": True})
+    if assigned > 0:
+        raise HTTPException(status_code=400,
+            detail=f"This user has {assigned} active leads assigned. Reassign them first, or deactivate the user instead.")
+    await db.users.delete_one({"id": user_id})
+    return {"ok": True}

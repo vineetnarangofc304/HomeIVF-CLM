@@ -73,6 +73,15 @@ function UsersTab({ isAdmin }) {
     } catch (err) { toast.error(apiErr(err)); }
   };
 
+  const remove = async (u) => {
+    if (!window.confirm(`Delete user "${u.name}" permanently? (If they have active leads, reassign or deactivate instead.)`)) return;
+    try {
+      await API.delete(`/users/${u.id}`);
+      toast.success("User deleted");
+      load(); refreshCatalogs();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
   if (!users) return <Spinner />;
   return (
     <div className="hivf-card overflow-hidden">
@@ -104,7 +113,8 @@ function UsersTab({ isAdmin }) {
               {isAdmin && (
                 <td className="px-2 py-2">
                   <button className="mr-2 text-xs font-bold text-[#357ABD]" onClick={() => { const p = window.prompt(`New password for ${u.name}:`); if (p) patch(u.id, { password: p }); }}>Reset pwd</button>
-                  <button className="text-xs font-bold text-slate-400" onClick={() => patch(u.id, { active: !u.active })}>{u.active ? "Deactivate" : "Activate"}</button>
+                  <button className="mr-2 text-xs font-bold text-slate-400" onClick={() => patch(u.id, { active: !u.active })}>{u.active ? "Deactivate" : "Activate"}</button>
+                  <button className="text-xs font-bold text-rose-500" data-testid={`delete-user-${u.id}`} onClick={() => remove(u)}>Delete</button>
                 </td>
               )}
             </tr>
