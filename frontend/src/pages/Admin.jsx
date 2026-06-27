@@ -937,7 +937,11 @@ function EmailTab({ isAdmin }) {
   useEffect(() => { load(); }, []);
 
   const connect = async () => {
-    try { const { data } = await API.get("/admin/gmail/auth-url"); window.location.href = data.url; }
+    try {
+      const origin = process.env.REACT_APP_BACKEND_URL;
+      const { data } = await API.get("/admin/gmail/auth-url", { params: { origin } });
+      window.location.href = data.url;
+    }
     catch (e) { toast.error(apiErr(e)); }
   };
   const disconnect = async () => {

@@ -16,24 +16,27 @@ router = APIRouter(tags=["gmail"])
 
 
 @router.get("/admin/gmail/auth-url")
-async def gmail_auth_url(user: dict = Depends(require_roles("admin"))):
-    flow = gm.make_flow()
+async def gmail_auth_url(origin: str = Query(None), user: dict = Depends(require_roles("admin"))):
+    redirect = f"{origin.rstrip('/')}/api/oauth/gmail/callback" if origin else gm.redirect_uri()
+    flow = gm.make_flow(redirect)
     url, state = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
     await db.oauth_states.delete_many({"provider": "gmail"})
-    await db.oauth_states.insert_one({"provider": "gmail", "state": state, "user_id": user["id"], "created_at": now_utc_str()})
+    await db.oauth_states.insert_one({"provider": "gmail", "state": state, "user_id": user["id"],
+                                      "redirect": redirect, "created_at": now_utc_str()})
     return {"url": url}
 
 
 @router.get("/oauth/gmail/callback")
 async def gmail_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
-    base = gm.redirect_uri().split("/api/")[0]
+    st = await db.oauth_states.find_one({"provider": "gmail", "state": state}) if state else None
+    redirect = (st or {}).get("redirect") or gm.redirect_uri()
+    base = redirect.split("/api/")[0]
     if error or not code:
         return RedirectResponse(f"{base}/admin?tab=Email&gmail=error")
-    st = await db.oauth_states.find_one({"provider": "gmail", "state": state})
     if not st:
         return RedirectResponse(f"{base}/admin?tab=Email&gmail=badstate")
     await db.oauth_states.delete_one({"_id": st["_id"]})
-    flow = gm.make_flow()
+    flow = gm.make_flow(redirect)
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

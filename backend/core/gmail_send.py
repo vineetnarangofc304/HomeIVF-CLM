@@ -34,8 +34,8 @@ def redirect_uri() -> str:
     return os.environ["GMAIL_REDIRECT_URI"]
 
 
-def make_flow() -> Flow:
-    return Flow.from_client_config(_client_config(), scopes=SCOPES, redirect_uri=redirect_uri())
+def make_flow(redirect: str | None = None) -> Flow:
+    return Flow.from_client_config(_client_config(), scopes=SCOPES, redirect_uri=redirect or redirect_uri())
 
 
 async def get_config() -> dict | None:
