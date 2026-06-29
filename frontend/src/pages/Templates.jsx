@@ -101,6 +101,7 @@ function TemplateModal({ channel, template, onClose, onSave }) {
   });
   const SAMPLE = { "{{1}}": "Riya Sharma", "{{2}}": "HomeIVF", "{{3}}": "12 Jun" };
   const rendered = (form.body || "").replace(/\{\{(\d+)\}\}/g, (m) => SAMPLE[m] || m);
+  const [previewMode, setPreviewMode] = useState("rendered");
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <form onSubmit={(e) => { e.preventDefault(); onSave(form); }} onClick={(e) => e.stopPropagation()}
@@ -128,19 +129,45 @@ function TemplateModal({ channel, template, onClose, onSave }) {
                 </div>
               </>
             )}
-            <textarea data-testid="template-body-input" required rows={8} className="hivf-input font-mono text-xs" placeholder="Body — use {{1}}, {{2}} for variables (e.g. Hi {{1}}, your appointment is on {{3}})" value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
-            <p className="text-[11px] text-slate-400">Variables: <b>{"{{1}}"}</b> = lead name, <b>{"{{2}}"}</b>, <b>{"{{3}}"}</b> = extra params. Preview shows sample values.</p>
+            {channel === "email" && (
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Email HTML body</label>
+            )}
+            <textarea data-testid="template-body-input" required rows={channel === "email" ? 12 : 8} className="hivf-input font-mono text-xs"
+              placeholder={channel === "email"
+                ? "Paste your HTML email here, e.g. <h2>Hi {{1}}</h2><p>Your appointment is on {{3}}.</p><a href='...'>Book now</a>"
+                : "Body — use {{1}}, {{2}} for variables (e.g. Hi {{1}}, your appointment is on {{3}})"}
+              value={form.body} onChange={(e) => setForm((f) => ({ ...f, body: e.target.value }))} />
+            <p className="text-[11px] text-slate-400">
+              {channel === "email" && <><b>Full HTML supported</b> — tags, inline styles, links & tables render in the email. <br /></>}
+              Variables: <b>{"{{1}}"}</b> = lead name, <b>{"{{2}}"}</b>, <b>{"{{3}}"}</b> = extra params. Preview shows sample values.
+            </p>
           </div>
         </div>
         <div className="flex flex-col">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Live Preview</p>
-          <div className="mt-2 flex-1 rounded-xl border border-slate-100 bg-slate-50 p-4" data-testid="template-preview">
+          <div className="flex items-center justify-between">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Live Preview</p>
+            {channel === "email" && (
+              <div className="flex gap-1 rounded-lg bg-slate-100 p-0.5" data-testid="email-preview-toggle">
+                <button type="button" onClick={() => setPreviewMode("rendered")} data-testid="preview-rendered-btn"
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${previewMode === "rendered" ? "bg-white text-[#357ABD] shadow-sm" : "text-slate-400"}`}>Rendered</button>
+                <button type="button" onClick={() => setPreviewMode("source")} data-testid="preview-source-btn"
+                  className={`rounded-md px-2 py-0.5 text-[11px] font-bold ${previewMode === "source" ? "bg-white text-[#357ABD] shadow-sm" : "text-slate-400"}`}>HTML source</button>
+              </div>
+            )}
+          </div>
+          <div className="mt-2 flex-1 overflow-auto rounded-xl border border-slate-100 bg-slate-50 p-4" data-testid="template-preview">
             {channel === "whatsapp" ? (
               <div className="rounded-xl rounded-tl-sm bg-[#dcf8c6] p-3 text-sm text-slate-800 shadow-sm whitespace-pre-wrap">{rendered || "Your message preview appears here…"}</div>
             ) : (
               <div className="rounded-xl bg-white p-3 text-sm shadow-sm">
                 <p className="border-b border-slate-100 pb-2 font-bold text-slate-800">{form.subject || "(no subject)"}</p>
-                <div className="mt-2 whitespace-pre-wrap text-slate-600">{rendered || "Your email body preview appears here…"}</div>
+                {previewMode === "source" ? (
+                  <pre className="mt-2 overflow-x-auto whitespace-pre-wrap break-words font-mono text-[11px] text-slate-500">{rendered || "Your HTML appears here…"}</pre>
+                ) : rendered ? (
+                  <div className="chatter-body mt-2 text-slate-700" data-testid="email-preview-rendered" dangerouslySetInnerHTML={{ __html: rendered }} />
+                ) : (
+                  <div className="mt-2 text-slate-400">Your email design preview appears here…</div>
+                )}
               </div>
             )}
           </div>

@@ -1,0 +1,25 @@
+{
+  "summary": "Verified Case-17 fix: Templates → Email modal now has a labeled 'Email HTML body' textarea (template-body-input) and a Live Preview with Rendered/HTML-source toggle. End-to-end flows (open modal → fill HTML → preview renders correctly with sample value substitutions → toggle source → save → re-open edit → cleanup) all pass. WhatsApp regression also verified: plain-text preview, wa_template_name + lang inputs present, save+delete works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Templates.jsx: Modal doesn't bind Escape key — minor UX gap. Modal closes only via outside-click or Cancel button. Not a bug, just inconsistent with common modal UX.",
+    "Templates.jsx renders user-authored HTML via dangerouslySetInnerHTML in both the preview and the card list. Since templates are admin/manager-authored (caller cannot edit) this is acceptable, but if non-admins ever gain template-edit rights this becomes an XSS vector — consider DOMPurify sanitization for defence in depth.",
+    "TemplateModal: only the email channel rebuilds preview via {{n}} sample replacement; the WhatsApp branch reuses the same `rendered` string in a <div whitespace-pre-wrap> which is fine (HTML is escaped by React text-node). Confirmed safe in test.",
+    "Sample replacement uses regex `/\\{\\{(\\d+)\\}\\}/g` and lookup table for indices 1-3 only. Variables {{4}}+ remain as-is in preview (won't crash but may confuse users) — minor."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (skipped per request)", "frontend": "100% (41/41 assertions across two runs)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created and cleaned up 2 templates: TEST_HTML_TPL_AUTO (email id=143) and TEST_WA_REGRESSION_AUTO (whatsapp id=220) — both DELETEd via API after assertions.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Case-17 (email HTML body + preview) fix is fully working. Test verified: (1) 'Email HTML body' label visible; (2) all data-testids present (template-name-input, template-subject-input, template-body-input, template-preview, email-preview-toggle, preview-rendered-btn, preview-source-btn, email-preview-rendered, template-save-button); (3) rendered HTML shows <h2>, <b>HomeIVF</b>, <u>12 Jun</u>, anchor link with {{1}}→Riya Sharma substitution; (4) HTML-source toggle shows raw HTML in <pre>; (5) save persists, edit re-opens prefilled with rendered preview; (6) WhatsApp modal has wa-name + lang inputs, no email-preview-toggle, preview escapes HTML (literal &lt;b&gt;BOLD&lt;/b&gt; text). Note: TemplateModal does not bind Escape — to close in tests use the Cancel button or click the backdrop, NOT keyboard.press('Escape').",
+  "rca of the issue": "n/a — fix verified working end-to-end."
+}
