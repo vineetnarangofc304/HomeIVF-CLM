@@ -23,7 +23,12 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Full regression (2026-06-27, batch 14) — ALL 17 doc cases PASS (testing_agent iteration_9)
+## Fix (2026-06-29, batch 15) — Email template HTML body + rendered preview (Case 17) — verified iteration_10
+- Templates → Email editor now has a labeled **"Email HTML body"** textarea (accepts full HTML: tags, inline styles, links, tables) and a **Live Preview** with a **Rendered / HTML source** toggle. Rendered mode renders the HTML design via dangerouslySetInnerHTML with {{1}}/{{2}}/{{3}} → sample values; source mode shows raw HTML. Email sends already use html=True so HTML delivers correctly.
+- testing_agent iteration_10: frontend 100% (41/41). WhatsApp template regression clean (plain-text preview, wa_template_name+lang inputs). Defensive note: templates are admin/manager-authored only; DOMPurify sanitization could be added later if non-admins ever get edit rights.
+- Note: "Ozonetel not configured" tooltip on the lead Call button in PREVIEW is expected (telephony API key/campaign not seeded in preview DB); production has it configured.
+
+
 - Comprehensive test across Cases 1-17: backend 27/27 pytest pass, frontend 100%. No functional bugs found. Suite saved at `/app/backend/tests/test_iter9_full_regression.py`.
 - Verified: Case1/3 automations (multi-action, on_stage_set/on_tag_set), Case2 custom fields render+save in lead form, Case4 Facebook test-lead, Case5 click-to-dial (`click-to-dial-button`) + Calls tab recordings, Case6 multi-device auth + Bearer token, Case7 Excel/PDF export, Case9/10 webhook intake + setup guide, Case11 attachments lifecycle, Case12/13 Manage Users, Case14 Marketing, Case15 "New / Unassigned", Case16/17 template editor+preview.
 - Polish added this batch: `DELETE /api/users/{id}` (admin-only; blocks self/last-admin/users-with-active-leads) + Delete button in Manage Users (`delete-user-{id}`). Cleaned up leftover test users (1002-1004).
