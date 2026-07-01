@@ -198,6 +198,78 @@ async def fb_subscribe(user: dict = Depends(require_roles("admin"))):
     return {"ok": True, "response": data}
 
 
+@router.get("/admin/facebook/diagnose")
+async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
+    """Live diagnostic: checks token validity + whether the Page is actually
+    subscribed to leadgen with our app. Pinpoints why leads aren't arriving."""
+    s = await _fb_settings()
+    version = s.get("graph_api_version") or GRAPH_VERSION
+    out = {
+        "configured": bool(s.get("app_secret") and s.get("page_access_token")),
+        "verify_token_set": bool(s.get("verify_token")),
+        "page_id_set": bool(s.get("page_id")),
+        "leads_captured": await db.leads.count_documents({"facebook_lead": True}),
+        "checks": [],
+        "next_step": None,
+    }
+    token = s.get("page_access_token")
+    if not token:
+        out["checks"].append({"name": "Page Access Token", "ok": False, "detail": "No Page Access Token saved."})
+        out["next_step"] = "Enter your Page Access Token (with leads_retrieval + pages_manage_metadata) and save."
+        return out
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        # 1. Token valid + what it points to
+        try:
+            r = await client.get(f"https://graph.facebook.com/{version}/me",
+                                 params={"access_token": token, "fields": "id,name"})
+            d = r.json()
+        except Exception as e:
+            out["checks"].append({"name": "Access Token", "ok": False, "detail": f"Request failed: {e}"})
+            return out
+        if d.get("error"):
+            out["checks"].append({"name": "Access Token", "ok": False, "detail": d["error"].get("message")})
+            out["next_step"] = "Token is invalid/expired. Generate a long-lived Page Access Token in Meta and save it."
+            return out
+        out["checks"].append({"name": "Access Token", "ok": True, "detail": f"Valid — points to '{d.get('name')}' (id {d.get('id')})"})
+        token_points_to = str(d.get("id"))
+
+        # 2. Page subscribed to leadgen?
+        page_id = s.get("page_id")
+        if not page_id:
+            out["checks"].append({"name": "Page subscription", "ok": False, "detail": "No Page ID saved."})
+            out["next_step"] = "Enter your Facebook Page ID and click 'Subscribe Page to leadgen'."
+            return out
+        if token_points_to and page_id and token_points_to != page_id:
+            out["checks"].append({"name": "Token ↔ Page match", "ok": False,
+                "detail": f"Your token belongs to id {token_points_to} but Page ID is {page_id}. Use the Page's own access token."})
+        try:
+            r2 = await client.get(f"https://graph.facebook.com/{version}/{page_id}/subscribed_apps",
+                                  params={"access_token": token})
+            d2 = r2.json()
+        except Exception as e:
+            out["checks"].append({"name": "Page subscription", "ok": False, "detail": f"Request failed: {e}"})
+            return out
+        if d2.get("error"):
+            out["checks"].append({"name": "Page subscription", "ok": False, "detail": d2["error"].get("message")})
+            out["next_step"] = "Token likely lacks pages_manage_metadata / leads_retrieval permission. Fix scopes, then click 'Subscribe Page to leadgen'."
+            return out
+        apps = d2.get("data") or []
+        leadgen_subscribed = any("leadgen" in (a.get("subscribed_fields") or []) for a in apps)
+        out["checks"].append({
+            "name": "Page subscribed to leadgen", "ok": leadgen_subscribed,
+            "detail": "Page is subscribed to leadgen ✓" if leadgen_subscribed
+            else f"Page is NOT subscribed to leadgen (found {len(apps)} app subscription(s)).",
+        })
+        if not leadgen_subscribed:
+            out["next_step"] = "Click 'Subscribe Page to leadgen' below, then submit a Meta test lead."
+        else:
+            out["next_step"] = ("Connection looks good. If leads still don't arrive: in Meta App Dashboard → Webhooks, "
+                                "confirm the Page callback URL matches the one above, the Verify Token matches, and the "
+                                "app has Live mode + Advanced access for leads_retrieval.")
+    return out
+
+
 @router.get("/admin/facebook/status")
 async def fb_status(user: dict = Depends(require_roles("admin", "manager"))):
     s = await _fb_settings()

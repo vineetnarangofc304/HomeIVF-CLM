@@ -808,6 +808,8 @@ function FacebookTab({ isAdmin }) {
   const [status, setStatus] = useState(null);
   const [maps, setMaps] = useState([]); // [{fb, crm}]
   const [test, setTest] = useState([{ name: "full_name", value: "" }, { name: "phone_number", value: "" }, { name: "email", value: "" }]);
+  const [diag, setDiag] = useState(null);
+  const [diagBusy, setDiagBusy] = useState(false);
   const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/facebook`;
   const customFields = (catalogs?.custom_fields || []).filter((f) => f.active !== false);
 
@@ -842,8 +844,14 @@ function FacebookTab({ isAdmin }) {
   };
 
   const subscribe = async () => {
-    try { const { data } = await API.post("/admin/facebook/subscribe"); toast.success("Page subscribed to leadgen ✓"); console.log(data); }
+    try { const { data } = await API.post("/admin/facebook/subscribe"); toast.success("Page subscribed to leadgen ✓"); console.log(data); diagnose(); }
     catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const diagnose = async () => {
+    setDiagBusy(true);
+    try { const { data } = await API.get("/admin/facebook/diagnose"); setDiag(data); }
+    catch (err) { toast.error(apiErr(err)); } finally { setDiagBusy(false); }
   };
 
   const sendTest = async () => {
@@ -887,12 +895,33 @@ function FacebookTab({ isAdmin }) {
             </div>
           ))}
           {isAdmin && (
-            <div className="flex items-end gap-2 md:col-span-2">
+            <div className="flex flex-wrap items-end gap-2 md:col-span-2">
               <button data-testid="fb-save-button" type="submit" className="hivf-btn-primary !py-2"><FacebookLogo size={14} /> Save Settings</button>
               <button type="button" onClick={subscribe} className="hivf-btn-secondary !py-2" data-testid="fb-subscribe-button">Subscribe Page to leadgen</button>
+              <button type="button" onClick={diagnose} disabled={diagBusy} className="hivf-btn-secondary !py-2" data-testid="fb-diagnose-button">{diagBusy ? "Checking…" : "Check connection"}</button>
             </div>
           )}
         </form>
+
+        {diag && (
+          <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50/70 p-4" data-testid="fb-diagnose-result">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Connection diagnostic</p>
+            <div className="mt-2 space-y-1.5">
+              {diag.checks.map((c, i) => (
+                <div key={i} className="flex items-start gap-2 text-sm" data-testid={`fb-diag-check-${i}`}>
+                  <span className={c.ok ? "text-emerald-500" : "text-rose-500"}>{c.ok ? "✓" : "✕"}</span>
+                  <span className="font-semibold text-slate-700">{c.name}:</span>
+                  <span className="text-slate-500">{c.detail}</span>
+                </div>
+              ))}
+            </div>
+            {diag.next_step && (
+              <p className="mt-3 rounded-lg bg-[#1877F2]/5 p-2.5 text-xs font-semibold text-[#1877F2]" data-testid="fb-diag-next-step">
+                Next: {diag.next_step}
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="hivf-card p-4">

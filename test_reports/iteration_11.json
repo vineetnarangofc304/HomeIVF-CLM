@@ -1,0 +1,39 @@
+{
+  "summary": "Iteration 11 — Facebook Lead Ads flow + new diagnose feature. All 7 backend pytest tests pass (diagnose, webhook GET verification, POST signature enforcement, test-lead simulation). Frontend Admin → Facebook tab renders all expected elements including the new fb-diagnose-button; clicking it hits /api/admin/facebook/diagnose and renders per-check rows + next-step. Code is correct — the user's 'no leads arriving' issue is Meta-side (Page not subscribed / callback not registered / token scope), not a CRM code bug.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "PATCH /api/admin/settings", "issue": "Uses $set only — cannot unset previously stored keys. Restoring 'facebook' settings requires explicitly writing empty strings for app_secret/page_access_token/verify_token/page_id. If Meta creds get typo'd once they linger until overwritten. Consider `$unset` for empty values."},
+      {"endpoint": "DELETE /api/leads/{id}", "issue": "Not implemented. Cleanup requires POST /leads/{id}/lost (soft delete). Not a bug, but worth noting for admin/test tooling."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin → Facebook → Field Mapping", "issues": ["Saved field_mapping value 'full_name → name' isn't among the dropdown's CRM field options (which uses 'contact_name'), so the row renders with an empty <select> even though data exists. Consider mapping legacy 'name' → 'contact_name' or adding a legacy alias."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_facebook_flow.py", "/app/test_reports/pytest/iter11_facebook.xml"],
+  "action_items": [
+    "No CRM code fix needed for the user's 'no leads' report. Direct the user to Meta App Dashboard: (1) confirm the app is in Live mode with Advanced access for leads_retrieval, (2) confirm the Webhook Product 'Page' subscription callback URL matches https://<preview-domain>/api/webhooks/facebook and Verify Token matches what's saved in Admin → Facebook, (3) confirm the Page itself is subscribed to leadgen via the app (use the new 'Subscribe Page to leadgen' or 'Check connection' button once real Page Access Token is saved).",
+    "OPTIONAL: change PATCH /api/admin/settings to also `$unset` keys explicitly set to null so admins can fully clear a config.",
+    "OPTIONAL: consider auto-normalising field_mapping 'name' → 'contact_name' at load time so the Field Mapping UI dropdown reflects saved values."
+  ],
+  "critical_code_review_comments": [
+    "facebook.py signature verification uses hmac.compare_digest — GOOD (constant-time).",
+    "fb_webhook gracefully returns 503 when integration not configured — GOOD (prevents Meta noise on unconfigured envs).",
+    "Graph fetch inside webhook is wrapped in try/except with `continue` — GOOD (single bad lead doesn't fail the batch, matches requirement that Graph fetch fails silently).",
+    "fb_diagnose surfaces both token validity AND page subscription state with a distinct next_step per branch — this is exactly the signal needed to unblock the user.",
+    "Admin.jsx FacebookTab exposes all required data-testid attributes (fb-callback-url, fb-save/subscribe/diagnose-button, fb-diagnose-result, fb-diag-check-{i}, fb-diag-next-step, fb-mapping-list, fb-add-map, fb-send-test). No missing selectors.",
+    "Minor: React hydration warning 'span cannot be a child of option' in Field Mapping's <select><option> — caused by Emergent's x-source instrumentation adding <span> inside <option>. Cosmetic dev-only, does not affect production."
+  ],
+  "updated_files": ["/app/backend/tests/test_facebook_flow.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (all required data-testids present, diagnose flow works end-to-end)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "1 TEST_FB Lead was created via /api/admin/facebook/test then soft-deleted (marked lost) in the same test. Facebook settings were reset to a clean state (app_secret/page_access_token/verify_token/page_id all cleared; app_id/graph_api_version/source_default/field_mapping preserved) via manual cleanup step.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter11_facebook.xml has 7 passing tests covering the full FB flow. If the user later provides real Meta creds, re-run test_admin_facebook_test_creates_lead + the diagnose test to confirm the 'Access Token' check flips to ok:true. Note: PATCH /api/admin/settings never unsets keys — always pass explicit empty strings when 'clearing' a setting. Also note DELETE /api/leads/{id} does NOT exist; use POST /api/leads/{id}/lost for soft delete in cleanup.",
+  "rca of the issue": "Reported symptom: 'Adding all details but leads still not coming. It's saving but not connecting.' Reproduction in preview: Set full FB config → GET /webhooks/facebook with hub.verify_token returns 200+challenge (verification would succeed against Meta). POST leadgen with valid HMAC returns 200 {created:0} (Graph fetch fails silently with fake token, expected). The CRM code path is correct. Actual root cause is Meta-side: either (a) the Page isn't subscribed to the 'leadgen' field via the App (needs `POST /{page_id}/subscribed_apps?subscribed_fields=leadgen`, exposed as our 'Subscribe Page to leadgen' button), (b) the app is still in Development mode and hasn't been granted Advanced access to leads_retrieval, or (c) the Webhook callback URL / Verify Token registered in the Meta App Dashboard differs from what's saved in Admin → Facebook. Mitigation: user should save real Page Access Token + Page ID + Verify Token, click 'Check connection' — the new diagnose endpoint will pinpoint which of (a)/(b)/(c) is failing and return the exact next_step."
+}
