@@ -23,7 +23,12 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Fix (2026-06-29, batch 15) — Email template HTML body + rendered preview (Case 17) — verified iteration_10
+## Facebook "no leads" diagnostic (2026-06-29, batch 16) — verified iteration_11
+- Root cause of user's "saving but not connecting / no leads": NOT a CRM bug (backend 7/7, frontend 100%). Webhook verify (GET challenge), HMAC-SHA256 signature check, leadgen fetch, and lead mapping all work correctly. Issue is Meta-side: Page not subscribed to `leadgen`, app not in Live mode / no Advanced access to leads_retrieval, or webhook callback URL/verify token mismatch in Meta App Dashboard.
+- Added `GET /api/admin/facebook/diagnose` + **"Check connection"** button (Admin → Facebook, `fb-diagnose-button` / `fb-diagnose-result`): live-checks token validity, token↔page match, and whether the Page is actually subscribed to leadgen, returning a specific `next_step`. This is the tool to pinpoint the real problem on production.
+- Known minor (not fixed): PATCH /api/admin/settings uses $set only (can't unset keys); Field Mapping dropdown shows blank for legacy 'name' target (canonical is 'contact_name'). Neither blocks FB leads when configured via the UI dropdowns.
+
+
 - Templates → Email editor now has a labeled **"Email HTML body"** textarea (accepts full HTML: tags, inline styles, links, tables) and a **Live Preview** with a **Rendered / HTML source** toggle. Rendered mode renders the HTML design via dangerouslySetInnerHTML with {{1}}/{{2}}/{{3}} → sample values; source mode shows raw HTML. Email sends already use html=True so HTML delivers correctly.
 - testing_agent iteration_10: frontend 100% (41/41). WhatsApp template regression clean (plain-text preview, wa_template_name+lang inputs). Defensive note: templates are admin/manager-authored only; DOMPurify sanitization could be added later if non-admins ever get edit rights.
 - Note: "Ozonetel not configured" tooltip on the lead Call button in PREVIEW is expected (telephony API key/campaign not seeded in preview DB); production has it configured.
