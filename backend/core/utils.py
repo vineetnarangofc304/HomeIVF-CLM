@@ -21,7 +21,7 @@ async def check_duplicate(phone_digits: str, exclude_id: int = None) -> dict:
     """Case 20 — flag duplicate leads by phone. Returns {is_duplicate, duplicate_of, duplicate_count}."""
     if not phone_digits or len(phone_digits) < 8:
         return {"is_duplicate": False, "duplicate_of": None, "duplicate_count": 0}
-    q = {"phone_digits": phone_digits}
+    q = {"phone_digits": phone_digits, "active": True}
     if exclude_id is not None:
         q["id"] = {"$ne": exclude_id}
     existing = await db.leads.find_one(q, {"_id": 0, "id": 1}, sort=[("id", 1)])

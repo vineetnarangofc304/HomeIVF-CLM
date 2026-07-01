@@ -23,7 +23,16 @@ Actual workflow: custom **Lead Stage** (Contact Attempt → Contacted → Conver
 - Dates stored as "YYYY-MM-DD HH:MM:SS" UTC strings + create_date_ist for IST day/month grouping.
 - Odoo creds in backend/.env (ODOO_URL/DB/LOGIN/PASSWORD) for migration.
 
-## Facebook "no leads" diagnostic (2026-06-29, batch 16) — verified iteration_11
+## New cases 18-24 (2026-07-01, batch 17) — verified iteration_12 (10/10 backend, frontend 100%)
+- **Case 18 Dashboard date filter**: `/reports/dashboard?date_from&date_to` scopes funnel/chart/leaderboard/tags; default (no range) keeps all-time funnel. UI date pickers + Clear + "In range" summary.
+- **Case 19 Follow-up time**: added `follow_up_time` field (EDITABLE_FIELDS + LeadCreate + list projection) + time input in LeadDetail follow-up section.
+- **Case 20 Duplicate flag**: `check_duplicate()` by phone_digits (active leads) on all 3 creation paths (manual/webhook/facebook); sets is_duplicate + duplicate_of + chatter note; amber "Duplicate" badge in LeadDetail header (links to original) + "Dup" tag in Leads list.
+- **Case 22 Attachment eye/view**: eye icon opens an inline preview modal (image/PDF) with close; blob URL revoked on close.
+- **Case 23 WhatsApp per-message status**: wa webhook now parses `statuses[]` → updates wa_messages.status/status_at/error + status_history; UI shows Queued/Sent/Delivered/Read/Failed/Received badges per message (outbound w/o status → "Sent").
+- **Case 24 Agent status time tracking**: backend already locks start+end+duration on each /agent/status change; added "Show all statuses (full timeline)" toggle in Break Reports (breaks_only=false).
+- **Case 21 WhatsApp not working**: PENDING clarification from user — most likely the live-send block (WABA #200 permissions + no phone_number_id). Awaiting exact symptom.
+
+
 - Root cause of user's "saving but not connecting / no leads": NOT a CRM bug (backend 7/7, frontend 100%). Webhook verify (GET challenge), HMAC-SHA256 signature check, leadgen fetch, and lead mapping all work correctly. Issue is Meta-side: Page not subscribed to `leadgen`, app not in Live mode / no Advanced access to leads_retrieval, or webhook callback URL/verify token mismatch in Meta App Dashboard.
 - Added `GET /api/admin/facebook/diagnose` + **"Check connection"** button (Admin → Facebook, `fb-diagnose-button` / `fb-diagnose-result`): live-checks token validity, token↔page match, and whether the Page is actually subscribed to leadgen, returning a specific `next_step`. This is the tool to pinpoint the real problem on production.
 - Known minor (not fixed): PATCH /api/admin/settings uses $set only (can't unset keys); Field Mapping dropdown shows blank for legacy 'name' target (canonical is 'contact_name'). Neither blocks FB leads when configured via the UI dropdowns.
