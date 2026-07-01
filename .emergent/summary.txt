@@ -1,168 +1,176 @@
 <analysis>**original_problem_statement**: 
-The user wants to replace their existing Odoo CRM with a custom-built, fully DIY CRM named HomeIVF CRM for their business HomeIVF (a Seeds of Innocens venture).
+The user is building HomeIVF CRM to replace their Odoo CRM. Phase 1 (Core CRM) is completed. The user requested implementation of advanced custom functionalities mapped to 24 specific cases from a Google Document, including advanced Ozonetel telephony analytics, Gmail OAuth integration, Facebook Lead Ads diagnostics, WhatsApp Cloud API template syncing, and extensive UI/UX adjustments for lead tracking, duplicate detection, and agent status tracking.
+
 **PRODUCT REQUIREMENTS:**
-- **Phase 1 (Current):** Replicate Odoo setup (leads, chatter, follow-ups, assignments, admin roles, drill-down reports). Migrate ~100K leads. 
+- **Phase 1 (Current):** Complete all 24 cases from the user's PRD doc (Agent call analytics, automated duplicate detection, date filters, Gmail API sending, FB webhooks, etc.).
 - **Phase 2 (Upcoming):** Introduce AI insights/recommendations and a conversational AI Brain for analytics.
 
 **User's preferred language**: English (INSTRUCT NEXT AGENT: Respond in English only)
 
 **what currently exists?** 
-A fully functional, custom full-stack CRM (React + FastAPI + MongoDB). 
-- Odoo migration is complete.
-- Core UI (Leads, Detail, Dashboard, FollowUps, Reports, Admin) is built and tested.
-- All feedback from the CRM - Testing Points.pdf (8 explicit cases including custom fields builder, complex trigger automations, and UI updates) was fully implemented and passed a 25-point testing agent test suite. 
-- Continuous automated Odoo syncing was canceled by the user; instead, one final manual cutover sync will be used.
+A highly advanced, custom full-stack CRM (React + FastAPI + MongoDB). 
+- All 24 cases from the user's Google Doc have been implemented and fully tested.
+- Telephony (Ozonetel) Call Center features are complete, including Agent Productivity Analytics (Phase 3).
+- Facebook Lead Ads webhook is fully built with an integrated diagnostic tool.
+- WhatsApp Cloud API is built, and 54 approved Meta templates are synced from Odoo.
+- Live email sending is configured using Gmail API (OAuth 2.0).
+- Advanced lead management tools (duplicate detection, follow-up times, HTML email template editor) are fully functional.
 
 **Last working item**: 
-    - Last item agent was working: The previous agent successfully finished the PDF testing points and called the finish tool. Immediately after, the user sent several rapid-fire messages requesting a new 3rd-party integration (Ozonetel for incoming calls) and a branding name change. The agent has not started on these new messages.
-    - Status: NOT STARTED
-    - Agent Testing Done: N
-    - Which testing method agent to use? both (Frontend screenshot for branding, Backend curl/Testing agent for Ozonetel webhooks).
+    - Last item agent was working: Implementing the final set of new features (Cases 18-24) from the user's Google Doc (Dashboard date filter, follow-up time field, duplicate lead detection, WhatsApp message status tracking, and agent timeline tracking).
+    - Status: USER VERIFICATION PENDING
+    - Agent Testing Done: Y
+    - Which testing method agent to use? NA (Testing already done; passed Iteration 12 with 100%)
     - User Testing Done: N
 
 **All Pending/In progress Issue list**:  
-  Issue 1: Update Global Branding to TifTech (Priority P0)
-     - Attempted fixes: None yet.
-     - Next debug checklist: Search the frontend codebase (likely , , , or ) and replace any text saying Powered by TagQuest or TagQuest with Powered by TifTech. 
-     - Why fix this issue and what will be achieved with the fix? Direct user request to update white-label branding.
-     - Status: NOT STARTED
+  Issue 1: Facebook Leads Not Arriving (User-side Config) (Priority P1)
+     - Attempted fixes: The CRM backend handles webhooks correctly. Agent built a Check connection diagnostic in the Admin -> Facebook tab to help the user identify the missing Meta setup.
+     - Next debug checklist: Instruct user to use the Check connection button on their live deployment. The user needs to supply a valid Page Access Token with  permission on Meta's end.
+     - Why fix this issue and what will be achieved with the fix? It unblocks live Facebook lead ingestion.
+     - Status: USER VERIFICATION PENDING
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? frontend (screenshot)
-     - Blocked on other issue: NA
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: User action required on Meta Dashboard.
 
-  Issue 2: Integrate Ozonetel for Incoming Calls (Priority P0)
-     - Attempted fixes: None yet.
-     - Next debug checklist: 
-       1. Read the provided Ozonetel docs (Screen-pop URL & Add Campaign Data). Use  or  with  to fetch the doc text if needed.
-       2. Use  if required, or build standard FastAPI webhook routes (e.g., in  or a new ) to receive incoming call payloads from Ozonetel.
-       3. Create frontend UI to display incoming calls/screen-pop to the logged-in agent.
-     - Why fix this issue and what will be achieved with the fix? Integrates the client's telephony system directly into the CRM.
-     - Status: NOT STARTED
+  Issue 2: WhatsApp Live Sending Blocked by Meta Permissions (Priority P1)
+     - Attempted fixes: WhatsApp token was validated, but it returns a  error for the WABA ID.
+     - Next debug checklist: User needs to grant  and  permissions to the System User for WABA 30291513857161871 in the Meta Business Manager.
+     - Why fix this issue and what will be achieved with the fix? Enables live outbound WhatsApp messaging.
+     - Status: BLOCKED
      - Is recurring issue? N
-     - Should Test frontend/backend/both after fix? both
-     - Blocked on other issue: NA
+     - Should Test frontend/backend/both after fix? backend
+     - Blocked on other issue: User action required on Meta Dashboard.
+
+  Issue 3: Gmail OAuth Connection Pending (Priority P1)
+     - Attempted fixes: Code for Gmail API integration is complete. Dynamic redirect URIs are handled. 
+     - Next debug checklist: User must log into their production site, navigate to Admin -> Email, and click Connect Google account to grant OAuth consent.
+     - Why fix this issue and what will be achieved with the fix? Required for live email sending via the CRM.
+     - Status: USER VERIFICATION PENDING
+     - Is recurring issue? N
+     - Should Test frontend/backend/both after fix? NA
+     - Blocked on other issue: User action required on Live Production CRM.
 
 **In progress Task List**:
-  None. (All previous in-progress tasks were completed by the prior agent).
+ None. All requested cases (1-24) are finished.
 
 **Upcoming and Future Tasks**
     Upcoming Tasks:
-    - Add a Cutover Checklist screen in the Admin panel to facilitate the final manual Odoo sync and switch-over (Suggested enhancement, P1).
+    - Add a Cutover Checklist screen in the Admin panel to facilitate the final manual Odoo sync and switch-over (P1).
     - Final Delta Odoo Sync (Manual trigger on cutover day) (P1).
-    - Connect actual SMTP credentials and WhatsApp Meta API credentials to the built templates for live messaging (P1 - Pending user providing actual keys).
+    - Setup auto Thanks for your enquiry WhatsApp trigger using approved templates for incoming leads (P2).
     
     Future Tasks:
-    - Phase 2: Add AI insights and recommendations on every section (P0).
+    - Phase 2: Add AI insights and recommendations on every CRM section (P0).
     - Phase 2: Build the AI Brain conversational chat interface for reports and insights using Emergent LLM Key (P0).
 
 **Completed work in this session**
-- Extracted and verified all cases (1 through 8) from CRM - Testing Points.pdf (DONE)
-- Built Custom Fields engine allowing Odoo Studio-style form building + webhook alias mapping (DONE)
-- Built trigger Automations (e.g., Tag/Stage update -> queues WhatsApp/Email) (DONE)
-- Fixed a 500 error in Reports aggregation pipelines (DONE)
-- Purged all dummy/test data generated during development to maintain data hygiene (DONE)
-- Passed 25/25 automated backend tests for CRM capabilities (DONE)
+- Agent Productivity & Call Analytics Dashboard built (Phase 3 of Call Center) (DONE)
+- Gmail API integration via OAuth 2.0 with dynamic origin redirect URIs (DONE)
+- Odoo WhatsApp template sync (Mapped 54 Meta-approved template names to the CRM) (DONE)
+- Fixed HTML email template editor to support proper HTML rendering preview (Case 17) (DONE)
+- Implemented Dashboard date filters, follow-up times, duplicate lead detection, WA status tracking, and Agent Status timeline tracking (Cases 18-24) (DONE)
+- Object Storage integrated for file attachments (DONE)
+- Excel and PDF Export functionalities added (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: None
+  - Issue recurrence in previous fork: None. (Previous cookie issues were resolved and validated).
   - Recurrence count: 0
-  - Status: NOT STARTED
+  - Status: RESOLVED
 
 **Code Architecture**
 /app/
 ├── backend/
-│   ├── core/ (db.py, security.py, utils.py)
-│   ├── migration/ (odoo_migrate.py, odoo_sync.py)
-│   ├── routes/ (admin.py, catalogs.py, chatter.py, filters.py, leads.py, reports.py, webhooks.py, whatsapp.py)
-│   ├── tests/ (test_homeivf_api.py, test_sync.py, test_crm_8_cases.py)
+│   ├── core/ (db.py, security.py, utils.py, whatsapp_cloud.py, storage.py, gmail_send.py)
+│   ├── migration/
+│   ├── routes/ (admin.py, agent.py, calls.py, catalogs.py, facebook.py, leads.py, wa_cloud.py, webhooks.py, templates.py, attachments.py, export.py, gmail.py)
+│   ├── tests/
 │   └── server.py
 ├── frontend/
-│   ├── public/ (index.html)
+│   ├── public/ 
 │   └── src/
-│       ├── components/ 
-│       ├── pages/ (Admin.jsx, Dashboard.jsx, LeadDetail.jsx, Leads.jsx, Reports.jsx, etc.)
+│       ├── components/ (AgentStatusSwitcher.jsx, IncomingCallBanner.jsx, Layout.jsx)
+│       ├── context/ (AuthContext.jsx)
+│       ├── pages/ (CallCenter.jsx, Admin.jsx, Leads.jsx, Marketing.jsx, LeadDetail.jsx, Templates.jsx, etc.)
 
 **Key Technical Concepts**
-Frontend: React, Tailwind, Recharts
-Backend: FastAPI, PyMongo, Webhooks
-Database: MongoDB
-Integrations: Odoo XML-RPC, Ozonetel (Telephony - Pending)
+Frontend: React, Tailwind
+Backend: FastAPI, Motor (MongoDB)
+Integrations: Meta Lead Ads (Webhooks & Graph API), WhatsApp Cloud API, Ozonetel (CDR Webhooks), Gmail API (OAuth 2.0), Object Storage (via emergentintegrations).
 
 **key DB schema**
-  - leads: {id, active, stage_id, tag_ids, user_id, contact_id, source_id, custom_fields}
-  - users: {id, email, role, active}
-  - automations: {id, name, trigger, condition, actions, active}
-  - custom_fields: {id, key, label, field_type, options, aliases, active}
+  - leads: {id, active, is_duplicate, duplicate_of, follow_up_time, stage_id, tag_ids, custom_fields}
+  - call_events: {id, direction, status, phone, lead_id, campaign, disposition, recording_url}
+  - status_logs: {id, user_id, status, ongoing, created_at, closed_at, duration_sec}
+  - automations: {id, name, trigger, condition, actions: [{action_type, target}]}
 
 **changes in tech stack**
-  - Custom dynamic fields and automation engine added.
+  - Added , ,  to Python requirements.
+  - Implemented Emergent Object Storage integration for lead file attachments.
 
 **All files of reference** 
-  -  or new file: Will be needed for Ozonetel webhook consumption.
-  - Frontend layout/navigation files: Need editing for TifTech branding.
+  - ,  (Object storage endpoints)
+  - ,  (Gmail API endpoints)
+  -  (Excel/PDF exports)
+  -  (New bulk marketing UI)
+  -  (HTML Email renderer)
 
 **Areas that need refactoring**: 
-  - None immediately; recent work stabilized routes and passes comprehensive tests.
+  - None immediately. Backend passes 27/27 pytest cases and frontend passes 100% of e2e validations in Iteration 12.
 
 **key api endpoints**
+  -  (Dynamic Google OAuth Callback)
   - 
-  - 
-  - **New Needed:**  (or similar for call screen-pops).
+  -  (Diagnostic tool for Meta setup)
+  -  (Updated to handle automated duplicate logic)
 
 **Critical Info for New Agent** 
-- **Ozonetel Request:** The user sent multiple docs/keys for Ozonetel telephony integration right after the previous session ended. Start here. Use the  tool first to propose a plan for the integration and the branding change.
-- **Branding:** Update any instance of TagQuest or Emergent to **TifTech**. 
-- **No Dummy Data:** The user strictly dislikes dummy data. Clean up any artifacts, leads, or hooks you create while testing the Ozonetel integration.
-- **Environments:** The user has deployed the app to a production URL. **You are working in the PREVIEW environment.** Do not provide deployment URLs. If debugging user feedback, ensure the issue exists in preview before modifying code.
-- **Odoo Sync:** The user explicitly stated continuous sync is NOT needed. They will do one final sync at cutover. Do not spend time building cron jobs for Odoo.
+- **Environment Split**: There are TWO environments. The user deployed to a production domain (crm.homeivfmarketing.com). You are working in the PREVIEW environment. Do not assume production data is identical to preview data. All configuration fixes (Google OAuth, Meta API) MUST be performed by the user on their LIVE environment.
+- **Dynamic OAuth**: The Google OAuth logic uses the frontend's origin to map the callback URL dynamically. Do not hardcode preview domains for OAuth. 
+- **Testing**: Testing agent was run extensively up to Iteration 12 and the app is highly stable. Maintain this standard for future tasks.
 
 **documents and test reports created in this job** 
-  - /app/memory/PRD.md (Updated with Phase 1 completion)
-  - /app/test_reports/iteration_3.json
+  - /app/memory/PRD.md
+  - /app/test_reports/iteration_7.json through iteration_12.json
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Please confirm your plan. (COMPLETED)
- 2. User (Haseen/Sunny): Clarified to complete all PDF cases, test everything, give a point-by-point report. Explicitly stated continuous Odoo sync is not needed—will just do a final sync at cutover. (COMPLETED)
- 3. Agent: Delivered point-by-point summary and finished task.
- 4. System Notif: App deployed to production (TWO environments exist now).
- 5. User (Sunny): Provided Ozonetel docs (screen-pop URL, campaign data API), an API key (), and admin login (, ) for incoming calls integration. (PENDING)
- 6. User (Sunny): Reiterated Ozonetel integration context. (PENDING)
- 7. User (Sunny): Requested branding change: Instead of powered by Tagquest, PUT Powered by TifTech. (PENDING)
- 8. User (Sunny): Reiterated Ozonetel links again. (PENDING)
+ 1. User: Give production url... Its hosted on crm.homeivfmarketing.com (COMPLETED)
+ 2. User: For EMAIL Authorised redirect URIs... (COMPLETED)
+ 3. User: All enabled and done (COMPLETED - Note: OAuth requires live interaction)
+ 4. User: Authorised domain - already allow and added... IN email template - NO filed to add Email HTML Template... (COMPLETED - Case 17 fixed)
+ 5. User: Fb leads not cmng... Its saving but not connecting.. (COMPLETED - Built diagnostic tool)
+ 6. User: 24 new cases...need to urgently to do these.. Tell.me whats needed but first finish all u can (COMPLETED - Cases 18-24 Implemented)
+ *No pending user messages. Last action was agent reporting point-by-point completion of all 24 cases.*
 
 **Project Health Check:**
-Healthy. 25/25 Backend tests passing.
+Broken: None in codebase. (User's live 3rd party config in Meta/Google needs finishing).
+Mocked: None.
 
 **3rd Party Integrations** 
   - Odoo XML-RPC API (Requires User credentials)
-  - Emergent LLM Key (Phase 2)
-  - Ozonetel (Pending integration - Requires User credentials provided in chat)
+  - Emergent LLM Key (Phase 2 - Upcoming)
+  - Ozonetel CCaaS (Requires User API Key)
+  - Meta Lead Ads (Requires App ID/Secret & Page Access Token)
+  - WhatsApp Cloud API (Requires System User Token)
+  - Gmail API via Google OAuth 2.0 (Requires User Auth Consent)
+  - Emergent Object Storage (Uses Emergent Integration Playbook)
 
 **Testing status**
-  - Testing agent used after significant changes: YES
+  - Testing agent used after significant changes: YES (Extensively)
   - Troubleshoot agent used after agent stuck in loop: NO
-  - Test files created: 
-  - Known regressions: None
+  - Test files created: Updated existing pytest cases.
+  - Known regressions: None.
 
 **Credentials to test flow:**
 Available in . 
 Admin:  / 
-Ozonetel Portal:  / 
-Ozonetel Key: 
 
 **What agent forgot to execute**
-The agent called the finish tool appropriately, but the user immediately dropped new requirements in the chat regarding Ozonetel integration and TifTech branding. These must be picked up immediately.
+All requested points from the problem statement and the user's PRD document were executed successfully. 
 
 **Debugging checklist for current issue**
-    Issue: Implement TifTech Branding & Ozonetel Integration
-    Frontend files to check: 
-      - Global layout files (e.g., , , , ) to replace TagQuest with TifTech.
-    Backend files to check:
-      - TBD (Requires reviewing Ozonetel documentation provided in user links to determine webhook/API structure).
-    Steps:
-      - Call  to confirm the plan for Ozonetel & Branding.
-      - Perform text replacement for branding -> take a screenshot.
-      - Read Ozonetel docs via  curl -> build integration -> self-test via curl payloads.</analysis>
+    Issue: None Active.
+    Next Steps: Wait for the user to provide their next requirement (likely Phase 2 or AI insights). If the user complains about Facebook/Gmail integrations, refer them to the Admin diagnostic tools built for those flows.</analysis>
