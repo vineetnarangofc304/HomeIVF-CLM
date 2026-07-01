@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, today_ist
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, today_ist, check_duplicate
 from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -14,16 +14,16 @@ router = APIRouter(prefix="/leads", tags=["leads"])
 LIST_PROJECTION = {
     "_id": 0, "id": 1, "name": 1, "contact_name": 1, "phone": 1, "email_from": 1,
     "city": 1, "state_name": 1, "lead_stage": 1, "stage_id": 1, "tags": 1, "user_id": 1,
-    "create_date": 1, "create_date_ist": 1, "follow_up_date": 1, "follow_up_tag": 1,
+    "create_date": 1, "create_date_ist": 1, "follow_up_date": 1, "follow_up_time": 1, "follow_up_tag": 1,
     "source_lead": 1, "campaign_name": 1, "ads_platform": 1, "priority": 1, "active": 1,
-    "probability": 1, "appointment_date": 1, "lost_reason_id": 1,
+    "probability": 1, "appointment_date": 1, "lost_reason_id": 1, "is_duplicate": 1, "duplicate_of": 1,
 }
 
 EDITABLE_FIELDS = {
     "name", "contact_name", "phone", "mobile", "email_from", "city", "state_name",
     "country", "street",
-    "stage_id", "lead_stage", "tags", "user_id", "follow_up_date", "follow_up_tag",
-    "appointment_date", "source_lead", "campaign_name", "ads_platform", "ads_campaign_name",
+    "stage_id", "lead_stage", "tags", "user_id", "follow_up_date", "follow_up_time", "follow_up_tag",
+    "appointment_date", "appointment_time", "source_lead", "campaign_name", "ads_platform", "ads_campaign_name",
     "ads_name", "description", "priority", "gender", "age", "male_age", "female_age",
     "spouse_name", "spouse_age", "spouse_alternate_no", "query", "remark", "pre_conditions",
     "doctor_name", "lost_reason_id", "custom",
@@ -192,6 +192,7 @@ class LeadCreate(BaseModel):
     source_lead: Optional[str] = None
     description: Optional[str] = None
     follow_up_date: Optional[str] = None
+    follow_up_time: Optional[str] = None
     follow_up_tag: Optional[str] = None
     gender: Optional[str] = None
     male_age: Optional[str] = None
@@ -206,15 +207,20 @@ async def create_lead(body: LeadCreate, user: dict = Depends(get_current_user)):
         data["name"] = data.get("contact_name") or data.get("phone") or "New Lead"
     lid = await next_id("lead")
     now = now_utc_str()
+    phone_digits = re.sub(r"\D", "", data.get("phone") or "")[-10:]
+    dup = await check_duplicate(phone_digits)
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
         "tags": data.pop("tags", []), "create_date": now, "create_date_ist": to_ist_str(now),
         "write_date": now, "create_uid": user["id"], "custom": {},
-        "phone_digits": re.sub(r"\D", "", data.get("phone") or "")[-10:],
+        "phone_digits": phone_digits,
+        "is_duplicate": dup["is_duplicate"], "duplicate_of": dup["duplicate_of"],
         **data,
     }
     await db.leads.insert_one(doc)
     await log_message(lid, f"Lead created by {user['name']}", author=user)
+    if dup["is_duplicate"]:
+        await log_message(lid, f"⚠️ Possible duplicate — same phone as lead #{dup['duplicate_of']}", author=user, subtype="comment")
     await run_automations("on_create", doc)
     doc.pop("_id", None)
     return doc

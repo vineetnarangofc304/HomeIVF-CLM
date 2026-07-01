@@ -39,9 +39,28 @@ async def wa_webhook(request: Request):
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     stored = 0
+    status_updates = 0
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
+            # Case 23 — per-message delivery status lifecycle (sent→delivered→read / failed)
+            for st in value.get("statuses", []):
+                wamid = st.get("id")
+                new_status = st.get("status")  # sent | delivered | read | failed
+                if not wamid or not new_status:
+                    continue
+                now = now_utc_str()
+                err = None
+                if st.get("errors"):
+                    err = (st["errors"][0] or {}).get("title") or str(st["errors"][0])
+                msg = await db.wa_messages.find_one({"wamid": wamid}, {"_id": 0, "id": 1, "channel_id": 1})
+                if msg:
+                    await db.wa_messages.update_one(
+                        {"wamid": wamid},
+                        {"$set": {"status": new_status, "status_at": now, "error": err},
+                         "$push": {"status_history": {"status": new_status, "at": now}}},
+                    )
+                    status_updates += 1
             for m in value.get("messages", []):
                 frm = m.get("from")
                 text = (m.get("text") or {}).get("body") or f"[{m.get('type')}]"
@@ -63,7 +82,7 @@ async def wa_webhook(request: Request):
                     if lead:
                         await log_message(lead["id"], f"💬 Inbound WhatsApp from {frm}: {text[:500]}", subtype="comment")
                 stored += 1
-    return {"status": "ok", "stored": stored}
+    return {"status": "ok", "stored": stored, "status_updates": status_updates}
 
 
 # ---- Admin introspection / test ----

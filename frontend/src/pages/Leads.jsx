@@ -325,7 +325,10 @@ export default function Leads() {
                   </td>
                   <td className="px-2 py-2">
                     <p className="font-semibold text-slate-800">{l.contact_name || l.name}</p>
-                    {!l.active && <span className="text-[10px] font-bold uppercase text-rose-500">Lost</span>}
+                    <div className="flex items-center gap-1">
+                      {!l.active && <span className="text-[10px] font-bold uppercase text-rose-500">Lost</span>}
+                      {l.is_duplicate && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700" data-testid={`lead-dup-${l.id}`} title={`Duplicate of #${l.duplicate_of}`}>Dup</span>}
+                    </div>
                   </td>
                   <td className="px-2 py-2 text-slate-600">{l.phone || "—"}</td>
                   <td className="px-2 py-2 text-slate-500">{[l.city, l.state_name].filter(Boolean).join(", ") || "—"}</td>

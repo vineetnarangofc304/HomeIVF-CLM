@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
   ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
-  Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash,
+  Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash, Warning, Eye, X,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
@@ -32,6 +32,7 @@ export default function LeadDetail() {
   const [showWa, setShowWa] = useState(false);
   const [showEmail, setShowEmail] = useState(false);
   const [showNewTag, setShowNewTag] = useState(false);
+  const [viewAtt, setViewAtt] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -138,6 +139,14 @@ export default function LeadDetail() {
     } catch (e) { toast.error(apiErr(e)); }
   };
 
+  const previewAttachment = async (att) => {
+    try {
+      const res = await API.get(`/attachments/${att.id}/download`, { responseType: "blob" });
+      const url = URL.createObjectURL(res.data);
+      setViewAtt({ url, type: att.content_type || res.data.type || "", name: att.original_filename || "file" });
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+
   if (!lead) return <Spinner />;
 
   const leadStages = (catalogs?.lead_stage || []).map((s) => s.name);
@@ -154,6 +163,13 @@ export default function LeadDetail() {
             <h1 className="font-display text-lg font-extrabold text-slate-900" data-testid="lead-name">{lead.contact_name || lead.name}</h1>
             <p className="text-xs text-slate-500">#{lead.id} · created {fmtDate(lead.create_date)} {!lead.active && <span className="ml-1 font-bold uppercase text-rose-500">Lost{lead.lost_reason_id ? ` — ${lostById[lead.lost_reason_id]?.name || ""}` : ""}</span>}</p>
           </div>
+          {lead.is_duplicate && (
+            <button data-testid="duplicate-badge" onClick={() => lead.duplicate_of && navigate(`/leads/${lead.duplicate_of}`)}
+              title={`Same phone as lead #${lead.duplicate_of}`}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-200">
+              <Warning size={14} weight="fill" /> Duplicate{lead.duplicate_of ? ` of #${lead.duplicate_of}` : ""}
+            </button>
+          )}
           <button data-testid="click-to-dial-button" onClick={clickToDial} disabled={dialing}
             className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-indigo-600 disabled:opacity-60">
             <Phone size={15} weight="bold" /> {dialing ? "Dialing…" : "Call"}
@@ -234,6 +250,10 @@ export default function LeadDetail() {
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-up Date</label>
                 <input data-testid="followup-date-input" type="date" className="hivf-select mt-1 w-full" value={lead.follow_up_date || ""} onChange={(e) => update({ follow_up_date: e.target.value || null })} />
+              </div>
+              <div>
+                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-up Time</label>
+                <input data-testid="followup-time-input" type="time" className="hivf-select mt-1 w-full" value={lead.follow_up_time || ""} onChange={(e) => update({ follow_up_time: e.target.value || null })} />
               </div>
               <div>
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Appointment</label>
@@ -418,6 +438,7 @@ export default function LeadDetail() {
                           <p className="truncate text-sm font-bold text-slate-700">{a.original_filename}</p>
                           <p className="text-xs text-slate-500">{(a.size / 1024).toFixed(0)} KB · {a.uploaded_by} · {fmtDate(a.created_at)}</p>
                         </div>
+                        <button onClick={() => previewAttachment(a)} className="text-slate-400 hover:text-[#8B5CF6]" data-testid={`attachment-view-${a.id}`} title="View"><Eye size={18} /></button>
                         <button onClick={() => downloadAttachment(a)} className="text-slate-400 hover:text-[#4A90E2]" data-testid={`attachment-download-${a.id}`} title="Download"><DownloadSimple size={18} /></button>
                         <button onClick={() => deleteAttachment(a)} className="text-slate-400 hover:text-rose-500" data-testid={`attachment-delete-${a.id}`} title="Delete"><Trash size={18} /></button>
                       </div>
@@ -433,6 +454,28 @@ export default function LeadDetail() {
       {showActivity && <ActivityModal leadId={lead.id} onClose={() => setShowActivity(false)} onSaved={() => { setShowActivity(false); load(); }} catalogs={catalogs} />}
       {showLost && <LostModal leadId={lead.id} onClose={() => setShowLost(false)} onSaved={() => { setShowLost(false); load(); }} catalogs={catalogs} />}
       {showWa && <SendWhatsAppModal lead={lead} onClose={() => setShowWa(false)} onSent={() => { setShowWa(false); reloadMessages(); }} />}
+      {viewAtt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70 p-4" onClick={() => { URL.revokeObjectURL(viewAtt.url); setViewAtt(null); }} data-testid="attachment-viewer">
+          <div className="relative flex max-h-[90vh] w-full max-w-4xl flex-col rounded-2xl bg-white p-3 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <p className="truncate text-sm font-bold text-slate-700">{viewAtt.name}</p>
+              <button onClick={() => { URL.revokeObjectURL(viewAtt.url); setViewAtt(null); }} className="text-slate-400 hover:text-rose-500" data-testid="attachment-viewer-close"><X size={20} /></button>
+            </div>
+            <div className="flex-1 overflow-auto rounded-xl bg-slate-50">
+              {viewAtt.type.startsWith("image/") ? (
+                <img src={viewAtt.url} alt={viewAtt.name} className="mx-auto max-h-[75vh] object-contain" />
+              ) : viewAtt.type === "application/pdf" ? (
+                <iframe src={viewAtt.url} title={viewAtt.name} className="h-[75vh] w-full" />
+              ) : (
+                <div className="p-10 text-center text-sm text-slate-500">
+                  Preview not available for this file type.
+                  <a href={viewAtt.url} download={viewAtt.name} className="mt-2 block font-bold text-[#357ABD]">Download instead</a>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
       {showEmail && <SendEmailModal lead={lead} onClose={() => setShowEmail(false)} onSent={() => { setShowEmail(false); reloadMessages(); }} />}
       {showNewTag && <NewTagModal onClose={() => setShowNewTag(false)} onCreated={async (tag) => {
         setShowNewTag(false);

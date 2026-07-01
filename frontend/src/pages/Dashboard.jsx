@@ -29,23 +29,45 @@ function Kpi({ icon: Icon, label, value, tone = "blue", testid, onClick }) {
 
 export default function Dashboard() {
   const [data, setData] = useState(null);
+  const [range, setRange] = useState({ from: "", to: "" });
   const navigate = useNavigate();
 
-  useEffect(() => {
-    API.get("/reports/dashboard").then(({ data }) => setData(data)).catch((e) => { toast.error(apiErr(e)); setData({}); });
-  }, []);
+  const load = () => {
+    const params = {};
+    if (range.from) params.date_from = range.from;
+    if (range.to) params.date_to = range.to;
+    API.get("/reports/dashboard", { params }).then(({ data }) => setData(data)).catch((e) => { toast.error(apiErr(e)); setData({}); });
+  };
+  useEffect(() => { load(); }, [range.from, range.to]);
 
   if (!data) return <Spinner />;
 
   const chartData = (data.by_day || []).map((d) => ({ day: (d._id || "").slice(5), fullDay: d._id, count: d.count }));
   const today = data.today;
   const monthStart = data.month_start;
+  const hasRange = range.from || range.to;
 
   return (
     <div className="space-y-6 p-6" data-testid="dashboard-page">
-      <div>
-        <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
-        <p className="text-sm text-slate-500">Your lead engine at a glance — click any card or row to drill down</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-extrabold text-slate-900">Dashboard</h1>
+          <p className="text-sm text-slate-500">
+            Your lead engine at a glance — click any card or row to drill down
+            {hasRange && <span className="ml-1 font-semibold text-[#357ABD]">· In range: {(data.leads_range || 0).toLocaleString("en-IN")} leads · {(data.converted_range || 0).toLocaleString("en-IN")} converted</span>}
+          </p>
+        </div>
+        <div className="flex items-end gap-2 rounded-xl border border-slate-200 bg-white p-2" data-testid="dashboard-date-filter">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</label>
+            <input type="date" value={range.from} onChange={(e) => setRange((r) => ({ ...r, from: e.target.value }))} className="hivf-input !w-36 !py-1.5 text-sm" data-testid="dashboard-date-from" />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</label>
+            <input type="date" value={range.to} onChange={(e) => setRange((r) => ({ ...r, to: e.target.value }))} className="hivf-input !w-36 !py-1.5 text-sm" data-testid="dashboard-date-to" />
+          </div>
+          {hasRange && <button onClick={() => setRange({ from: "", to: "" })} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="dashboard-date-clear">Clear</button>}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">

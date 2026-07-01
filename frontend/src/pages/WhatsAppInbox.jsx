@@ -105,7 +105,13 @@ export default function WhatsAppInbox() {
                       {!outbound && <p className="mb-0.5 text-[10px] font-bold text-emerald-600">{m.author_name}</p>}
                       <div className="chatter-body" dangerouslySetInnerHTML={{ __html: m.body }} />
                       <p className={`mt-1 text-right text-[10px] ${outbound ? "text-white/70" : "text-slate-400"}`}>
-                        {fmtDate(m.date)}{m.status === "pending_api_credentials" ? " · queued" : ""}
+                        {fmtDate(m.date)}
+                        {outbound && m.status && (
+                          <span className="ml-1 font-bold" data-testid={`wa-msg-status-${m.id}`}>
+                            · {({ queued: "Queued", pending_api_credentials: "Queued", sent: "Sent ✓", delivered: "Delivered ✓✓", read: "Read ✓✓", failed: "Failed ✕", bounced: "Bounced ✕", cancelled: "Cancelled" }[m.status]) || m.status}
+                          </span>
+                        )}
+                        {!outbound && (m.status === "received" || m.direction === "inbound") && <span className="ml-1 font-bold" data-testid={`wa-msg-status-${m.id}`}>· Received</span>}
                       </p>
                     </div>
                   </div>

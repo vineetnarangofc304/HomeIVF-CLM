@@ -117,19 +117,23 @@ function AgentLive() {
 function BreakReports() {
   const [logs, setLogs] = useState(null);
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const load = () => API.get("/agent/status-logs", { params: { date, breaks_only: true } }).then(({ data }) => setLogs(data));
-  useEffect(() => { load(); }, [date]);
+  const [allStatuses, setAllStatuses] = useState(false);
+  const load = () => API.get("/agent/status-logs", { params: { date, breaks_only: !allStatuses } }).then(({ data }) => setLogs(data));
+  useEffect(() => { load(); }, [date, allStatuses]);
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
         <label className="text-xs font-bold text-slate-500">Date</label>
         <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="hivf-input !w-44 !py-1.5 text-sm" data-testid="break-report-date" />
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs font-bold text-slate-500" data-testid="break-report-allstatus-toggle">
+          <input type="checkbox" checked={allStatuses} onChange={(e) => setAllStatuses(e.target.checked)} /> Show all statuses (full timeline)
+        </label>
       </div>
-      {!logs ? <Spinner /> : logs.length === 0 ? <Empty msg="No breaks logged for this date." /> : (
+      {!logs ? <Spinner /> : logs.length === 0 ? <Empty msg={allStatuses ? "No status changes logged for this date." : "No breaks logged for this date."} /> : (
         <div className="hivf-card overflow-hidden">
           <table className="w-full text-sm" data-testid="break-report-table">
             <thead><tr className="border-b border-slate-100 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
-              <th className="px-3 py-2">Agent</th><th className="px-3 py-2">Break type</th><th className="px-3 py-2">Start</th><th className="px-3 py-2">End</th><th className="px-3 py-2">Duration</th></tr></thead>
+              <th className="px-3 py-2">Agent</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Start</th><th className="px-3 py-2">End</th><th className="px-3 py-2">Duration</th></tr></thead>
             <tbody>
               {logs.map((l) => (
                 <tr key={l.id} className="border-b border-slate-50" data-testid={`break-row-${l.id}`}>

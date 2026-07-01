@@ -217,7 +217,7 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
 
 
 @router.get("/dashboard")
-async def dashboard(user: dict = Depends(get_current_user)):
+async def dashboard(date_from: str = None, date_to: str = None, user: dict = Depends(get_current_user)):
     base = {"active": True}
     if user["role"] == "caller":
         base["user_id"] = user["id"]
@@ -230,8 +230,22 @@ async def dashboard(user: dict = Depends(get_current_user)):
     followups_today = await db.leads.count_documents({**base, "follow_up_date": today})
     followups_overdue = await db.leads.count_documents({**base, "follow_up_date": {"$lt": today, "$gt": ""}})
 
+    # Case 18 — optional date-range that scopes the funnel/leaderboard/tags/chart.
+    has_range = bool(date_from or date_to)
+    range_start = date_from or (month + "-01")
+    range_end = date_to or today
+    rng = {"create_date_ist": {"$gte": range_start, "$lte": range_end + " 23:59:59"}}
+    range_match = {**base, **rng}
+    leads_range = await db.leads.count_documents(range_match)
+    converted_range = await db.leads.count_documents({**range_match, "lead_stage": "Converted"})
+
+    # Default (no range) preserves all-time funnel; a chosen range scopes everything.
+    stage_match = range_match if has_range else base
+    board_match = rng if has_range else {"create_date_ist": {"$gte": month + "-01"}}
+    tag_match = range_match if has_range else {**base, "create_date_ist": {"$gte": month + "-01"}}
+
     by_stage = await db.leads.aggregate([
-        {"$match": base},
+        {"$match": stage_match},
         {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
     ]).to_list(20)
@@ -239,15 +253,16 @@ async def dashboard(user: dict = Depends(get_current_user)):
         if s["_id"] in (None, False, ""):
             s["_id"] = "New / Unassigned"
 
+    by_day_match = range_match if has_range else base
     by_day = await db.leads.aggregate([
-        {"$match": {**base, "create_date_ist": {"$gte": ""}}},
+        {"$match": by_day_match},
         {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
-        {"$sort": {"_id": -1}}, {"$limit": 14},
-    ]).to_list(14)
+        {"$sort": {"_id": -1}}, {"$limit": 60 if has_range else 14},
+    ]).to_list(60)
     by_day.reverse()
 
     leaderboard = await db.leads.aggregate([
-        {"$match": {"active": True, "create_date_ist": {"$gte": month + "-01"}}},
+        {"$match": {"active": True, **board_match}},
         {"$group": {"_id": "$user_id", "count": {"$sum": 1},
                     "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
         {"$sort": {"count": -1}}, {"$limit": 10},
@@ -257,7 +272,7 @@ async def dashboard(user: dict = Depends(get_current_user)):
         l["name"] = users.get(l["_id"], "Unassigned")
 
     top_tags = await db.leads.aggregate([
-        {"$match": {**base, "create_date_ist": {"$gte": month + "-01"}}},
+        {"$match": tag_match},
         {"$unwind": "$tags"},
         {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}}, {"$limit": 10},
@@ -271,4 +286,6 @@ async def dashboard(user: dict = Depends(get_current_user)):
         "converted_mtd": converted_mtd, "followups_today": followups_today,
         "followups_overdue": followups_overdue, "by_stage": by_stage, "by_day": by_day,
         "leaderboard": leaderboard, "top_tags": top_tags, "today": today, "month_start": month + "-01",
+        "range_start": range_start, "range_end": range_end,
+        "leads_range": leads_range, "converted_range": converted_range,
     }
