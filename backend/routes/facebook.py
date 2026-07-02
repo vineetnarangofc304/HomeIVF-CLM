@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, check_duplicate
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, check_duplicate, ensure_catalog
 
 router = APIRouter(tags=["facebook"])
 
@@ -78,6 +78,9 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
 
     lid = await next_id("lead")
     now = now_utc_str()
+    # ensure the source shows up in the Source dropdown/filters
+    source_val = settings.get("source_default") or "Meta Lead Ads"
+    await ensure_catalog("source_lead", source_val)
     # normalize display name: keep contact_name and name in sync
     if data.get("name") and not data.get("contact_name"):
         data["contact_name"] = data["name"]

@@ -1,0 +1,19 @@
+{
+  "summary": "Iteration 14 backend testing for catalog-create fix + Facebook source_lead auto-register. All 7 targeted tests PASSED (7/7).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter14_catalog_fb_source.py",
+    "/app/test_reports/pytest/iter14.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_iter14_catalog_fb_source.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created test catalog entries with UNIQ timestamp suffix (QA Source One <ts>, QA Tag <ts>) and FB test leads (QA Source Lead <ts>, QA Attr Lead <ts>). No cleanup required per request.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter14 verified: (1) POST /api/catalogs/source_lead & /api/catalogs/tag no longer 500 for migrated types, idempotent on duplicate name. (2) POST /api/admin/facebook/test creates lead with source_lead='Meta Lead Ads' and ensure_catalog auto-registers it so it appears in GET /api/catalogs. (3) GET /api/leads?source_lead=Meta%20Lead%20Ads returns new lead. (4) Attribution fields campaign_name/ads_campaign_name/ads_name mapped correctly. (5) FB diagnose returns all checks ok=true; register-webhook returns ok:true against LIVE Meta Graph v25.0.",
+  "rca of the issue": "Fixes verified as-implemented: catalogs.create_catalog retries with max(id)+1 on next_id counter collision (was cause of 500 for migrated catalog types). facebook._map_and_create_lead now calls ensure_catalog('source_lead','Meta Lead Ads') so the Source dropdown picks it up."
+}

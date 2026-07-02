@@ -16,6 +16,30 @@ def to_ist_str(utc_str: str) -> str:
     except Exception:
         return utc_str
 
+async def ensure_catalog(ctype: str, name: str) -> dict:
+    """Get-or-create a catalog item (e.g. source_lead 'Meta Lead Ads') so it shows
+    in the Source/dropdown filters. Uses max-id+1 (migrated catalogs bypass counters)."""
+    import re
+    if not name:
+        return {}
+    doc = await db.catalogs.find_one(
+        {"type": ctype, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}}, {"_id": 0})
+    if doc:
+        return doc
+    last = await db.catalogs.find_one({"type": ctype}, sort=[("id", -1)])
+    cid = (last.get("id", 0) if last else 0) + 1
+    for _ in range(5):
+        try:
+            doc = {"id": cid, "type": ctype, "name": name, "active": True}
+            await db.catalogs.insert_one(doc)
+            doc.pop("_id", None)
+            return doc
+        except Exception:
+            cid += 1
+    return {"id": cid, "type": ctype, "name": name, "active": True}
+
+
+
 
 async def check_duplicate(phone_digits: str, exclude_id: int = None) -> dict:
     """Case 20 — flag duplicate leads by phone. Returns {is_duplicate, duplicate_of, duplicate_count}."""

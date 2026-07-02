@@ -147,9 +147,18 @@ async def create_catalog(ctype: str, body: CatalogCreate, user: dict = Depends(g
         doc["sequence"] = body.sequence
     if body.is_won is not None:
         doc["is_won"] = body.is_won
-    await db.catalogs.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
+    # migrated catalogs bypassed the counter, so next_id can collide with existing ids —
+    # retry with max-id+1 until the insert succeeds.
+    for _ in range(6):
+        try:
+            await db.catalogs.insert_one(doc)
+            doc.pop("_id", None)
+            return doc
+        except Exception:
+            last = await db.catalogs.find_one({"type": ctype}, sort=[("id", -1)])
+            doc["id"] = (last.get("id", 0) if last else 0) + 1
+            doc.pop("_id", None)
+    raise HTTPException(status_code=500, detail="Could not create catalog item")
 
 
 @router.patch("/{ctype}/{cid}")
