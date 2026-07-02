@@ -5,6 +5,12 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-06, batch 21) — "Meta" missing from Source dropdown on production after redeploys — iteration_15 (4/4 backend)
+- **ROOT CAUSE:** "Meta Lead Ads" was only created lazily via `ensure_catalog` when a real FB lead was ingested. The startup seed list for `source_lead` did NOT include it, so redeploys (which restart the backend but don't ingest a lead) never made it appear.
+- **FIX:** Added `"Meta Lead Ads"` to the seeded `source_lead` list in `server.py` startup(). Now any backend restart/redeploy guarantees it in the Source dropdown. Idempotent (uses $setOnInsert). Verified via testing agent incl. restart idempotency — no duplicates, existing sources intact.
+- **⚠️ Needs PRODUCTION REDEPLOY** for this to take effect on prod.
+
+
 ## Fix (2026-07-02, batch 20) — FB leads "not showing in report" + Source dropdown — iteration_14 (7/7 backend, 100%)
 - **ROOT CAUSE (production data):** the production `settings.facebook.page_access_token` contained the ENTIRE pasted text block (App ID + app secret + WhatsApp SU token label) instead of just the Page token → Graph fetch failed with "Malformed access token" → leadgen webhooks delivered Success (200) but created 0 leads. FIXED directly on production via API: re-set clean app_id/app_secret/page_id/page_access_token (fresh, points to HomeIVF 273380505860843)/verify_token=homeivf_fb_verify_2026/graph v25.0. Production `/admin/facebook/diagnose` now all 3 checks green; webhook registered → https://crm.homeivfmarketing.com/api/webhooks/facebook. Verified a simulated FB lead creates + shows in GET /leads?source_lead=Meta Lead Ads (then archived the test lead #504779).
 - **Source dropdown fix (code):** `_map_and_create_lead` now calls `ensure_catalog('source_lead', source)` so "Meta Lead Ads" auto-appears in Source dropdowns/filters. Added shared `core/utils.ensure_catalog`.
