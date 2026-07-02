@@ -203,6 +203,43 @@ async def fb_subscribe(user: dict = Depends(require_roles("admin"))):
     return {"ok": True, "response": data}
 
 
+class FbRegisterBody(BaseModel):
+    callback_url: str
+
+
+@router.post("/admin/facebook/register-webhook")
+async def fb_register_webhook(body: FbRegisterBody, user: dict = Depends(require_roles("admin"))):
+    """Register the app-level `page`/leadgen webhook with Meta so lead events are
+    delivered to THIS CRM's callback URL. Meta verifies the callback (GET hub.challenge)
+    against the saved verify_token before accepting. Uses the app access token."""
+    s = await _fb_settings()
+    app_id, app_secret, verify_token = s.get("app_id"), s.get("app_secret"), s.get("verify_token")
+    if not (app_id and app_secret and verify_token):
+        raise HTTPException(status_code=400, detail="Save App ID, App Secret and Verify Token first.")
+    callback_url = (body.callback_url or "").strip()
+    if not callback_url.startswith("https://"):
+        raise HTTPException(status_code=400, detail="Callback URL must be an https:// URL.")
+    version = s.get("graph_api_version") or GRAPH_VERSION
+    try:
+        async with httpx.AsyncClient(timeout=20) as client:
+            resp = await client.post(
+                f"https://graph.facebook.com/{version}/{app_id}/subscriptions",
+                params={
+                    "object": "page",
+                    "callback_url": callback_url,
+                    "fields": "leadgen",
+                    "verify_token": verify_token,
+                    "access_token": f"{app_id}|{app_secret}",
+                },
+            )
+            data = resp.json()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Facebook request failed: {e}")
+    if resp.status_code >= 400 or data.get("error"):
+        raise HTTPException(status_code=400, detail=str(data.get("error", data)))
+    return {"ok": True, "callback_url": callback_url, "response": data}
+
+
 @router.get("/admin/facebook/diagnose")
 async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
     """Live diagnostic: checks token validity + whether the Page is actually
@@ -269,9 +306,31 @@ async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
         if not leadgen_subscribed:
             out["next_step"] = "Click 'Subscribe Page to leadgen' below, then submit a Meta test lead."
         else:
-            out["next_step"] = ("Connection looks good. If leads still don't arrive: in Meta App Dashboard → Webhooks, "
-                                "confirm the Page callback URL matches the one above, the Verify Token matches, and the "
-                                "app has Live mode + Advanced access for leads_retrieval.")
+            # 3. App-level page webhook callback registered?
+            app_id, app_secret = s.get("app_id"), s.get("app_secret")
+            if app_id and app_secret:
+                try:
+                    r3 = await client.get(f"https://graph.facebook.com/{version}/{app_id}/subscriptions",
+                                          params={"access_token": f"{app_id}|{app_secret}"})
+                    d3 = r3.json()
+                    page_sub = next((x for x in (d3.get("data") or []) if x.get("object") == "page"), None)
+                    has_leadgen_field = bool(page_sub) and any(
+                        (f.get("name") if isinstance(f, dict) else f) == "leadgen" for f in (page_sub.get("fields") or [])
+                    )
+                    if page_sub and has_leadgen_field:
+                        out["checks"].append({"name": "App leadgen webhook", "ok": True,
+                            "detail": f"Registered → {page_sub.get('callback_url')}"})
+                        out["next_step"] = ("Connection looks good. Submit a Meta test lead (Lead Ads Testing Tool) — "
+                                            "it should appear in the CRM within seconds.")
+                    else:
+                        out["checks"].append({"name": "App leadgen webhook", "ok": False,
+                            "detail": "No 'page' webhook with the leadgen field is registered on your Meta app — leads have nowhere to be delivered."})
+                        out["next_step"] = "Click 'Register leadgen webhook with Meta' below to point the webhook at this CRM."
+                except Exception as e:
+                    out["checks"].append({"name": "App leadgen webhook", "ok": False, "detail": f"Could not check: {e}"})
+            else:
+                out["next_step"] = ("Page is subscribed. Also ensure the app-level 'page' webhook points to the callback URL "
+                                    "above (use 'Register leadgen webhook with Meta').")
     return out
 
 

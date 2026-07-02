@@ -1,0 +1,43 @@
+{
+  "summary": "Iteration 13 — Facebook Lead Ads webhook registration flow. 9/9 backend pytest pass. Verified LIVE Meta Graph v25.0 diagnose (all 3 checks ok=true incl. new 'App leadgen webhook' check pointing to preview URL), new POST /api/admin/facebook/register-webhook (LIVE Meta success:true, and rejects non-https with 400), admin-only role gating, admin test-lead creation with correct field mapping + persistence + Meta Lead Ads source, and webhook GET verify handshake (challenge echo + 403 on wrong verify_token 'homeivf_fb_verify_2026').",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/admin/facebook/test",
+        "issue": "Current saved field_mapping in Mongo `settings.facebook` maps `full_name → name` (top-level display), so the created lead exposes `name: 'QA Test Lead'` but NO `contact_name` field. DEFAULT_MAP in facebook.py maps `full_name → contact_name`. Behavior is correct (mapping override wins and `name` is the standard lead display field), but the review request phrasing 'contact_name/phone/email mapped correctly' could be misread. Data is preserved and searchable; no action required unless the reviewer specifically wants contact_name populated in addition to name."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter13_facebook_webhook_registration.py",
+    "/app/test_reports/pytest/iter13_facebook_webhook.xml"
+  ],
+  "action_items": [
+    "OPTIONAL: In /app/backend/routes/facebook.py `_map_and_create_lead`, consider also populating `contact_name` when target is `name` (or vice-versa) so both fields are set — currently they diverge based on whether admin mapping overrode DEFAULT_MAP. Purely cosmetic.",
+    "Cleanup: `register-webhook` in this test run pointed the app's page webhook to https://ivf-telephony-hub.preview.emergentagent.com/api/webhooks/facebook — main agent noted this is expected and will clean up post-run."
+  ],
+  "critical_code_review_comments": [
+    "routes/facebook.py fb_register_webhook: correctly validates app_id/app_secret/verify_token exist, requires https:// prefix (returns 400 otherwise), uses app access token `{app_id}|{app_secret}` (correct for /{app_id}/subscriptions), forwards `object=page` + `fields=leadgen` + saved verify_token so Meta verifies via the callback. Handles Meta error payload cleanly. Guarded by require_roles('admin') — admin-only.",
+    "routes/facebook.py fb_diagnose: three-step diagnostic chain is well-ordered — token validity → page-leadgen subscription → app-level webhook registration. New 3rd check queries `/{app_id}/subscriptions` with app access token and correctly detects both the object='page' subscription AND the presence of the 'leadgen' field. `next_step` messaging is user-actionable and updated to point at the new register-webhook button. Good UX.",
+    "routes/facebook.py fb_verify: standard hub.mode='subscribe' + verify_token match + challenge echo, returns PlainTextResponse (not JSON) — correct per Meta spec. Wrong token → 403.",
+    "routes/facebook.py fb_test_lead: reuses `_map_and_create_lead` so the same field-mapping / round-robin assignment / duplicate detection / automation firing logic runs → excellent parity with the real webhook path.",
+    "Minor consistency: DEFAULT_MAP has `full_name → contact_name` but current DB `field_mapping` uses `full_name → name`. Both work but consider aligning DEFAULT_MAP with the operational default to reduce surprise (or explicitly document that top-level `name` is the display field in the lead schema).",
+    "Suggest adding `X-Hub-Signature-256` unit tests around retries when Graph fetch temporarily fails (currently silently drops in fb_webhook — one bad leadgen_id will not block others which is good, but a metric/log line for the failure would help observability)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter13_facebook_webhook_registration.py"
+  ],
+  "success_rate": {"backend": "100% (9/9 pytest)", "frontend": "n/a — backend-only per request"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 ; caller1@homeivf.com / HomeIVF@123 (for role-gating test)",
+  "seed_data_creation": "Created 2 test leads (QA Debug id=500094, QA Test Lead) via /api/admin/facebook/test; QA Test Lead soft-deleted via /api/leads/{id}/lost. Facebook settings NOT modified (snapshot/restore not needed — tests only READ diagnose, POST register-webhook which mutates Meta side not our DB, and POST /admin/facebook/test which only inserts leads).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Iter13 tests are LIVE Meta API calls — need real creds in settings.facebook. If those get wiped, LIVE tests will 400/500. Callback URL registered with Meta is the preview URL; main agent said this is expected. Verify_token = 'homeivf_fb_verify_2026'. HomeIVF Page id = 273380505860843, App id = 736963545504625. Cleanup of preview-URL registration is main agent's job post-run.",
+  "rca of the issue": "N/A — E1's fix for 'no leads from FB ads' works end-to-end. Live diagnose now correctly detects the missing app-level page/leadgen webhook (the actual root cause), the new register-webhook endpoint successfully registered the callback with Meta (Meta returned success:true, meaning it verified the callback via the saved verify_token), and after registration the diagnose returns all 3 checks ok=true with next_step='Connection looks good...'. The chain is complete: Page subscribed to leadgen ✓ + App leadgen webhook registered → preview URL ✓ → future FB lead form submissions will POST to /api/webhooks/facebook and land in the CRM."
+}

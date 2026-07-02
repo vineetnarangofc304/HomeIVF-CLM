@@ -848,6 +848,13 @@ function FacebookTab({ isAdmin }) {
     catch (err) { toast.error(apiErr(err)); }
   };
 
+  const registerWebhook = async () => {
+    try {
+      const { data } = await API.post("/admin/facebook/register-webhook", { callback_url: callbackUrl });
+      toast.success("Leadgen webhook registered with Meta ✓"); console.log(data); diagnose();
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+
   const diagnose = async () => {
     setDiagBusy(true);
     try { const { data } = await API.get("/admin/facebook/diagnose"); setDiag(data); }
@@ -898,6 +905,7 @@ function FacebookTab({ isAdmin }) {
             <div className="flex flex-wrap items-end gap-2 md:col-span-2">
               <button data-testid="fb-save-button" type="submit" className="hivf-btn-primary !py-2"><FacebookLogo size={14} /> Save Settings</button>
               <button type="button" onClick={subscribe} className="hivf-btn-secondary !py-2" data-testid="fb-subscribe-button">Subscribe Page to leadgen</button>
+              <button type="button" onClick={registerWebhook} className="hivf-btn-secondary !py-2" data-testid="fb-register-webhook-button">Register leadgen webhook with Meta</button>
               <button type="button" onClick={diagnose} disabled={diagBusy} className="hivf-btn-secondary !py-2" data-testid="fb-diagnose-button">{diagBusy ? "Checking…" : "Check connection"}</button>
             </div>
           )}
