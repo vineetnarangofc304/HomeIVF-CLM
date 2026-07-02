@@ -156,7 +156,7 @@ async def startup():
             upsert=True,
         )
     # Seed default source_lead values
-    for i, name in enumerate(["landing_page", "chatbot", "website", "App", "Callback_Request"]):
+    for i, name in enumerate(["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads"]):
         await db.catalogs.update_one(
             {"type": "source_lead", "name": name},
             {"$setOnInsert": {"id": i + 1, "type": "source_lead", "name": name, "sequence": i + 1, "active": True}},

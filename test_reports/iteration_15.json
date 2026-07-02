@@ -1,0 +1,16 @@
+{
+  "summary": "Verified Meta Lead Ads source_lead seed fix. 4/4 backend tests passed. Restart idempotency also verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_source_lead_seed.py", "/app/test_reports/pytest/pytest_meta_lead.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_source_lead_seed.py"],
+  "success_rate": {"backend": "100%", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (works)",
+  "seed_data_creation": "Test created & cleaned up a TEST_source_pytest source_lead catalog to verify POST endpoint",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fix verified: GET /api/catalogs.source_lead includes 'Meta Lead Ads' along with all original values (landing_page, chatbot, website, App, Callback_Request). Seed is idempotent — no duplicates after backend restart. POST /api/catalogs/source_lead still works (201).",
+  "rca of the issue": "Original: 'Meta Lead Ads' was only lazily inserted when a FB lead came in, so fresh deployments were missing it in the Source dropdown. Fix: added 'Meta Lead Ads' to the startup seed loop in server.py line 159. Since the loop uses $setOnInsert on (type,name), it's idempotent across restarts."
+}

@@ -4,7 +4,7 @@ import time
 import requests
 import pytest
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-telephony-hub.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://meta-leads-sync.preview.emergentagent.com").rstrip("/")
 
 
 # ---------------- Health ----------------
