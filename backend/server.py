@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from core.db import db
 from core.security import hash_password, verify_password
-from core.utils import now_utc_str
+from core.utils import now_utc_str, ensure_catalog
 from routes import admin as admin_routes
 from routes import auth as auth_routes
 from routes import calls as call_routes
@@ -155,13 +155,10 @@ async def startup():
             {"$setOnInsert": {"id": i + 1, "type": "follow_up_tag", "name": name, "sequence": i + 1, "active": True}},
             upsert=True,
         )
-    # Seed default source_lead values
-    for i, name in enumerate(["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads"]):
-        await db.catalogs.update_one(
-            {"type": "source_lead", "name": name},
-            {"$setOnInsert": {"id": i + 1, "type": "source_lead", "name": name, "sequence": i + 1, "active": True}},
-            upsert=True,
-        )
+    # Seed default source_lead values (collision-safe: ensure_catalog computes max-id+1,
+    # so it never clashes with migrated Odoo catalog ids)
+    for name in ["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads"]:
+        await ensure_catalog("source_lead", name)
     # Seed Indian states + countries (Case 1 dropdowns)
     if await db.catalogs.count_documents({"type": "state"}) == 0:
         states = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat",
