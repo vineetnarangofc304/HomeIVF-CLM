@@ -99,6 +99,14 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         "lead_stage": settings.get("lead_stage_default"),
         "source_lead": settings.get("source_default") or "Meta Lead Ads",
         "ads_platform": "Facebook",
+        # Meta ad attribution (Attribution card): Campaign / Ad Set / Ad
+        "campaign_name": raw.get("campaign_name"),
+        "ads_campaign_name": raw.get("adset_name"),
+        "ads_name": raw.get("ad_name"),
+        "fb_campaign_id": raw.get("campaign_id"),
+        "fb_adset_id": raw.get("adset_id"),
+        "fb_ad_id": raw.get("ad_id"),
+        "fb_form_name": raw.get("form_name"),
         "user_id": user_id,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "facebook_lead": True,
@@ -158,7 +166,10 @@ async def fb_webhook(request: Request):
                 try:
                     resp = await client.get(
                         f"https://graph.facebook.com/{version}/{leadgen_id}",
-                        params={"access_token": s["page_access_token"]},
+                        params={
+                            "access_token": s["page_access_token"],
+                            "fields": "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,platform,is_organic",
+                        },
                     )
                     lead = resp.json()
                 except Exception:
@@ -174,6 +185,10 @@ class FbTestBody(BaseModel):
     field_data: list  # [{name, values:[...]}]
     form_id: Optional[str] = None
     leadgen_id: Optional[str] = None
+    campaign_name: Optional[str] = None
+    adset_name: Optional[str] = None
+    ad_name: Optional[str] = None
+    form_name: Optional[str] = None
 
 
 @router.post("/admin/facebook/test")
@@ -181,7 +196,9 @@ async def fb_test_lead(body: FbTestBody, user: dict = Depends(require_roles("adm
     s = await _fb_settings()
     lead = await _map_and_create_lead(
         body.field_data, s,
-        {"leadgen_id": body.leadgen_id or "TEST", "form_id": body.form_id},
+        {"leadgen_id": body.leadgen_id or "TEST", "form_id": body.form_id,
+         "campaign_name": body.campaign_name, "adset_name": body.adset_name,
+         "ad_name": body.ad_name, "form_name": body.form_name},
         source_label="Facebook Lead Ads (test)",
     )
     return {"ok": True, "lead_id": lead["id"], "lead": lead}
