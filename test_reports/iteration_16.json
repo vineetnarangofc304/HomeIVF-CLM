@@ -1,0 +1,15 @@
+{
+  "summary": "Backend-only regression for source_lead seed collision fix. All 6 pytest tests passed. Verified: backend starts cleanly with no DuplicateKeyError, 'Meta Lead Ads' present alongside all pre-existing sources (landing_page, chatbot, website, App, Callback_Request), no duplicate source_lead names, backend restart is idempotent (catalog set unchanged after supervisorctl restart backend), and POST /api/catalogs/source_lead still returns 200 for new sources.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_source_lead_seed.py", "/app/test_reports/pytest/iteration_16.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_source_lead_seed.py (added test_no_duplicate_source_lead_names and test_backend_restart_idempotent)"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "None persistent; TEST_source_pytest is created and deleted by the create-catalog test.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_source_lead_seed.py now includes a real supervisorctl restart+idempotency check which validates ensure_catalog() does not crash or duplicate on repeated startup. Backend logs show 3 consecutive clean startups with no DuplicateKeyError."
+}

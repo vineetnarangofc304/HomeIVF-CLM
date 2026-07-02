@@ -66,6 +66,65 @@ def test_no_duplicate_meta_lead_ads(headers):
     assert count == 1, f"Expected 1 'Meta Lead Ads', got {count}"
 
 
+def test_no_duplicate_source_lead_names(headers):
+    r = requests.get(f"{BASE_URL}/api/catalogs", headers=headers)
+    data = r.json()
+    source_leads = data.get("source_lead") if isinstance(data, dict) else [
+        c for c in data if c.get("type") == "source_lead"
+    ]
+    names = [c["name"] for c in source_leads]
+    dupes = {n for n in names if names.count(n) > 1}
+    assert not dupes, f"Duplicate source_lead names found: {dupes}. All: {names}"
+
+
+def test_backend_restart_idempotent(headers):
+    """Simulate a restart by calling supervisorctl restart and re-checking catalog."""
+    import subprocess, time
+    # get baseline
+    r0 = requests.get(f"{BASE_URL}/api/catalogs", headers=headers)
+    base = r0.json()
+    base_src = base.get("source_lead") if isinstance(base, dict) else [
+        c for c in base if c.get("type") == "source_lead"
+    ]
+    base_names = sorted([c["name"] for c in base_src])
+
+    subprocess.run(["sudo", "supervisorctl", "restart", "backend"],
+                   capture_output=True, timeout=30)
+    # wait for boot
+    for _ in range(30):
+        try:
+            h = requests.get(f"{BASE_URL}/api/catalogs", timeout=3)
+            if h.status_code in (200, 401, 403):
+                break
+        except Exception:
+            pass
+        time.sleep(1)
+
+    # re-login (token may still be valid but be safe)
+    lr = requests.post(f"{BASE_URL}/api/auth/login",
+                       json={"email": ADMIN_EMAIL, "password": ADMIN_PASSWORD})
+    assert lr.status_code == 200, f"Post-restart login failed: {lr.text}"
+    tok = lr.json().get("access_token") or lr.json().get("token")
+    h2 = {"Authorization": f"Bearer {tok}"}
+
+    r1 = requests.get(f"{BASE_URL}/api/catalogs", headers=h2)
+    assert r1.status_code == 200, r1.text
+    data = r1.json()
+    src = data.get("source_lead") if isinstance(data, dict) else [
+        c for c in data if c.get("type") == "source_lead"
+    ]
+    names = sorted([c["name"] for c in src])
+    # No duplicates after restart
+    dupes = {n for n in names if names.count(n) > 1}
+    assert not dupes, f"Duplicates after restart: {dupes}"
+    # Same set as before (idempotent seed)
+    assert set(names) == set(base_names), (
+        f"Catalog changed after restart. Added: {set(names)-set(base_names)}, "
+        f"Removed: {set(base_names)-set(names)}"
+    )
+    assert "Meta Lead Ads" in names
+
+
 def test_create_source_lead_catalog_still_works(headers):
     payload = {"name": "TEST_source_pytest", "active": True}
     r = requests.post(f"{BASE_URL}/api/catalogs/source_lead",
