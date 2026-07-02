@@ -5,10 +5,13 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
-## Fix (2026-06, batch 21) — "Meta" missing from Source dropdown on production after redeploys — iteration_15 (4/4 backend)
-- **ROOT CAUSE:** "Meta Lead Ads" was only created lazily via `ensure_catalog` when a real FB lead was ingested. The startup seed list for `source_lead` did NOT include it, so redeploys (which restart the backend but don't ingest a lead) never made it appear.
-- **FIX:** Added `"Meta Lead Ads"` to the seeded `source_lead` list in `server.py` startup(). Now any backend restart/redeploy guarantees it in the Source dropdown. Idempotent (uses $setOnInsert). Verified via testing agent incl. restart idempotency — no duplicates, existing sources intact.
-- **⚠️ Needs PRODUCTION REDEPLOY** for this to take effect on prod.
+## Fix (2026-06, batch 21) — "Meta" missing from Source dropdown + deployment crash — iteration_15/16
+- **Symptom 1:** "Meta Lead Ads" missing from Source dropdown on prod after redeploys (it was only created lazily on FB lead ingest; startup seed never added it).
+- **FIX 1:** Added "Meta Lead Ads" to the startup `source_lead` seed.
+- **Symptom 2 (deploy crash):** First deploy attempt of FIX 1 crashed backend startup with `DuplicateKeyError` on catalogs unique index `type_1_id_1` dup {source_lead, id:6}. Root cause: seed used hardcoded `id:i+1`; prod already had a migrated entry at id=6 (Ozonetel) → collision → startup exits → deploy never ready.
+- **FIX 2:** Replaced hardcoded-id source_lead seed loop with collision-safe `ensure_catalog("source_lead", name)` (max-id+1 + retry). Verified via testing agent (6/6): clean startup, no dup names, idempotent across restarts, POST still 200. Local sim confirmed collision-safe (id=6 taken → new item id=12).
+- **⚠️ Needs PRODUCTION REDEPLOY.** Deployment agent's .gitignore .env flag is a FALSE POSITIVE (app has deployed successfully before with same .gitignore).
+
 
 
 ## Fix (2026-07-02, batch 20) — FB leads "not showing in report" + Source dropdown — iteration_14 (7/7 backend, 100%)
