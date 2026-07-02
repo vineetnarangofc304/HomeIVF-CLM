@@ -5,6 +5,14 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-07-02, batch 18) — Facebook Lead Ads "not connecting / no leads" ROOT CAUSE FOUND + FIXED — iteration_13 (9/9 backend, 100%)
+- **Root cause (diagnosed via live Graph API):** The Meta app `736963545504625` had NO app-level `page`/leadgen webhook subscription at all — its only webhook was `whatsapp_business_account` → `https://homeivf.odoo.com/whatsapp/webhook`. So FB leads had nowhere to be delivered. Also, the user was pasting a **System User token** (belongs to "Odoo" SU id 122101718660933307) into the Page Access Token field → Meta "Malformed access token".
+- **Correct creds identified:** Page **"HomeIVF" id `273380505860843`**; its Page Access Token was fetched via `me/accounts` on the SU token. SU token scopes include leads_retrieval + pages_manage_metadata + whatsapp_* (non-expiring, expires_at:0). App ID `736963545504625`, App Secret `39678a3c68cf84bf247fb2f1b9cafd16`.
+- **Done via API:** Page subscribed to leadgen (subscribed_apps) ✓. Proved end-to-end webhook registration works (Meta verified preview callback, success:true), then DELETED the preview page subscription to leave a clean slate (no hijack of production leads).
+- **New:** `POST /api/admin/facebook/register-webhook {callback_url}` — registers the app-level `page`/leadgen webhook with Meta (POST /{app_id}/subscriptions using app token; Meta verifies via saved verify_token). One-click **"Register leadgen webhook with Meta"** button in Admin → Facebook (`fb-register-webhook-button`). Enhanced `GET /admin/facebook/diagnose` with a 3rd check "App leadgen webhook" that detects exactly this missing piece. `_map_and_create_lead` now keeps `name`/`contact_name` in sync.
+- **⚠️ USER ACTION on PRODUCTION (requires redeploy first, since button/endpoint are new code):** Admin → Facebook → enter App ID/Secret, Page ID `273380505860843`, the **Page** Access Token (NOT the SU token), a Verify Token → Save → click "Register leadgen webhook with Meta" → "Check connection" (should be all green) → send a Meta test lead. Preview settings DB currently holds the real creds (verify_token=homeivf_fb_verify_2026) for demonstrability.
+
+
 ## User Choices (confirmed)
 - Keep duplicate Odoo Studio fields AS-IS (raw under `lead.custom`); cleanup deferred to Phase 2. Convenience coalesced fields (lead_stage, follow_up_date, gender, etc.) computed at migration on top.
 - Full migration incl. chatter + WhatsApp history.

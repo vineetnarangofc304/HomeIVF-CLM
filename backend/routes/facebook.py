@@ -78,6 +78,11 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
 
     lid = await next_id("lead")
     now = now_utc_str()
+    # normalize display name: keep contact_name and name in sync
+    if data.get("name") and not data.get("contact_name"):
+        data["contact_name"] = data["name"]
+    elif data.get("contact_name") and not data.get("name"):
+        data["name"] = data["contact_name"]
     # round-robin assignment (same rules as web lead capture)
     user_id = None
     assign = await db.settings.find_one({"key": "assignment"})
