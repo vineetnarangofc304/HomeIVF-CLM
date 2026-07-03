@@ -5,7 +5,13 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
-## Fix (2026-06, batch 21) — "Meta" missing from Source dropdown + deployment crash — iteration_15/16
+## Fix (2026-06/07) — FB "Meta leads not working" + webhook delivery visibility — iteration_17 (6/6 backend)
+- **Diagnosis from user's Meta "Track status" screenshot:** HomeIVF page (273380505860843) has MULTIPLE apps subscribed to leadgen. Two apps deliver `Success`; app **736963545504625 → Failure: `webhooks.delivery.rejected`**. That means Meta DID deliver the leadgen event to the CRM callback but the CRM returned non-2xx (almost certainly 401 invalid signature) → lead never created. Previously the CRM logged nothing → invisible.
+- **ROOT CAUSE (production config):** the App Secret saved in CRM Settings → Facebook does not match the app (736963545504625) whose 'page' webhook points to crm.homeivfmarketing.com. HMAC signature check fails → 401 → Meta reports `webhooks.delivery.rejected`.
+- **CODE FIX (visibility):** Added `_log_webhook()` in facebook.py — every inbound webhook outcome (rejected/error/skipped/created) is stored in `db.fb_webhook_log` (capped 200). New `GET /api/admin/facebook/webhook-log`; diagnose() now returns `recent_webhook_deliveries`; Admin Facebook diagnostic panel renders them. Verified via testing agent (6/6): bad-sig→401+rejected log; valid-sig+bad leadgen→200+error log; auth enforced; diagnose surfaces deliveries.
+- **⚠️ USER ACTION (production):** (1) Redeploy so logging is live. (2) In Meta, ensure the App Secret saved in CRM Settings belongs to the SAME app whose 'page' webhook callback = crm.homeivfmarketing.com/api/webhooks/facebook (the one showing `webhooks.delivery.rejected`). Re-save the correct App Secret, then click "Check connection" — deliveries should flip to `created`.
+
+
 - **Symptom 1:** "Meta Lead Ads" missing from Source dropdown on prod after redeploys (it was only created lazily on FB lead ingest; startup seed never added it).
 - **FIX 1:** Added "Meta Lead Ads" to the startup `source_lead` seed.
 - **Symptom 2 (deploy crash):** First deploy attempt of FIX 1 crashed backend startup with `DuplicateKeyError` on catalogs unique index `type_1_id_1` dup {source_lead, id:6}. Root cause: seed used hardcoded `id:i+1`; prod already had a migrated entry at id=6 (Ozonetel) → collision → startup exits → deploy never ready.
