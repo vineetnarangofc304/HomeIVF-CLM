@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 20: verified the fix that FB leads created via POST /api/admin/facebook/test are now round-robin assigned to ACTIVE caller users (no longer 'Unassigned'). 9/9 pytest cases passed. Confirmed: (1) newly-created FB lead has non-null user_id pointing to a user whose active=true and role='caller'; (2) 3 consecutive FB test leads produce >=2 distinct user_ids (round-robin rotation working via fb_assign_pointer counter); (3) lead carries source_lead='Meta Lead Ads', create_date, create_date_ist, active=true and appears near the top of the default admin /api/leads list (sort=create_date desc); (4) GET /api/leads?user_id=<assigned caller id> returns the FB lead — so the caller would see it in their Lead report; (5) GET /api/admin/facebook/recent-leads now shows assigned_to as a real caller NAME (not 'Unassigned') for new leads and still returns {total, leads[]}. Regressions all green: diagnose returns 5 checks incl 'Token ↔ App match' and 'leads_retrieval permission' + recent_webhook_deliveries; webhook-log requires auth; invalid-signature webhook → 401 and produces a 'rejected' log entry; source_lead catalog still contains 'Meta Lead Ads'; backend running cleanly.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter20_fb_roundrobin_assignment.py",
+    "/app/test_reports/pytest/iter20.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "facebook.py _map_and_create_lead: the fallback caller lookup fires a full users find + sort on every FB lead (up to 500 docs). Fine at current volume but consider caching the active-caller list (or filtering server-side once per minute) once FB traffic scales.",
+    "fb_assign_pointer via next_id() monotonically increases forever — safe since we modulo by len(cids), but callers[] order matters: sorting by id keeps the rotation deterministic as long as no active caller is added/removed. When the caller set changes, the modulo will jump — acceptable for round-robin but worth documenting.",
+    "The primary /api/settings 'assignment' block (line 109-114) takes precedence over the fallback. If an admin ever configures 'assignment' with a stale/inactive user_ids list, FB leads will silently get assigned to inactive users. Consider filtering assign['user_ids'] against active users before using it.",
+    "source_lead on the /admin/facebook/test path is hard-coded to settings.source_default or 'Meta Lead Ads' — but log_message uses source_label='Facebook Lead Ads (test)'. Not a bug, but the mismatch between log wording and stored source could confuse admins reviewing the timeline."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter20_fb_roundrobin_assignment.py"],
+  "success_rate": {"backend": "100% (9/9)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created ~7 Facebook test leads via POST /api/admin/facebook/test (Iter20 rr-0..2, fields, seeit, recent-name, catalog, assign-1). Not deleted per instructions to preserve FB leads.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The FB roundrobin fix is live: every new FB lead is now assigned to an active caller (there are 30+ active callers in preview so consecutive leads land on different user_ids). recent-leads/{leads[i].assigned_to} now returns a name string for new leads. Existing pre-fix leads still have user_id=None → assigned_to='Unassigned' (backfill would be needed if we want them assigned too — but was not part of this task). The /api/users/{id} endpoint returned 405 during testing (list-only) — kept as-is; test uses /api/users list to look up the assigned user."
+}
