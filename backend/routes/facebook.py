@@ -41,6 +41,24 @@ async def _fb_settings():
     return await db.settings.find_one({"key": "facebook"}, {"_id": 0}) or {}
 
 
+async def _log_webhook(status: str, detail: str, leadgen_id: str = None, extra: dict = None):
+    """Persist every inbound Meta webhook delivery + its outcome so 'webhooks.delivery.rejected'
+    and silent Graph-fetch failures become visible in Admin → Facebook diagnostics."""
+    doc = {"at": now_utc_str(), "status": status, "detail": detail, "leadgen_id": leadgen_id}
+    if extra:
+        doc.update(extra)
+    try:
+        await db.fb_webhook_log.insert_one(doc)
+        # keep only the most recent 200 entries
+        count = await db.fb_webhook_log.count_documents({})
+        if count > 200:
+            old = await db.fb_webhook_log.find({}, {"_id": 1}).sort("_id", 1).limit(count - 200).to_list(count)
+            if old:
+                await db.fb_webhook_log.delete_many({"_id": {"$in": [o["_id"] for o in old]}})
+    except Exception:
+        pass
+
+
 def _verify_signature(app_secret: str, body: bytes, header: Optional[str]) -> bool:
     if not app_secret or not header:
         return False
@@ -144,15 +162,25 @@ async def fb_verify(request: Request):
 @router.post("/webhooks/facebook")
 async def fb_webhook(request: Request):
     s = await _fb_settings()
-    if not s.get("app_secret") or not s.get("page_access_token"):
-        raise HTTPException(status_code=503, detail="Facebook integration not configured")
     body = await request.body()
-    if not _verify_signature(s["app_secret"], body, request.headers.get("X-Hub-Signature-256")):
+    sig_header = request.headers.get("X-Hub-Signature-256")
+    if not s.get("app_secret") or not s.get("page_access_token"):
+        await _log_webhook("rejected", "Facebook integration not configured (missing app_secret or page_access_token) → returned 503")
+        raise HTTPException(status_code=503, detail="Facebook integration not configured")
+    if not _verify_signature(s["app_secret"], body, sig_header):
+        await _log_webhook(
+            "rejected",
+            "Signature verification FAILED → returned 401. The saved App Secret does not match the app "
+            "that delivered this webhook. Ensure the App Secret in Settings belongs to the SAME Meta app "
+            "whose 'page' webhook points to this CRM's callback URL.",
+            extra={"received_signature": (sig_header or "")[:24]},
+        )
         raise HTTPException(status_code=401, detail="Invalid signature")
     import json
     try:
         payload = json.loads(body.decode())
     except Exception:
+        await _log_webhook("rejected", "Invalid JSON body → returned 400")
         raise HTTPException(status_code=400, detail="Invalid JSON")
 
     version = s.get("graph_api_version") or GRAPH_VERSION
@@ -165,6 +193,7 @@ async def fb_webhook(request: Request):
                 value = change.get("value", {})
                 leadgen_id = value.get("leadgen_id")
                 if not leadgen_id:
+                    await _log_webhook("skipped", "leadgen change had no leadgen_id")
                     continue
                 try:
                     resp = await client.get(
@@ -175,12 +204,33 @@ async def fb_webhook(request: Request):
                         },
                     )
                     lead = resp.json()
-                except Exception:
+                except Exception as e:
+                    await _log_webhook("error", f"Graph API request failed while fetching lead: {e}", leadgen_id)
+                    continue
+                if lead.get("error"):
+                    err = lead["error"]
+                    await _log_webhook(
+                        "error",
+                        f"Graph API returned an error fetching the lead (likely an invalid/expired Page Access Token "
+                        f"or missing leads_retrieval permission): {err.get('message')}",
+                        leadgen_id, extra={"graph_error_code": err.get("code")},
+                    )
                     continue
                 if lead.get("field_data"):
-                    await _map_and_create_lead(lead["field_data"], s, lead)
+                    new_lead = await _map_and_create_lead(lead["field_data"], s, lead)
+                    await _log_webhook("created", f"Lead created in CRM (#{new_lead['id']})", leadgen_id,
+                                       extra={"crm_lead_id": new_lead["id"]})
                     created += 1
+                else:
+                    await _log_webhook("skipped", "Graph response had no field_data (nothing to import)", leadgen_id)
     return {"status": "ok", "created": created}
+
+
+@router.get("/admin/facebook/webhook-log")
+async def fb_webhook_log(user: dict = Depends(require_roles("admin", "manager"))):
+    """Recent inbound Meta webhook deliveries + outcomes (created / rejected / error / skipped)."""
+    logs = await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).to_list(50)
+    return {"count": len(logs), "logs": logs}
 
 
 # ---- Admin: simulate a lead (lets you test mapping end-to-end without Meta) ----
@@ -278,6 +328,7 @@ async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
         "leads_captured": await db.leads.count_documents({"facebook_lead": True}),
         "checks": [],
         "next_step": None,
+        "recent_webhook_deliveries": await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).to_list(10),
     }
     token = s.get("page_access_token")
     if not token:

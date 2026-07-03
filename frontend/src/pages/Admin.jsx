@@ -928,6 +928,32 @@ function FacebookTab({ isAdmin }) {
                 Next: {diag.next_step}
               </p>
             )}
+            {diag.recent_webhook_deliveries && diag.recent_webhook_deliveries.length > 0 && (
+              <div className="mt-3" data-testid="fb-webhook-deliveries">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recent webhook deliveries from Meta</p>
+                <div className="mt-2 space-y-1.5">
+                  {diag.recent_webhook_deliveries.map((d, i) => {
+                    const color = d.status === "created" ? "text-emerald-600 bg-emerald-50"
+                      : d.status === "rejected" || d.status === "error" ? "text-rose-600 bg-rose-50"
+                      : "text-amber-600 bg-amber-50";
+                    return (
+                      <div key={i} className="rounded-lg border border-slate-100 bg-white p-2 text-xs" data-testid={`fb-delivery-${i}`}>
+                        <div className="flex items-center gap-2">
+                          <span className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${color}`}>{d.status}</span>
+                          <span className="text-slate-400">{d.at}</span>
+                        </div>
+                        <p className="mt-1 text-slate-600">{d.detail}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+            {diag.recent_webhook_deliveries && diag.recent_webhook_deliveries.length === 0 && (
+              <p className="mt-3 text-xs text-slate-400" data-testid="fb-no-deliveries">
+                No webhook deliveries received yet. If Meta's "Track status" shows <b>webhooks.delivery.rejected</b>, it means the callback was rejected before reaching here — usually the saved App Secret does not match the app delivering the webhook.
+              </p>
+            )}
           </div>
         )}
       </div>

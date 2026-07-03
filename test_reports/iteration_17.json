@@ -1,0 +1,22 @@
+{
+  "summary": "Verified Meta webhook DELIVERY LOGGING feature end-to-end. All 6 backend tests pass: invalid-sig→401+rejected log, valid-sig+bad leadgen→200+error log, admin auth enforced on webhook-log, response shape {count,logs[at,status,detail]} sorted newest-first, diagnose exposes recent_webhook_deliveries (<=10), and source_lead catalog still contains 'Meta Lead Ads'. Backend logs show no DuplicateKeyError on startup. app_secret (32 chars) read from db.settings.key=facebook to compute valid HMAC signature.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter17_fb_webhook_logging.py",
+    "/app/test_reports/pytest/iter17.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_log_webhook cap uses count+delete_many on every insert — fine at 200 threshold but O(count) per delivery once above cap. Consider a capped collection or periodic cleanup for very high volume.",
+    "In fb_webhook_log endpoint the sort is on 'at' (string) — works because now_utc_str() is ISO-8601 lexicographically sortable, but a note/index would harden this."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter17_fb_webhook_logging.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Test inserts 2 fb_webhook_log entries (1 rejected, 1 error) with leadgen_id='000000000000000_TEST_ITER17' — capped by the 200-entry limiter.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 17 verified fb webhook delivery logging (rejected/error/skipped/created outcomes) via /api/admin/facebook/webhook-log and 'recent_webhook_deliveries' in /api/admin/facebook/diagnose. app_secret lives in db.settings key='facebook'. Frontend rendering (Admin.jsx fb-webhook-deliveries) NOT tested — user asked backend only.",
+  "rca of the issue": "Original silent failure: Meta was rejecting webhook deliveries due to app_secret mismatch causing 401 signature verification, but CRM logged nothing. New _log_webhook() helper persists every inbound outcome in db.fb_webhook_log (capped @200) — surfaced in both webhook-log and diagnose endpoints. Verified rejected (bad sig) and error (invalid Graph token/leadgen_id) paths write logs correctly."
+}
