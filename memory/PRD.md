@@ -5,6 +5,11 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-07) — "Can't see FB leads in CRM" → leads ARE captured but were unfindable — iteration_19 (7/7 backend)
+- **ROOT CAUSE:** FB leads ARE created (14 on prod, source 'Meta Lead Ads') but (1) come in UNASSIGNED and caller-role users only see leads assigned to them, and (2) get buried under ~100k migrated leads by the default create_date sort. Admin CAN see them (verified: a fresh FB lead lands at top of admin list + source filter returns them).
+- **FIX:** New `GET /api/admin/facebook/recent-leads` (total + latest 25 facebook_lead:true, with assigned_to). Admin → Facebook now shows a "Recently captured Facebook leads" table with "Open →" links — a guaranteed, filter-proof way to find every Meta lead. Verified testing agent iter19 (7/7) incl. regressions (diagnose 5 checks, webhook-log, invalid-sig 401).
+- **PRODUCT NOTE for user:** All FB leads are Unassigned → the sales team (callers) can't see them. Options to discuss: (a) enable round-robin assignment for FB leads so callers get them, or (b) let callers see unassigned FB leads. Awaiting user's preference.
+
 ## Fix (2026-07) — FB leads: webhook delivers but Graph fetch fails (leads_retrieval / token-app mismatch) — iteration_18 (backend green)
 - **Progress:** After redeploy, webhook DELIVERY now succeeds on prod (app 736963545504625 = Success in Meta Track status; signature/app-secret issue resolved). NEW failure surfaced by our delivery log: Graph API fetch of the lead returns "Object ... does not exist / missing permissions".
 - **ROOT CAUSE (production Meta config):** the saved Page Access Token was generated under a DIFFERENT Meta app (user screenshot showed Meta App = "Odoo") than the configured CRM App ID (736963545504625), and/or lacks `leads_retrieval`. So delivery works but lead RETRIEVAL is rejected.
