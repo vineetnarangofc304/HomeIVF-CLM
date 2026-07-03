@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 21: verified the production-bug fix that removed 'form_name' from the leadgen fields string in /app/backend/routes/facebook.py fb_webhook() and now fetches the form name via a separate GET /{form_id}?fields=name. 8/8 pytest cases passed. Verified: (1) source no longer requests 'form_name' inside any Graph fields= string and the exact fields list matches the spec 'id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,platform,is_organic'; (2) a separate {form_id}?fields=name GET is present and its result is injected as lead['form_name'] before _map_and_create_lead; (3) POST /api/admin/facebook/test still creates a lead with fb_form_name mapped from the input form_name, source_lead='Meta Lead Ads', create_date populated, assigned to an ACTIVE caller (round-robin) and returned lead_id present; (4) new FB test lead appears near top of default GET /api/leads (sort=create_date desc); (5) regressions green — invalid-signature webhook returns 401 + logs 'rejected', /api/admin/facebook/webhook-log returns {count,logs}, /api/admin/facebook/recent-leads returns {total, leads[]} with assigned_to as a caller name, /api/admin/facebook/diagnose returns 5 checks incl 'Token ↔ App match' and 'leads_retrieval permission'; (6) backend healthy after change (login + endpoints all respond). True end-to-end Graph fetch cannot be exercised in preview (needs live Meta), but the field-string and code-path assertions confirm the #100 error root cause is eliminated.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter21_fb_form_name_fix.py",
+    "/app/test_reports/pytest/iter21.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "fb_webhook: the separate form-name GET has a bare `except Exception: pass` — that silences 4xx/5xx from the form endpoint (e.g. token missing forms_read perm). Consider logging via _log_webhook('warning', ...) so admins can see when form name lookup fails, since the lead is still imported without a form name in that case.",
+    "fb_webhook: no caching of form_id → name. Every incoming lead triggers a second Graph call per leadgen; two forms delivering 1000 leads/day = 2000 extra calls. Cheap now, but a tiny per-form_id cache (e.g. dict keyed by form_id with 10-min TTL) would halve Graph traffic at scale.",
+    "fb_webhook: after Graph error #100 the code just `continue`s and moves to the next change — good, but a single bad field name previously killed the whole entry. Consider adding a unit-test double for the httpx client so future field-string regressions are caught before production."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter21_fb_form_name_fix.py"],
+  "success_rate": {"backend": "100% (8/8)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created ~4 Facebook test leads via POST /api/admin/facebook/test (Iter21 core, top, recent + regression). Not deleted per instructions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The Graph #100 'form_name' fix is verified at the source-code level and via the test-endpoint pathway. Live webhook against Meta cannot be exercised in preview. If future changes touch fb_webhook fields= string, re-run test_iter21_fb_form_name_fix.py — it enforces the exact leadgen fields list and that no fields= string requests form_name."
+}

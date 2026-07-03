@@ -209,7 +209,7 @@ async def fb_webhook(request: Request):
                         f"https://graph.facebook.com/{version}/{leadgen_id}",
                         params={
                             "access_token": s["page_access_token"],
-                            "fields": "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,form_name,platform,is_organic",
+                            "fields": "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,platform,is_organic",
                         },
                     )
                     lead = resp.json()
@@ -226,6 +226,16 @@ async def fb_webhook(request: Request):
                         leadgen_id, extra={"graph_error_code": err.get("code")},
                     )
                     continue
+                # form_name is NOT a field on the leadgen node — fetch it separately from the form id.
+                if lead.get("form_id"):
+                    try:
+                        fr = await client.get(f"https://graph.facebook.com/{version}/{lead['form_id']}",
+                                               params={"access_token": s["page_access_token"], "fields": "name"})
+                        fd = fr.json()
+                        if fd.get("name"):
+                            lead["form_name"] = fd["name"]
+                    except Exception:
+                        pass
                 if lead.get("field_data"):
                     new_lead = await _map_and_create_lead(lead["field_data"], s, lead)
                     await _log_webhook("created", f"Lead created in CRM (#{new_lead['id']})", leadgen_id,
