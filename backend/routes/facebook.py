@@ -211,8 +211,9 @@ async def fb_webhook(request: Request):
                     err = lead["error"]
                     await _log_webhook(
                         "error",
-                        f"Graph API returned an error fetching the lead (likely an invalid/expired Page Access Token "
-                        f"or missing leads_retrieval permission): {err.get('message')}",
+                        f"Graph API error fetching the lead: {err.get('message')} — This usually means the saved Page "
+                        f"Access Token is missing the leads_retrieval permission, is expired, or was generated under a "
+                        f"different Meta app than the configured App ID. Open Admin → Facebook → Check connection to see which.",
                         leadgen_id, extra={"graph_error_code": err.get("code")},
                     )
                     continue
@@ -351,6 +352,41 @@ async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
             return out
         out["checks"].append({"name": "Access Token", "ok": True, "detail": f"Valid — points to '{d.get('name')}' (id {d.get('id')})"})
         token_points_to = str(d.get("id"))
+
+        # 1b. Inspect the token itself (debug_token): which APP owns it + does it have leads_retrieval?
+        # This is the #1 cause of "Object ... does not exist / missing permissions" when FETCHING a lead:
+        # the Page Access Token was generated under a DIFFERENT Meta app than the one configured here,
+        # or the token is missing the leads_retrieval scope.
+        app_id_cfg, app_secret_cfg = s.get("app_id"), s.get("app_secret")
+        if app_id_cfg and app_secret_cfg:
+            try:
+                rdt = await client.get(f"https://graph.facebook.com/{version}/debug_token",
+                                       params={"input_token": token, "access_token": f"{app_id_cfg}|{app_secret_cfg}"})
+                dt = (rdt.json() or {}).get("data") or {}
+            except Exception as e:
+                dt = {}
+                out["checks"].append({"name": "Token inspection", "ok": False, "detail": f"Could not inspect token: {e}"})
+            if dt:
+                token_app_id = str(dt.get("app_id") or "")
+                scopes = dt.get("scopes") or []
+                # App match
+                if token_app_id and token_app_id != str(app_id_cfg):
+                    out["checks"].append({"name": "Token ↔ App match", "ok": False,
+                        "detail": f"The saved Page Access Token belongs to Meta app {token_app_id}, but the configured App ID is {app_id_cfg}. "
+                                  f"Lead retrieval fails because the token is from a different app. Generate the Page Access Token under the SAME app ({app_id_cfg}) and save it."})
+                    out["next_step"] = (f"Generate a Page Access Token in Meta with the 'Meta App' set to your CRM app ({app_id_cfg}) "
+                                        f"— NOT a different app — with leads_retrieval + pages_manage_metadata, then paste it into Page Access Token and Save.")
+                else:
+                    out["checks"].append({"name": "Token ↔ App match", "ok": True,
+                        "detail": f"Token belongs to the configured app ({app_id_cfg}) ✓"})
+                # leads_retrieval scope
+                has_leads_retrieval = "leads_retrieval" in scopes
+                out["checks"].append({"name": "leads_retrieval permission", "ok": has_leads_retrieval,
+                    "detail": "Token has leads_retrieval ✓" if has_leads_retrieval
+                    else "Token is MISSING the leads_retrieval permission — the CRM cannot read lead form answers. Regenerate the Page Access Token WITH leads_retrieval and save it."})
+                if not has_leads_retrieval and not out.get("next_step"):
+                    out["next_step"] = ("Regenerate the Page Access Token in Meta and ADD the 'leads_retrieval' permission "
+                                        "(also keep pages_manage_metadata), then paste it into Page Access Token and Save.")
 
         # 2. Page subscribed to leadgen?
         page_id = s.get("page_id")

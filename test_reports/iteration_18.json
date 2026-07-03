@@ -1,0 +1,21 @@
+{
+  "summary": "Iteration 18: verified GET /api/admin/facebook/diagnose now includes the two new checks 'Token ↔ App match' and 'leads_retrieval permission' (via Meta debug_token). Diagnose returns 200 with checks=['Access Token','Token ↔ App match','leads_retrieval permission','Page subscribed to leadgen','App leadgen webhook'] and still exposes recent_webhook_deliveries. Regressions all green: invalid-sig webhook → 401 + 'rejected' log entry, /api/admin/facebook/webhook-log returns {count,logs} for admin and 401/403 without auth, backend healthy.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter18_fb_diagnose_debug_token.py",
+    "/app/test_reports/pytest/iter18.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "In fb_diagnose(), the debug_token block appends 'Token inspection' failure check only inside the except branch — if the /debug_token HTTP call succeeds but returns error payload (e.g. {\"error\":{...}} with empty data), dt is silently {} and NO check is appended, so 'Token ↔ App match' and 'leads_retrieval permission' would just be missing without any user-visible signal. Consider appending an explicit check when dt is empty or contains an error.",
+    "If app_id/app_secret are missing in settings, the two new checks are skipped silently. Consider adding an informational check like 'Token inspection skipped — App ID/Secret not configured' so users understand why the new diagnostics are absent."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter18_fb_diagnose_debug_token.py"],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "One 'rejected' fb_webhook_log entry created via invalid-signature POST (capped at 200).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "iter18 confirmed debug_token integration in diagnose(). In preview env, all 5 diagnose checks return ok=true (token is valid and matches app). Both new check names use the '↔' character — keep exact-match assertions consistent. Webhook log endpoint sort key 'at' is ISO-8601 string (lexicographic sort works). Test file auto-loads REACT_APP_BACKEND_URL from /app/frontend/.env when env var is not set."
+}
