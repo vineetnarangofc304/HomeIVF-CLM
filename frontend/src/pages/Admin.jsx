@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo, EnvelopeSimple, GoogleLogo } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate } from "../lib/api";
@@ -810,6 +811,7 @@ function FacebookTab({ isAdmin }) {
   const [test, setTest] = useState([{ name: "full_name", value: "" }, { name: "phone_number", value: "" }, { name: "email", value: "" }]);
   const [diag, setDiag] = useState(null);
   const [diagBusy, setDiagBusy] = useState(false);
+  const [recentLeads, setRecentLeads] = useState(null);
   const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/facebook`;
   const customFields = (catalogs?.custom_fields || []).filter((f) => f.active !== false);
 
@@ -820,6 +822,7 @@ function FacebookTab({ isAdmin }) {
       setMaps(Object.entries(fb.field_mapping || {}).map(([k, v]) => ({ fb: k, crm: v })));
     });
     API.get("/admin/facebook/status").then(({ data }) => setStatus(data));
+    API.get("/admin/facebook/recent-leads").then(({ data }) => setRecentLeads(data)).catch(() => {});
   };
   useEffect(() => { load(); }, []);
 
@@ -956,6 +959,53 @@ function FacebookTab({ isAdmin }) {
             )}
           </div>
         )}
+      </div>
+
+      <div className="hivf-card p-4" data-testid="fb-recent-leads-card">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-sm font-extrabold text-slate-800">Recently captured Facebook leads</h3>
+            <p className="mt-1 text-xs text-slate-500">Every lead captured from Meta, newest first — a direct view (ignores date sort, assignment and caller filters).</p>
+          </div>
+          <div className="flex items-center gap-2">
+            {recentLeads && <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-600" data-testid="fb-recent-total">{recentLeads.total} total</span>}
+            <button type="button" onClick={() => API.get("/admin/facebook/recent-leads").then(({ data }) => setRecentLeads(data)).catch(() => {})} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="fb-recent-refresh"><ArrowsClockwise size={13} /> Refresh</button>
+          </div>
+        </div>
+        <div className="mt-3" data-testid="fb-recent-leads-list">
+          {!recentLeads || recentLeads.leads.length === 0 ? (
+            <p className="text-xs text-slate-400" data-testid="fb-recent-empty">No Facebook leads captured yet. Once a Meta lead is delivered and retrieved successfully, it will appear here.</p>
+          ) : (
+            <div className="overflow-hidden rounded-xl border border-slate-100">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-[10px] uppercase tracking-wider text-slate-400">
+                  <tr>
+                    <th className="px-3 py-2 text-left">Name</th>
+                    <th className="px-3 py-2 text-left">Phone</th>
+                    <th className="px-3 py-2 text-left">Form</th>
+                    <th className="px-3 py-2 text-left">Assigned</th>
+                    <th className="px-3 py-2 text-left">Captured</th>
+                    <th className="px-3 py-2"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentLeads.leads.map((l) => (
+                    <tr key={l.id} className="border-t border-slate-50 hover:bg-slate-50/60" data-testid={`fb-recent-lead-${l.id}`}>
+                      <td className="px-3 py-2 font-semibold text-slate-700">{l.contact_name || l.name || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{l.phone || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{l.fb_form_name || "—"}</td>
+                      <td className="px-3 py-2 text-slate-500">{l.assigned_to}</td>
+                      <td className="px-3 py-2 text-slate-400">{fmtDate(l.create_date_ist || l.create_date)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <Link to={`/leads/${l.id}`} className="text-xs font-bold text-[#357ABD] hover:underline" data-testid={`fb-recent-open-${l.id}`}>Open →</Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="hivf-card p-4">

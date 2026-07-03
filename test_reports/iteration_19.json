@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 19: verified new GET /api/admin/facebook/recent-leads endpoint plus admin-visibility regressions. 7/7 pytest cases passed. Endpoint returns {total, leads[]} sorted by id desc (max 25), each lead projected with id/name/contact_name/phone/fb_form_name/assigned_to (resolved from users collection, 'Unassigned' when user_id absent). Auth is enforced (401 without token). A freshly created FB test lead appears in the top-25 of the default admin /api/leads list (sort=create_date desc), is returned by source_lead filter, and shows up at the top of recent-leads. All prior iter17/18 checks still green: diagnose returns the 5 expected checks incl. 'Token ↔ App match' and 'leads_retrieval permission' plus recent_webhook_deliveries; webhook-log requires auth; invalid-signature webhook → 401.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter19_fb_recent_leads.py",
+    "/app/test_reports/pytest/iter19.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "fb_recent_leads() loads up to 500 users into a dict on every request to resolve assigned_to names — acceptable now but consider a small TTL cache or $lookup aggregation if user count grows.",
+    "Projection includes both 'name' and 'contact_name'; FE should pick one consistently. Currently the migrated leads mostly use 'contact_name' while newer records use 'name' — worth normalising server-side to a single 'display_name' to simplify FE.",
+    "Endpoint is hard-capped at 25 with no pagination/query params. If admins need to scroll further back through FB leads, expose a `limit` or `before_id` cursor param.",
+    "There is no index hint but sort is on 'id' desc which should use the primary/unique id index — verify an index exists on {facebook_lead:1, id:-1} for large collections (~100k leads reported)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter19_fb_recent_leads.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "One Facebook test lead created via POST /api/admin/facebook/test (name 'Iter19 Test IT19-<ts>', phone +919999900019). Not deleted per instructions to preserve FB leads.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Recent-leads endpoint returns 15+ leads (grows by 1 each run of iter19 since the test lead is intentionally preserved). All FB leads still have user_id=None → assigned_to='Unassigned' by design. The endpoint uses admin-only visibility bypass so caller-role users would still not see them via /api/leads — that filtering is intentional. Test source_lead filter values seen so far: 'Meta Lead Ads' (webhook path) and 'Facebook Lead Ads (test)' (test endpoint path)."
+}

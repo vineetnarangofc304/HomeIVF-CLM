@@ -234,6 +234,21 @@ async def fb_webhook_log(user: dict = Depends(require_roles("admin", "manager"))
     return {"count": len(logs), "logs": logs}
 
 
+@router.get("/admin/facebook/recent-leads")
+async def fb_recent_leads(user: dict = Depends(require_roles("admin", "manager"))):
+    """The most recently CAPTURED Facebook leads — a direct, unfiltered view so admins can
+    always find Meta leads regardless of date sorting, assignment or caller-role visibility."""
+    proj = {"_id": 0, "id": 1, "name": 1, "contact_name": 1, "phone": 1, "email_from": 1,
+            "source_lead": 1, "fb_form_name": 1, "user_id": 1, "create_date": 1,
+            "create_date_ist": 1, "active": 1}
+    leads = await db.leads.find({"facebook_lead": True}, proj).sort("id", -1).to_list(25)
+    total = await db.leads.count_documents({"facebook_lead": True})
+    users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+    for l in leads:
+        l["assigned_to"] = users.get(l.get("user_id")) if l.get("user_id") else "Unassigned"
+    return {"total": total, "leads": leads}
+
+
 # ---- Admin: simulate a lead (lets you test mapping end-to-end without Meta) ----
 class FbTestBody(BaseModel):
     field_data: list  # [{name, values:[...]}]
