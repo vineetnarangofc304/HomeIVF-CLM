@@ -5,6 +5,11 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-07) — 🔴 REAL PRODUCTION BLOCKER: Graph #100 "nonexisting field (form_name)" — iteration_21 (8/8 backend)
+- **ROOT CAUSE (code bug):** fb_webhook() requested the leadgen object with `fields=...,form_name,...` but `form_name` is NOT a valid field on Meta's leadgen node → Graph returns `(#100) Tried accessing nonexisting field (form_name)` → the ENTIRE lead fetch failed → 0 leads created (even though token/permissions/webhook were all green). This is why no FB leads ever appeared.
+- **FIX:** Removed `form_name` from the leadgen fields request; now fetch form name separately via `GET /{form_id}?fields=name` and inject as lead['form_name'] before mapping. Verified iter21 (8/8) incl. field-string assertion + regressions. NOTE: true end-to-end needs live Meta (confirm after redeploy).
+- **⚠️ Needs REDEPLOY.** After redeploy, submit a fresh Meta test lead → it should now be `created` in the delivery log and appear in the Lead report (assigned to a caller, with source + timestamp).
+
 ## Fix (2026-07) — FB leads unassigned → invisible to callers; now auto-assigned + findable — iteration_20 (9/9 backend)
 - **FIX:** _map_and_create_lead now round-robins each FB lead across ACTIVE caller users when no assignment config applies (counter fb_assign_pointer). FB leads are no longer Unassigned → they appear in callers' Lead reports with source 'Meta Lead Ads' + create_date/create_date_ist, exactly like other leads. Verified iter20 (9/9): rotation works, assigned caller sees lead via user_id filter, recent-leads shows caller name.
 - Also live: "Recently captured Facebook leads" panel in Admin → Facebook (below Check connection) with Open→ links (iter19).
