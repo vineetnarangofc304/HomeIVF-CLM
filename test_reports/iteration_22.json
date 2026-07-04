@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 22: verified the Facebook lead NAME derivation fix in /app/backend/routes/facebook.py. 11/11 pytest cases passed. Confirmed: (1) first_name='Akhil' + last_name='Sharma' → name AND contact_name = 'Akhil Sharma'; name-part keys NOT stored as x_custom_* extras. (2) spaced/capitalized 'Full Name'='Ravi Kumar' → name='Ravi Kumar', and NOT stored under x_custom_full_name (name-derivation fallback caught the non-exact key). (3) only first_name='Meena' → name='Meena'. (4) standard full_name='Priya Nair' (mapped path) → name='Priya Nair' (regression). (5) no name field → name falls back to phone number and contact_name is empty. (6) real Q&A field 'want to consult an ivf expert at home'='yes' preserved in lead.custom while first_name/last_name are NOT in custom. (7) regression: source_lead='Meta Lead Ads', create_date populated, round-robin caller user_id assigned, facebook_lead=True; GET /api/admin/facebook/recent-leads and /diagnose both 200; invalid-signature webhook → 401; backend healthy via admin login.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter22_fb_name_mapping.py",
+    "/app/test_reports/pytest/iter22.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_map_and_create_lead: the name-derivation fallback list ('full_name','fullname','name','your_name','yourname','naam','contact_name') duplicates the skip-list used in the unmapped branch. Consider extracting both to a shared NAME_KEYS / FIRST_KEYS / LAST_KEYS module-level frozenset — one source of truth avoids drift when more locales/aliases are added.",
+    "The skip-list only handles English + one Hindi alias ('naam'). If leads come from Hindi/regional forms, keys like 'poora_naam', 'naam_apka', 'aapka_naam' would still leak into x_custom_* and never populate name. Cheap win: match on substring ('name' in nkey or 'naam' in nkey) instead of exact equality.",
+    "doc['name'] falls back to data.get('phone') when no name is derived — that's what test 5 exercises. Acceptable, but the list-view UX would improve if the fallback string were 'Facebook Lead (<last 4 of phone>)' rather than a bare 10-digit number that visually collides with the Phone column."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter22_fb_name_mapping.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created 7 Facebook test leads via POST /api/admin/facebook/test (phones 9111100001–9111100007). Not deleted per instructions.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Name-derivation fix is verified end-to-end via the test endpoint. If future changes touch DEFAULT_MAP or the name-part skip/derivation lists in _map_and_create_lead, re-run test_iter22_fb_name_mapping.py — it enforces (a) name-parts never leak into x_custom_*, (b) spaced/capitalized full-name keys resolve via fallback, (c) first+last combine correctly, (d) phone-only leads keep contact_name empty."
+}

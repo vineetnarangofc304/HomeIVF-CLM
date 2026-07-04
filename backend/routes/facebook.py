@@ -30,7 +30,7 @@ GRAPH_VERSION = "v25.0"
 # Default Facebook-field → CRM-field mapping (used when admin hasn't overridden a field).
 DEFAULT_MAP = {
     "full_name": "contact_name", "name": "contact_name",
-    "first_name": "contact_name", "email": "email_from",
+    "email": "email_from",
     "phone_number": "phone", "phone": "phone",
     "city": "city", "state": "state_name", "province": "state_name",
     "gender": "gender", "company_name": "company_name",
@@ -86,8 +86,13 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
             continue
         target = mapping.get(fb_name) or DEFAULT_MAP.get(fb_name.lower())
         if not target:
+            nkey = re.sub(r"[^a-z0-9]+", "_", fb_name.lower()).strip("_")
+            if nkey in ("first_name", "firstname", "given_name", "givenname",
+                        "last_name", "lastname", "surname", "family_name", "familyname",
+                        "full_name", "fullname", "name", "your_name", "yourname", "naam"):
+                continue  # handled by name derivation below; don't clutter the Q&A card
             # keep unmapped answers under custom (visible in Q&A card)
-            extras["x_custom_" + re.sub(r"[^a-z0-9]+", "_", fb_name.lower()).strip("_")[:50]] = val
+            extras["x_custom_" + nkey[:50]] = val
             continue
         if target in custom_keys or target.startswith("x_custom_"):
             extras[target] = val
@@ -104,6 +109,27 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         data["contact_name"] = data["name"]
     elif data.get("contact_name") and not data.get("name"):
         data["name"] = data["contact_name"]
+    # Fallback: derive the name if it wasn't mapped. Facebook forms name the field
+    # differently (full_name / first_name+last_name / localized keys), so scan field_data
+    # for any name-like field and combine first+last when needed.
+    if not data.get("contact_name") and not data.get("name"):
+        full = first = last = None
+        for f in field_data or []:
+            key = re.sub(r"[^a-z0-9]+", "_", str(f.get("name", "")).strip().lower()).strip("_")
+            vals = f.get("values") or []
+            v = str(vals[0]).strip() if vals else ""
+            if not v:
+                continue
+            if key in ("full_name", "fullname", "name", "your_name", "yourname", "naam", "contact_name"):
+                full = full or v
+            elif key in ("first_name", "firstname", "given_name", "givenname"):
+                first = first or v
+            elif key in ("last_name", "lastname", "surname", "family_name", "familyname"):
+                last = last or v
+        derived = full or " ".join([p for p in [first, last] if p]).strip()
+        if derived:
+            data["contact_name"] = derived
+            data["name"] = derived
     # round-robin assignment (same rules as web lead capture)
     user_id = None
     assign = await db.settings.find_one({"key": "assignment"})
