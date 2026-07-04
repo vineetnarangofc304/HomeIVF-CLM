@@ -5,6 +5,11 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-07) — FB lead NAME empty (list showed phone, detail showed '—') — iteration_22 (11/11 backend)
+- **CAUSE:** Form name field isn't always exact key `full_name` (may be first_name+last_name or spaced/cased key). Also DEFAULT_MAP mapped `first_name`→contact_name, grabbing only first name and dropping last_name.
+- **FIX (facebook.py _map_and_create_lead):** removed `first_name` from DEFAULT_MAP; added name-derivation fallback — when contact_name/name empty, scan field_data for full_name/name variants OR combine first_name+last_name; name-part fields excluded from Q&A custom card. Verified 11/11 (Akhil Sharma, Ravi Kumar, Meena, Priya Nair, phone-fallback, custom Q&A preserved).
+- **⚠️ Needs REDEPLOY.** Applies to NEW leads; existing name-less leads unaffected (name can be edited manually).
+
 ## Fix (2026-07) — 🔴 REAL PRODUCTION BLOCKER: Graph #100 "nonexisting field (form_name)" — iteration_21 (8/8 backend)
 - **ROOT CAUSE (code bug):** fb_webhook() requested the leadgen object with `fields=...,form_name,...` but `form_name` is NOT a valid field on Meta's leadgen node → Graph returns `(#100) Tried accessing nonexisting field (form_name)` → the ENTIRE lead fetch failed → 0 leads created (even though token/permissions/webhook were all green). This is why no FB leads ever appeared.
 - **FIX:** Removed `form_name` from the leadgen fields request; now fetch form name separately via `GET /{form_id}?fields=name` and inject as lead['form_name'] before mapping. Verified iter21 (8/8) incl. field-string assertion + regressions. NOTE: true end-to-end needs live Meta (confirm after redeploy).
