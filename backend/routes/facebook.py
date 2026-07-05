@@ -87,10 +87,9 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         target = mapping.get(fb_name) or DEFAULT_MAP.get(fb_name.lower())
         if not target:
             nkey = re.sub(r"[^a-z0-9]+", "_", fb_name.lower()).strip("_")
-            if nkey in ("first_name", "firstname", "given_name", "givenname",
-                        "last_name", "lastname", "surname", "family_name", "familyname",
-                        "full_name", "fullname", "name", "your_name", "yourname", "naam"):
-                continue  # handled by name derivation below; don't clutter the Q&A card
+            _name_exclude = ("company", "form", "page", "user", "product", "brand", "clinic", "business")
+            if "name" in nkey and not any(x in nkey for x in _name_exclude):
+                continue  # a person-name field; handled by name derivation, don't clutter the Q&A card
             # keep unmapped answers under custom (visible in Q&A card)
             extras["x_custom_" + nkey[:50]] = val
             continue

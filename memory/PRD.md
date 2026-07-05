@@ -5,6 +5,11 @@ HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) 
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
 - **Phase 2**: AI insights + AI recommendations on every section, plus an "AI Brain" conversational analytics chat (Emergent LLM key approved by user).
 
+## Fix (2026-07) — FB lead NAME empty / phone-in-name (broadened detection) — iteration_23 (14/15→clean)
+- **CAUSE:** Form's name field key varied (first_name+last_name, spaced/cased, or a question like "what is your name?"). Earlier fix caught common variants; this adds a last-resort: any field whose normalized key CONTAINS 'name' (excluding company/form/page/user/product/brand/clinic/business) is used as the name, and such fields are kept out of the Q&A card (skip-branch mirrors the exclusion). Webhook 'created' log now records raw field_keys for diagnosis.
+- Verified: "what is your name?"→name set + not duplicated in Q&A; company/clinic/etc excluded → phone fallback; first+last, full_name, phone-only regressions pass.
+- **⚠️ Needs REDEPLOY.** IMPORTANT: user's "phone-in-name" may simply be that the earlier name fix (iter22) wasn't redeployed yet — confirm redeploy, then check Admin→Facebook delivery log 'field_keys' to see the exact form field names.
+
 ## Fix (2026-07) — FB lead NAME empty (list showed phone, detail showed '—') — iteration_22 (11/11 backend)
 - **CAUSE:** Form name field isn't always exact key `full_name` (may be first_name+last_name or spaced/cased key). Also DEFAULT_MAP mapped `first_name`→contact_name, grabbing only first name and dropping last_name.
 - **FIX (facebook.py _map_and_create_lead):** removed `first_name` from DEFAULT_MAP; added name-derivation fallback — when contact_name/name empty, scan field_data for full_name/name variants OR combine first_name+last_name; name-part fields excluded from Q&A custom card. Verified 11/11 (Akhil Sharma, Ravi Kumar, Meena, Priya Nair, phone-fallback, custom Q&A preserved).
