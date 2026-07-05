@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 23: verified 'contains name' last-resort fallback + exclusion list in _map_and_create_lead(). 14/15 pytest cases passed. CORE FIX CONFIRMED: (1) 'what is your name?'='Sunita Devi' → lead name='Sunita Devi' (contact_name too). (2) company_name='ACME Clinic' with only phone → name = phone (9222200002), NOT 'ACME Clinic' — exclusion working. (3) clinic_name / business_name / brand_name / form_name / page_name (parametrized) all correctly excluded — name falls back to phone. (4) Regressions pass: first_name+last_name → 'First Last'; standard full_name='Priya Nair' → mapped; only phone/email → name=phone. (5) Created FB lead has source_lead='Meta Lead Ads', create_date populated, round-robin caller user_id assigned, facebook_lead=True. (6) /admin/facebook/recent-leads and /diagnose return 200. (7) Invalid-signature webhook → 401. (8) Backend healthy via admin login. MINOR ISSUE FOUND: the 'what is your name?' field IS derived as name AND ALSO stored under lead.custom['x_custom_what_is_your_name'] — duplicated data in Q&A card. Root cause: the unmapped-branch skip-list (~line 90-93) only skips EXACT keys (first_name/full_name/etc.), while the new 'contains name' derivation is broader. Recommended: apply the same 'name in nkey (and not any(x in nkey for x in exclude))' rule to the extras/skip branch so name-source fields don't also appear as Q&A extras.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/admin/facebook/test (and real webhook path via _map_and_create_lead)", "issue": "Fields whose key contains 'name' (e.g. 'what is your name?') are used to derive the lead name but ALSO leaked into lead.custom as x_custom_what_is_your_name — duplicated. The exclusion applied in the name-derivation last-resort loop is NOT mirrored in the unmapped-extras loop (~line 89-95 of /app/backend/routes/facebook.py)."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter23_fb_name_contains.py",
+    "/app/test_reports/pytest/iter23.xml"
+  ],
+  "action_items": [
+    "Optional cleanup (not user-facing blocker): in /app/backend/routes/facebook.py _map_and_create_lead(), extend the unmapped-branch skip-list to also skip keys where 'name' in nkey and nkey does NOT contain any of the exclusion tokens (company/form/page/user/product/brand/clinic/business). This prevents the derived-name field from also appearing in the Q&A card."
+  ],
+  "critical_code_review_comments": [
+    "DRY: the exclusion tuple ('company','form','page','user','product','brand','clinic','business') and the name-key set now live in TWO places (derivation loop, and implicitly the skip-list). Extract module-level frozensets EXCLUDE_NAME_TOKENS, NAME_KEYS, FIRST_KEYS, LAST_KEYS — single source of truth.",
+    "The new webhook 'created' log includes field_keys which is great for debugging, but consider ALSO logging in _log_webhook for 'error'/'skipped' paths whether field_keys were present — currently only 'created' shows them.",
+    "Duplicate-data bug (minor): a name-source field like 'what is your name?' populates both doc.name and doc.custom.x_custom_what_is_your_name. Users will see the same value twice on the lead card."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter23_fb_name_contains.py"],
+  "success_rate": {"backend": "93.3% (14/15)", "frontend": "not tested (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created 11 Facebook test leads via POST /api/admin/facebook/test with phones 9222200001–9222200011 (not deleted per instruction).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "User-reported bug ('receiving mobile number in name' / company as name) IS FIXED. Only remaining nit is duplicate storage of name-source Q&A fields in lead.custom — cosmetic, not a functional blocker. If main agent applies the DRY refactor / mirrors the exclusion in the extras branch, rerun /app/backend/tests/test_iter23_fb_name_contains.py — the failing test_created_lead_metadata will then pass.",
+  "rca of the issue": "User's original complaint: 'not getting name in leads, receiving mobile number in name'. Root cause was that Facebook forms use varied name-field keys ('what is your name?', 'What Is Your Name', localized variants) that were not in DEFAULT_MAP nor the exact-match name-derivation set — so name derivation failed and doc.name fell back to phone. The fix adds a last-resort loop that matches any normalized key CONTAINING 'name' while excluding non-person tokens (company/clinic/business/etc.). Verified via /api/admin/facebook/test end-to-end: 'what is your name?'→'Sunita Devi' works, company_name alone correctly does NOT populate name."
+}

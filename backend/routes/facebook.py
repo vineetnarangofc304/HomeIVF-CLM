@@ -127,6 +127,17 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
             elif key in ("last_name", "lastname", "surname", "family_name", "familyname"):
                 last = last or v
         derived = full or " ".join([p for p in [first, last] if p]).strip()
+        if not derived:
+            # Last-resort: any field whose key contains 'name' (e.g. 'what_is_your_name'),
+            # excluding non-person name fields.
+            exclude = ("company", "form", "page", "user", "product", "brand", "clinic", "business")
+            for f in field_data or []:
+                key = re.sub(r"[^a-z0-9]+", "_", str(f.get("name", "")).strip().lower()).strip("_")
+                vals = f.get("values") or []
+                v = str(vals[0]).strip() if vals else ""
+                if v and "name" in key and not any(x in key for x in exclude):
+                    derived = v
+                    break
         if derived:
             data["contact_name"] = derived
             data["name"] = derived
@@ -264,8 +275,10 @@ async def fb_webhook(request: Request):
                         pass
                 if lead.get("field_data"):
                     new_lead = await _map_and_create_lead(lead["field_data"], s, lead)
-                    await _log_webhook("created", f"Lead created in CRM (#{new_lead['id']})", leadgen_id,
-                                       extra={"crm_lead_id": new_lead["id"]})
+                    fkeys = [f.get("name") for f in lead.get("field_data", [])]
+                    await _log_webhook("created",
+                                       f"Lead created in CRM (#{new_lead['id']}) — name '{new_lead.get('name')}'. Form fields: {fkeys}",
+                                       leadgen_id, extra={"crm_lead_id": new_lead["id"], "field_keys": fkeys})
                     created += 1
                 else:
                     await _log_webhook("skipped", "Graph response had no field_data (nothing to import)", leadgen_id)
