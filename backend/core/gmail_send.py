@@ -1,5 +1,13 @@
 """Gmail API email sending via Google OAuth 2.0 (Case 14/17 — live email)."""
 import os
+
+# Google returns scopes in a different order and adds the `email` alias to the
+# granted set, which makes oauthlib raise "Scope has changed" during token
+# exchange. Relaxing these flags lets the token exchange succeed. Must be set
+# before oauthlib performs the exchange (module import time is safe).
+os.environ.setdefault("OAUTHLIB_RELAX_TOKEN_SCOPE", "1")
+os.environ.setdefault("OAUTHLIB_IGNORE_SCOPE_CHANGE", "1")
+
 import base64
 import warnings
 from datetime import datetime, timezone

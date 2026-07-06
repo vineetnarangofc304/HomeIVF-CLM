@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 25 — Gmail OAuth scope-relax fix verified + RBAC/follow-ups/core regression. 12/12 pytest pass. Auth-url returns Google URL with redirect_uri=<origin>/api/oauth/gmail/callback and scopes gmail.send + openid + userinfo.email (access_type=offline, prompt=consent, admin-only). Callback with error=access_denied&error_description=test 307-redirects to /admin?tab=Email&gmail=error&reason=test (reason surfaced). Callback with bogus code+state redirects to gmail=badstate. Confirmed at core.gmail_send import time OAUTHLIB_RELAX_TOKEN_SCOPE=1 and OAUTHLIB_IGNORE_SCOPE_CHANGE=1 are set (via subprocess isolation) — this is the actual fix for the 'Scope has changed' oauthlib error during token exchange. Regression: admin /auth/me returns permissions, /admin/role-permissions returns matrix (nested under 'matrix' key), caller gets 403 on /reports/pivot and /export/leads.xlsx, follow-ups POST/GET/PATCH/DELETE full CRUD works, /leads and /admin/settings return 200. Backend imports cleanly (no import errors).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter25_gmail_oauth_regression.py",
+    "/app/test_reports/pytest/iter25_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/gmail_send.py sets OAUTHLIB env flags via os.environ.setdefault at module import — correct placement (before oauthlib performs the exchange). This is the right fix for Google reordering scopes and adding the 'email' alias.",
+    "routes/gmail.py callback truncates reason to 180 chars and URL-encodes safely via _q helper — good defensive UX. Consider also logging the state value on bad-state so ops can correlate.",
+    "GMAIL_REDIRECT_URI env fallback exists but the /admin/gmail/auth-url endpoint prefers the request's origin param — good for multi-env preview URLs. Ensure the actual GOOGLE_CLIENT redirect URIs in Google Cloud Console include every preview/production origin used."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter25_gmail_oauth_regression.py"],
+  "success_rate": {"backend": "100%", "frontend": "not tested (backend-only per request)"},
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026, agent@homeivf.com/Agent@2026",
+  "seed_data_creation": "None; follow-up created & deleted in-test (TEST_iter25).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "test_iter25_gmail_oauth_regression.py exercises Gmail OAuth paths without needing a live Google login (uses error/badstate branches + subprocess import check for OAUTHLIB env flags). Safe to re-run as regression. Full end-to-end Gmail connect requires a real Google account and cannot be automated here."
+}
