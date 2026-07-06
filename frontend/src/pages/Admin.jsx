@@ -15,7 +15,7 @@ export default function Admin() {
     const p = new URLSearchParams(window.location.search);
     if (p.get("tab")) setTab(p.get("tab"));
     if (p.get("gmail") === "connected") toast.success("Gmail connected — live email is now active ✓");
-    else if (p.get("gmail")) toast.error("Gmail connection failed — check redirect URI & consent");
+    else if (p.get("gmail")) toast.error(`Gmail connection failed${p.get("reason") ? " — " + p.get("reason") : " — check redirect URI & consent"}`, { duration: 12000 });
   }, []);
   return (
     <div className="p-6" data-testid="admin-page">

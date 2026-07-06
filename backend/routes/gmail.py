@@ -1,6 +1,7 @@
 """Gmail OAuth connect/callback + status/test endpoints."""
 import secrets
 import warnings
+from urllib.parse import quote
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -26,13 +27,20 @@ async def gmail_auth_url(origin: str = Query(None), user: dict = Depends(require
     return {"url": url}
 
 
+def _q(text: str) -> str:
+    return quote((text or "")[:180], safe="")
+
+
 @router.get("/oauth/gmail/callback")
-async def gmail_callback(code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+async def gmail_callback(code: str = Query(None), state: str = Query(None),
+                         error: str = Query(None), error_description: str = Query(None)):
     st = await db.oauth_states.find_one({"provider": "gmail", "state": state}) if state else None
     redirect = (st or {}).get("redirect") or gm.redirect_uri()
     base = redirect.split("/api/")[0]
     if error or not code:
-        return RedirectResponse(f"{base}/admin?tab=Email&gmail=error")
+        reason = error_description or error or "Google did not return an authorization code"
+        print(f"[gmail-oauth] consent failed: error={error} desc={error_description}")
+        return RedirectResponse(f"{base}/admin?tab=Email&gmail=error&reason={_q(reason)}")
     if not st:
         return RedirectResponse(f"{base}/admin?tab=Email&gmail=badstate")
     await db.oauth_states.delete_one({"_id": st["_id"]})
@@ -41,8 +49,9 @@ async def gmail_callback(code: str = Query(None), state: str = Query(None), erro
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             flow.fetch_token(code=code)
-    except Exception:
-        return RedirectResponse(f"{base}/admin?tab=Email&gmail=error")
+    except Exception as e:
+        print(f"[gmail-oauth] token exchange failed: {e!r}")
+        return RedirectResponse(f"{base}/admin?tab=Email&gmail=error&reason={_q(str(e))}")
     creds = flow.credentials
 
     email = None
