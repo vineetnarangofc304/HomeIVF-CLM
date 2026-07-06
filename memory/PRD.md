@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+## Fix (2026-07) — 📧 Gmail OAuth "Scope has changed" token-exchange failure — iteration_25 (backend 100%)
+- Google returns granted scopes reordered and adds the `email` alias (`email gmail.send openid userinfo.email`), which made oauthlib raise "Scope has changed" during `fetch_token` → connection failed even though consent + code were valid.
+- Fix: set `OAUTHLIB_RELAX_TOKEN_SCOPE=1` and `OAUTHLIB_IGNORE_SCOPE_CHANGE=1` at import of `core/gmail_send.py` (before token exchange). Callback also surfaces the real reason (`?gmail=error&reason=...`).
+- Verified: auth-url, callback error/badstate paths, env flags set at import; RBAC + follow-ups regression clean. ⚠️ Full E2E needs production REDEPLOY + real Google login retry.
+- Pending (new doc tab t.lzutgaq803u): large WhatsApp template management + message-tracking epic (Case 5) — NOT yet built; scope confirmation with user.
+
+
 ## Feature (2026-07) — 🔐 Roles & Access Control (RBAC) + 6 Phase-1 UI cases — iteration_24 (100% backend + frontend)
 - **RBAC:** 3 fixed roles (admin/manager/caller) with an editable permission matrix. New `core/permissions.py` (MODULE_PERMS + ACTION_PERMS, DEFAULT_PERMISSIONS, admin always full & non-reducible). `require_permission()` in security.py; `get_current_user`/login now attach `permissions`. New GET/PATCH `/api/admin/role-permissions`. Enforcement: reports (require_permission "reports"), export ("export"), marketing ("marketing"), users ("manage_users"). Frontend: `can()` in AuthContext, nav gated in Layout, `Guard` route wrapper in App.js (redirects to / if not allowed), and a "Roles & Access Control" matrix UI in Admin → Users (admin column locked). Defaults: caller no Marketing/Reports/Admin/export/delete; manager has Marketing+Reports+Admin(read-only) but no export/migration/manage_users/delete.
 - **Case 1:** Lead detail — left fields & right chatter columns scroll independently; header stays fixed.
