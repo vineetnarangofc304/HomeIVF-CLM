@@ -57,8 +57,10 @@ async def login(body: LoginBody, request: Request, response: Response):
     access = create_access_token(user["id"], user["email"], user["role"])
     refresh = create_refresh_token(user["id"])
     set_auth_cookies(response, access, refresh)
+    from core.permissions import effective_permissions
+    perms = await effective_permissions(user["role"])
     return {"id": user["id"], "name": user["name"], "email": user["email"], "role": user["role"],
-            "access_token": access}
+            "permissions": perms, "access_token": access}
 
 
 @router.post("/logout")

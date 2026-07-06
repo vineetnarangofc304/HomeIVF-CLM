@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 24 — RBAC matrix + 6 UI cases verified. Backend: 18/18 pytest passes covering role-permissions matrix (GET/PATCH, admin-locked), login/me permissions, permission-gated 403/200 for caller/manager/admin across reports/marketing/export/users, and full CRUD for /api/leads/{id}/followups with lead sync. Frontend: caller nav hides Marketing/Reports/Admin and direct /admin & /reports redirect to /; admin sees all nav items; Admin>Users shows roles-access-control matrix with admin column locked (17 disabled checkboxes) and roles-save-button present; Automations edit icon opens 'Edit Automation' modal; Custom Fields edit icon opens 'Edit Field' modal and PATCH saves; Leads Columns menu with toggles persists in localStorage across reload; LeadDetail has followup-add-* form and followup-list with edit/delete testids, add/delete flow works, old 'Appointment' label removed; page-level scroll is disabled (body overflow = 0) while inner column scrolls independently.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter24_rbac_followups.py",
+    "/app/test_reports/pytest/iter24_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/permissions.py cleanly guards admin from being reduced — good; keep DEFAULT_PERMISSIONS as the single source of truth.",
+    "PATCH /admin/role-permissions ignores admin overrides silently — consider surfacing a 200 note (e.g. 'admin_locked: true') so UI can display why admin toggles have no effect.",
+    "Frontend leadsColumns localStorage key is a plain array — consider versioning ('leadsColumns.v1') so future column changes can migrate safely."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter24_rbac_followups.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026, agent@homeivf.com/Agent@2026, vikas.chauhan@homeivf.com/HomeIVF@123",
+  "seed_data_creation": "Created one automation rule via POST /api/admin/automations named 'TEST_iter24 rule' (id 30) to be able to verify the automation-edit-{id} icon; safe to delete.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend suite test_iter24_rbac_followups.py can be re-run as regression for RBAC & follow-ups. If automation 'TEST_iter24 rule' remains and clutters Admin > Automations, delete via DELETE /api/admin/automations/30."
+}

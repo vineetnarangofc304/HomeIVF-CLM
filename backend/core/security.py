@@ -74,6 +74,8 @@ async def get_current_user(request: Request) -> dict:
         user = await db.users.find_one({"id": int(payload["sub"])}, {"_id": 0, "password_hash": 0})
         if not user or not user.get("active", True):
             raise HTTPException(status_code=401, detail="User not found or inactive")
+        from core.permissions import effective_permissions
+        user["permissions"] = await effective_permissions(user["role"])
         return user
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
@@ -85,6 +87,15 @@ def require_roles(*roles):
     async def checker(request: Request) -> dict:
         user = await get_current_user(request)
         if user["role"] not in roles:
+            raise HTTPException(status_code=403, detail="Insufficient permissions")
+        return user
+    return checker
+
+
+def require_permission(perm: str):
+    async def checker(request: Request) -> dict:
+        user = await get_current_user(request)
+        if not (user.get("permissions") or {}).get(perm, False):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
     return checker

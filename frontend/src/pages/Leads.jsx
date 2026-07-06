@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns } from "@phosphor-icons/react";
 import { API, apiErr, fmtDay, fmtDate } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { TagChip, StageBadge, Spinner, EmptyState } from "../components/Bits";
@@ -30,6 +30,54 @@ const GROUP_OPTIONS = [
   ["ads_platform", "Ads Platform"], ["campaign_name", "Campaign"],
 ];
 
+const ALL_COLUMNS = [
+  { key: "contact_name", label: "Lead", sort: "contact_name", locked: true },
+  { key: "phone", label: "Phone", sort: "phone" },
+  { key: "location", label: "Location" },
+  { key: "user_id", label: "Caller", sort: "user_id" },
+  { key: "lead_stage", label: "Lead Stage", sort: "lead_stage" },
+  { key: "tags", label: "Tags" },
+  { key: "follow_up_date", label: "Follow-up", sort: "follow_up_date" },
+  { key: "source_lead", label: "Source", sort: "source_lead" },
+  { key: "create_date", label: "Created", sort: "create_date" },
+  { key: "campaign_name", label: "Campaign" },
+  { key: "ads_platform", label: "Ads Platform" },
+  { key: "email_from", label: "Email" },
+  { key: "city", label: "City" },
+  { key: "state_name", label: "State" },
+  { key: "priority", label: "Priority" },
+];
+const DEFAULT_COLS = ["contact_name", "phone", "location", "user_id", "lead_stage", "tags", "follow_up_date", "source_lead", "create_date"];
+
+function LeadCell({ colKey, l, tagById, userById }) {
+  if (colKey === "contact_name") return (
+    <>
+      <p className="font-semibold text-slate-800">{l.contact_name || l.name}</p>
+      <div className="flex items-center gap-1">
+        {!l.active && <span className="text-[10px] font-bold uppercase text-rose-500">Lost</span>}
+        {l.is_duplicate && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700" data-testid={`lead-dup-${l.id}`} title={`Duplicate of #${l.duplicate_of}`}>Dup</span>}
+      </div>
+    </>
+  );
+  if (colKey === "phone") return <span className="text-slate-600">{l.phone || "—"}</span>;
+  if (colKey === "location") return <span className="text-slate-500">{[l.city, l.state_name].filter(Boolean).join(", ") || "—"}</span>;
+  if (colKey === "user_id") return userById[l.user_id]?.name || <span className="text-slate-300">Unassigned</span>;
+  if (colKey === "lead_stage") return <StageBadge stage={l.lead_stage} />;
+  if (colKey === "tags") return (
+    <div className="flex max-w-52 flex-wrap gap-1">
+      {(l.tags || []).slice(0, 3).map((t) => <TagChip key={t} tag={tagById[t]} />)}
+      {(l.tags || []).length > 3 && <span className="text-[10px] text-slate-400">+{l.tags.length - 3}</span>}
+    </div>
+  );
+  if (colKey === "follow_up_date") return l.follow_up_date ? (
+    <span className={l.follow_up_date < new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10) ? "font-bold text-rose-500" : ""}>
+      {fmtDay(l.follow_up_date)}{l.follow_up_tag ? ` · ${l.follow_up_tag.replace("Follow UP", "FU")}` : ""}
+    </span>
+  ) : "—";
+  if (colKey === "create_date") return <span className="text-slate-500">{fmtDate(l.create_date)}</span>;
+  return <span className="text-slate-500">{l[colKey] || "—"}</span>;
+}
+
 export default function Leads() {
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
@@ -41,6 +89,14 @@ export default function Leads() {
   const [selected, setSelected] = useState([]);
   const [savedFilters, setSavedFilters] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showCols, setShowCols] = useState(false);
+  const [visibleCols, setVisibleCols] = useState(() => {
+    try { const s = JSON.parse(localStorage.getItem("leadsColumns")); if (Array.isArray(s) && s.length) return s; } catch { /* noop */ }
+    return DEFAULT_COLS;
+  });
+  useEffect(() => { localStorage.setItem("leadsColumns", JSON.stringify(visibleCols)); }, [visibleCols]);
+  const cols = ALL_COLUMNS.filter((c) => c.locked || visibleCols.includes(c.key));
+  const toggleCol = (key) => setVisibleCols((v) => (v.includes(key) ? v.filter((x) => x !== key) : [...v, key]));
 
   const view = params.get("view") || "list";
   const groupBy = params.get("group_by") || "";
@@ -238,6 +294,24 @@ export default function Leads() {
             <button data-testid="view-kanban-button" onClick={() => setParam("view", "kanban")} className={`px-2.5 py-1.5 ${view === "kanban" ? "bg-[#4A90E2]/10 text-[#357ABD]" : "bg-white text-slate-500"}`}><Kanban size={16} /></button>
           </div>
           <button data-testid="save-filter-button" onClick={saveCurrentFilter} className="hivf-btn-secondary !px-3 !py-1.5 text-xs"><FloppyDisk size={14} /> Save filter</button>
+          <div className="relative">
+            <button data-testid="columns-button" onClick={() => setShowCols((s) => !s)} className="hivf-btn-secondary !px-3 !py-1.5 text-xs"><Columns size={14} /> Columns</button>
+            {showCols && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowCols(false)} />
+                <div className="absolute left-0 z-40 mt-1 w-56 rounded-xl border border-slate-200 bg-white p-2 shadow-xl" data-testid="columns-menu">
+                  <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">Show columns</p>
+                  {ALL_COLUMNS.map((c) => (
+                    <label key={c.key} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${c.locked ? "text-slate-400" : "cursor-pointer text-slate-600 hover:bg-slate-50"}`}>
+                      <input type="checkbox" data-testid={`column-toggle-${c.key}`} disabled={c.locked}
+                        checked={c.locked || visibleCols.includes(c.key)} onChange={() => toggleCol(c.key)} className="accent-[#4A90E2]" />
+                      {c.label}{c.locked && <span className="ml-auto text-[9px] uppercase">fixed</span>}
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
           {savedFilters.length > 0 && (
             <select data-testid="saved-filters-select" className="hivf-select" value="" onChange={(e) => { const f = savedFilters.find((x) => x.id === parseInt(e.target.value)); if (f) applySaved(f); }}>
               <option value="">Saved filters…</option>
@@ -304,15 +378,7 @@ export default function Leads() {
                     checked={selected.length === data.items.length && data.items.length > 0}
                     onChange={(e) => setSelected(e.target.checked ? data.items.map((l) => l.id) : [])} />
                 </th>
-                <Th field="contact_name">Lead</Th>
-                <Th field="phone">Phone</Th>
-                <Th field="city">Location</Th>
-                <Th field="user_id">Caller</Th>
-                <Th field="lead_stage">Lead Stage</Th>
-                <Th>Tags</Th>
-                <Th field="follow_up_date">Follow-up</Th>
-                <Th field="source_lead">Source</Th>
-                <Th field="create_date">Created</Th>
+                {cols.map((c) => <Th key={c.key} field={c.sort}>{c.label}</Th>)}
               </tr>
             </thead>
             <tbody>
@@ -323,32 +389,11 @@ export default function Leads() {
                     <input type="checkbox" checked={selected.includes(l.id)}
                       onChange={(e) => setSelected((s) => e.target.checked ? [...s, l.id] : s.filter((x) => x !== l.id))} />
                   </td>
-                  <td className="px-2 py-2">
-                    <p className="font-semibold text-slate-800">{l.contact_name || l.name}</p>
-                    <div className="flex items-center gap-1">
-                      {!l.active && <span className="text-[10px] font-bold uppercase text-rose-500">Lost</span>}
-                      {l.is_duplicate && <span className="rounded bg-amber-100 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-700" data-testid={`lead-dup-${l.id}`} title={`Duplicate of #${l.duplicate_of}`}>Dup</span>}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 text-slate-600">{l.phone || "—"}</td>
-                  <td className="px-2 py-2 text-slate-500">{[l.city, l.state_name].filter(Boolean).join(", ") || "—"}</td>
-                  <td className="px-2 py-2 text-slate-600">{userById[l.user_id]?.name || <span className="text-slate-300">Unassigned</span>}</td>
-                  <td className="px-2 py-2"><StageBadge stage={l.lead_stage} /></td>
-                  <td className="px-2 py-2">
-                    <div className="flex max-w-52 flex-wrap gap-1">
-                      {(l.tags || []).slice(0, 3).map((t) => <TagChip key={t} tag={tagById[t]} />)}
-                      {(l.tags || []).length > 3 && <span className="text-[10px] text-slate-400">+{l.tags.length - 3}</span>}
-                    </div>
-                  </td>
-                  <td className="px-2 py-2 text-slate-600">
-                    {l.follow_up_date ? (
-                      <span className={l.follow_up_date < new Date(Date.now() + 5.5 * 3600000).toISOString().slice(0, 10) ? "font-bold text-rose-500" : ""}>
-                        {fmtDay(l.follow_up_date)}{l.follow_up_tag ? ` · ${l.follow_up_tag.replace("Follow UP", "FU")}` : ""}
-                      </span>
-                    ) : "—"}
-                  </td>
-                  <td className="px-2 py-2 text-slate-500">{l.source_lead || "—"}</td>
-                  <td className="px-2 py-2 text-slate-500">{fmtDate(l.create_date)}</td>
+                  {cols.map((c) => (
+                    <td key={c.key} className="px-2 py-2 text-slate-600">
+                      <LeadCell colKey={c.key} l={l} tagById={tagById} userById={userById} />
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>

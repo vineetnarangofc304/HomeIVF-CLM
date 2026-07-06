@@ -7,7 +7,7 @@ from fastapi.responses import StreamingResponse
 from typing import Optional
 
 from core.db import db
-from core.security import get_current_user
+from core.security import require_permission
 from core.utils import today_ist
 from routes.leads import build_query, query_params_dep
 
@@ -31,7 +31,7 @@ COLUMNS = [
 
 
 @router.get("/leads.xlsx")
-async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict = Depends(get_current_user)):
+async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict = Depends(require_permission("export"))):
     from openpyxl import Workbook
     from openpyxl.styles import Font, PatternFill
 
@@ -77,7 +77,7 @@ async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict
 
 @router.get("/report.pdf")
 async def export_report_pdf(date_from: Optional[str] = None, date_to: Optional[str] = None,
-                            user: dict = Depends(get_current_user)):
+                            user: dict = Depends(require_permission("export"))):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm

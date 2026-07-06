@@ -9,10 +9,36 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.db import db
-from core.security import require_roles
+from core.security import require_roles, require_permission
 from core.utils import next_id, now_utc_str
 
 router = APIRouter(prefix="/admin", tags=["admin"])
+
+
+@router.get("/role-permissions")
+async def get_role_perms(user: dict = Depends(require_roles("admin", "manager"))):
+    from core.permissions import get_role_permissions, ALL_PERMS, MODULE_PERMS, ACTION_PERMS, PERM_LABELS
+    return {"matrix": await get_role_permissions(), "all_perms": ALL_PERMS,
+            "module_perms": MODULE_PERMS, "action_perms": ACTION_PERMS, "labels": PERM_LABELS}
+
+
+class RolePermsBody(BaseModel):
+    matrix: dict  # {"manager": {perm: bool}, "caller": {perm: bool}}
+
+
+@router.patch("/role-permissions")
+async def set_role_perms(body: RolePermsBody, user: dict = Depends(require_roles("admin"))):
+    from core.permissions import get_role_permissions, ALL_PERMS
+    current = await get_role_permissions()
+    for role in ("manager", "caller"):
+        incoming = body.matrix.get(role) or {}
+        for k, v in incoming.items():
+            if k in ALL_PERMS:
+                current[role][k] = bool(v)
+    await db.settings.update_one({"key": "role_permissions"},
+        {"$set": {"key": "role_permissions", "value": {"manager": current["manager"], "caller": current["caller"]}}},
+        upsert=True)
+    return {"matrix": await get_role_permissions()}
 
 
 @router.get("/migration/status")

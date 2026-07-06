@@ -29,6 +29,13 @@ function Protected({ children }) {
   return <Layout>{children}</Layout>;
 }
 
+function Guard({ perm, children }) {
+  const { user, can } = useAuth();
+  if (user === null || user === false) return <Protected>{children}</Protected>;
+  if (!can(perm)) return <Protected><Navigate to="/" replace /></Protected>;
+  return <Protected>{children}</Protected>;
+}
+
 function App() {
   return (
     <AuthProvider>
@@ -37,15 +44,15 @@ function App() {
           <Route path="/login" element={<Login />} />
           <Route path="/screen-pop" element={<ScreenPop />} />
           <Route path="/" element={<Protected><Dashboard /></Protected>} />
-          <Route path="/leads" element={<Protected><Leads /></Protected>} />
-          <Route path="/leads/:id" element={<Protected><LeadDetail /></Protected>} />
-          <Route path="/followups" element={<Protected><FollowUps /></Protected>} />
-          <Route path="/call-center" element={<Protected><CallCenter /></Protected>} />
-          <Route path="/whatsapp" element={<Protected><WhatsAppInbox /></Protected>} />
-          <Route path="/reports" element={<Protected><Reports /></Protected>} />
-          <Route path="/templates" element={<Protected><Templates /></Protected>} />
-          <Route path="/marketing" element={<Protected><Marketing /></Protected>} />
-          <Route path="/admin" element={<Protected><Admin /></Protected>} />
+          <Route path="/leads" element={<Guard perm="leads"><Leads /></Guard>} />
+          <Route path="/leads/:id" element={<Guard perm="leads"><LeadDetail /></Guard>} />
+          <Route path="/followups" element={<Guard perm="followups"><FollowUps /></Guard>} />
+          <Route path="/call-center" element={<Guard perm="call_center"><CallCenter /></Guard>} />
+          <Route path="/whatsapp" element={<Guard perm="whatsapp"><WhatsAppInbox /></Guard>} />
+          <Route path="/reports" element={<Guard perm="reports"><Reports /></Guard>} />
+          <Route path="/templates" element={<Guard perm="templates"><Templates /></Guard>} />
+          <Route path="/marketing" element={<Guard perm="marketing"><Marketing /></Guard>} />
+          <Route path="/admin" element={<Guard perm="admin"><Admin /></Guard>} />
         </Routes>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

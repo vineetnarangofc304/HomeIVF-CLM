@@ -154,9 +154,9 @@ export default function LeadDetail() {
   const labelOf = (k) => fieldLabels[k]?.label || k.replace("x_studio_", "").replace(/_/g, " ");
 
   return (
-    <div className="h-full overflow-y-auto" data-testid="lead-detail-page">
+    <div className="flex h-full flex-col overflow-hidden" data-testid="lead-detail-page">
       {/* Header */}
-      <div className="sticky top-0 z-10 border-b border-slate-200 bg-white px-5 py-3">
+      <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center gap-3">
           <button data-testid="back-button" onClick={() => navigate(-1)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><ArrowLeft size={18} /></button>
           <div className="mr-auto">
@@ -198,9 +198,10 @@ export default function LeadDetail() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-5">
+      <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
+      <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-5 lg:h-full">
         {/* LEFT: fields */}
-        <div className="space-y-4 lg:col-span-2">
+        <div className="space-y-4 lg:col-span-2 lg:h-full lg:overflow-y-auto lg:min-h-0 lg:pr-1">
           <div className="rounded-2xl border border-[#8B5CF6]/20 bg-gradient-to-br from-[#8B5CF6]/5 to-[#4A90E2]/5 p-4">
             <div className="flex items-center gap-2 text-[#8B5CF6]"><Sparkle size={15} weight="fill" /><span className="text-xs font-bold">AI Summary</span></div>
             <p className="mt-1 text-xs text-slate-500">AI insights & next-best-action arrive in Phase 2.</p>
@@ -232,34 +233,14 @@ export default function LeadDetail() {
           {/* Assignment & follow-up */}
           <div className="hivf-card p-4">
             <h3 className="mb-3 font-display text-sm font-extrabold text-slate-800">Assignment & Follow-up</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caller</label>
-                <select data-testid="assignee-select" disabled={user.role === "caller"} className="hivf-select mt-1 w-full" value={lead.user_id || ""} onChange={(e) => update({ user_id: e.target.value ? parseInt(e.target.value) : null })}>
-                  <option value="">Unassigned</option>
-                  {(catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-up Tag</label>
-                <select data-testid="followup-tag-select" className="hivf-select mt-1 w-full" value={lead.follow_up_tag || ""} onChange={(e) => update({ follow_up_tag: e.target.value || null })}>
-                  <option value="">None</option>
-                  {(catalogs?.follow_up_tag || []).map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-up Date</label>
-                <input data-testid="followup-date-input" type="date" className="hivf-select mt-1 w-full" value={lead.follow_up_date || ""} onChange={(e) => update({ follow_up_date: e.target.value || null })} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Follow-up Time</label>
-                <input data-testid="followup-time-input" type="time" className="hivf-select mt-1 w-full" value={lead.follow_up_time || ""} onChange={(e) => update({ follow_up_time: e.target.value || null })} />
-              </div>
-              <div>
-                <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Appointment</label>
-                <input data-testid="appointment-date-input" type="date" className="hivf-select mt-1 w-full" value={lead.appointment_date || ""} onChange={(e) => update({ appointment_date: e.target.value || null })} />
-              </div>
+            <div>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caller</label>
+              <select data-testid="assignee-select" disabled={user.role === "caller"} className="hivf-select mt-1 w-full" value={lead.user_id || ""} onChange={(e) => update({ user_id: e.target.value ? parseInt(e.target.value) : null })}>
+                <option value="">Unassigned</option>
+                {(catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
             </div>
+            <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} />
           </div>
 
           {/* Tags — Case 2: inline new-tag creation */}
@@ -314,7 +295,7 @@ export default function LeadDetail() {
         </div>
 
         {/* RIGHT: chatter */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 lg:h-full lg:overflow-y-auto lg:min-h-0">
           <div className="hivf-card">
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 pt-3">
               {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length], ["attachments", "Attachments", attachments.length]].map(([k, l, c]) => (
@@ -449,6 +430,8 @@ export default function LeadDetail() {
             )}
           </div>
         </div>
+      </div>
+
       </div>
 
       {showActivity && <ActivityModal leadId={lead.id} onClose={() => setShowActivity(false)} onSaved={() => { setShowActivity(false); load(); }} catalogs={catalogs} />}
@@ -864,6 +847,99 @@ function NewTagModal({ onClose, onCreated }) {
           <button data-testid="new-tag-submit" type="submit" disabled={saving} className="hivf-btn-primary">{saving ? "Creating…" : "Create & Add"}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function FollowUpSection({ leadId, catalogs, onChanged }) {
+  const [items, setItems] = useState(null);
+  const [form, setForm] = useState({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "" });
+  const [editId, setEditId] = useState(null);
+  const [edit, setEdit] = useState({});
+
+  const load = () => API.get(`/leads/${leadId}/followups`).then(({ data }) => setItems(data));
+  useEffect(() => { load(); }, [leadId]);
+
+  const add = async () => {
+    if (!form.follow_up_date && !form.note.trim()) { toast.error("Pick a date or add a note"); return; }
+    try {
+      await API.post(`/leads/${leadId}/followups`, form);
+      setForm({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "" });
+      toast.success("Follow-up added");
+      load(); onChanged && onChanged();
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+  const startEdit = (f) => { setEditId(f.id); setEdit({ follow_up_date: f.follow_up_date || "", follow_up_time: f.follow_up_time || "", follow_up_tag: f.follow_up_tag || "", note: f.note || "" }); };
+  const saveEdit = async (fid) => {
+    try {
+      await API.patch(`/leads/${leadId}/followups/${fid}`, edit);
+      setEditId(null); toast.success("Follow-up updated");
+      load(); onChanged && onChanged();
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+  const del = async (fid) => {
+    if (!window.confirm("Delete this follow-up entry?")) return;
+    try { await API.delete(`/leads/${leadId}/followups/${fid}`); toast.success("Deleted"); load(); onChanged && onChanged(); }
+    catch (e) { toast.error(apiErr(e)); }
+  };
+
+  const tagOptions = catalogs?.follow_up_tag || [];
+
+  return (
+    <div className="mt-4" data-testid="followup-section">
+      <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+        <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Add a follow-up</label>
+        <div className="mt-1 grid grid-cols-2 gap-2">
+          <input data-testid="followup-add-date" type="date" className="hivf-select" value={form.follow_up_date} onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))} />
+          <input data-testid="followup-add-time" type="time" className="hivf-select" value={form.follow_up_time} onChange={(e) => setForm((f) => ({ ...f, follow_up_time: e.target.value }))} />
+          <select data-testid="followup-add-tag" className="hivf-select col-span-2" value={form.follow_up_tag} onChange={(e) => setForm((f) => ({ ...f, follow_up_tag: e.target.value }))}>
+            <option value="">Follow-up tag (optional)…</option>
+            {tagOptions.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+          </select>
+          <input data-testid="followup-add-note" className="hivf-input col-span-2" placeholder="Note (optional)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
+        </div>
+        <button data-testid="followup-add-button" onClick={add} className="hivf-btn-primary mt-2 !py-1.5 text-xs"><Plus size={13} /> Add follow-up</button>
+      </div>
+
+      <div className="mt-3 space-y-2" data-testid="followup-list">
+        {items === null ? <div className="text-xs text-slate-400">Loading…</div>
+          : items.length === 0 ? <p className="text-xs text-slate-400" data-testid="followup-empty">No follow-ups scheduled yet.</p>
+          : items.map((f) => (
+            <div key={f.id} className="rounded-xl border border-slate-100 p-2.5" data-testid={`followup-item-${f.id}`}>
+              {editId === f.id ? (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <input type="date" className="hivf-select" value={edit.follow_up_date} onChange={(e) => setEdit((d) => ({ ...d, follow_up_date: e.target.value }))} data-testid={`followup-edit-date-${f.id}`} />
+                    <input type="time" className="hivf-select" value={edit.follow_up_time} onChange={(e) => setEdit((d) => ({ ...d, follow_up_time: e.target.value }))} />
+                    <select className="hivf-select col-span-2" value={edit.follow_up_tag} onChange={(e) => setEdit((d) => ({ ...d, follow_up_tag: e.target.value }))}>
+                      <option value="">Follow-up tag…</option>
+                      {tagOptions.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                    </select>
+                    <input className="hivf-input col-span-2" placeholder="Note" value={edit.note} onChange={(e) => setEdit((d) => ({ ...d, note: e.target.value }))} />
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    <button onClick={() => setEditId(null)} className="text-xs font-bold text-slate-400">Cancel</button>
+                    <button onClick={() => saveEdit(f.id)} className="text-xs font-bold text-[#357ABD]" data-testid={`followup-save-${f.id}`}>Save</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2">
+                  <CalendarCheck size={16} className="mt-0.5 shrink-0 text-[#4A90E2]" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-slate-700">
+                      {f.follow_up_date ? fmtDay(f.follow_up_date) : "No date"}{f.follow_up_time ? ` · ${f.follow_up_time}` : ""}
+                      {f.follow_up_tag ? <span className="ml-2 rounded-full bg-[#4A90E2]/10 px-2 py-0.5 text-[10px] font-bold text-[#357ABD]">{f.follow_up_tag}</span> : null}
+                    </p>
+                    {f.note && <p className="text-xs text-slate-500">{f.note}</p>}
+                    <p className="text-[10px] text-slate-400">{f.created_by_name} · {fmtDate(f.created_at)}</p>
+                  </div>
+                  <button onClick={() => startEdit(f)} className="text-slate-300 hover:text-[#4A90E2]" data-testid={`followup-edit-${f.id}`} title="Edit"><NotePencil size={15} /></button>
+                  <button onClick={() => del(f.id)} className="text-slate-300 hover:text-rose-500" data-testid={`followup-delete-${f.id}`} title="Delete"><Trash size={15} /></button>
+                </div>
+              )}
+            </div>
+          ))}
+      </div>
     </div>
   );
 }

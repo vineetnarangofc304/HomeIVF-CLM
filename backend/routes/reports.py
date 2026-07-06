@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.db import db
-from core.security import get_current_user
+from core.security import get_current_user, require_permission
 from core.utils import today_ist
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -78,7 +78,7 @@ async def resolve_labels(dim: str, keys: list) -> dict:
 
 
 @router.post("/pivot")
-async def pivot(body: PivotBody, user: dict = Depends(get_current_user)):
+async def pivot(body: PivotBody, user: dict = Depends(require_permission("reports"))):
     rows = [r for r in body.rows if r in DIMS][:2]
     col = body.cols if body.cols in DIMS else None
     if not rows:
@@ -147,7 +147,7 @@ async def pivot(body: PivotBody, user: dict = Depends(get_current_user)):
 @router.get("/trends")
 async def trends(granularity: str = "day", date_from: Optional[str] = None,
                  date_to: Optional[str] = None, active: str = "all",
-                 user: dict = Depends(get_current_user)):
+                 user: dict = Depends(require_permission("reports"))):
     if granularity not in ("day", "week", "month"):
         raise HTTPException(status_code=400, detail="Invalid granularity")
     if not date_from:
@@ -186,7 +186,7 @@ async def trends(granularity: str = "day", date_from: Optional[str] = None,
 
 @router.get("/heatmap")
 async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
-                  date_to: Optional[str] = None, user: dict = Depends(get_current_user)):
+                  date_to: Optional[str] = None, user: dict = Depends(require_permission("reports"))):
     if type == "dow_hour":
         if not date_from:
             date_from = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")

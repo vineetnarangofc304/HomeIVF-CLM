@@ -44,8 +44,13 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const can = useCallback(
+    (perm) => !!(user && user !== false && (user.permissions || {})[perm]),
+    [user]
+  );
+
   return (
-    <AuthContext.Provider value={{ user, login, logout }}>
+    <AuthContext.Provider value={{ user, login, logout, can }}>
       <CatalogContext.Provider value={{ catalogs, refreshCatalogs: loadCatalogs }}>
         {children}
       </CatalogContext.Provider>

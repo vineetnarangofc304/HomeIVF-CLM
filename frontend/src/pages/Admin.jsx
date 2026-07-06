@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo, EnvelopeSimple, GoogleLogo } from "@phosphor-icons/react";
+import { Plus, Trash, ArrowsClockwise, Copy, Phone, DotsSixVertical, FacebookLogo, WhatsappLogo, EnvelopeSimple, GoogleLogo, PencilSimple, LockSimple } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
@@ -85,6 +85,7 @@ function UsersTab({ isAdmin }) {
 
   if (!users) return <Spinner />;
   return (
+    <div className="space-y-4">
     <div className="hivf-card overflow-hidden">
       <div className="flex items-center justify-between border-b border-slate-100 p-4">
         <p className="text-sm font-bold text-slate-700">{users.length} users</p>
@@ -141,6 +142,79 @@ function UsersTab({ isAdmin }) {
           </form>
         </div>
       )}
+    </div>
+      <RolesAccessControl isAdmin={isAdmin} />
+    </div>
+  );
+}
+
+function RolesAccessControl({ isAdmin }) {
+  const [data, setData] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const load = () => API.get("/admin/role-permissions").then(({ data }) => setData(data));
+  useEffect(() => { load(); }, []);
+  if (!data) return null;
+
+  const roles = ["admin", "manager", "caller"];
+  const groups = [["Module access", data.module_perms], ["Actions & data scope", data.action_perms]];
+
+  const toggle = (role, perm) => {
+    if (!isAdmin || role === "admin") return;
+    setData((d) => ({ ...d, matrix: { ...d.matrix, [role]: { ...d.matrix[role], [perm]: !d.matrix[role][perm] } } }));
+  };
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data: res } = await API.patch("/admin/role-permissions", { matrix: { manager: data.matrix.manager, caller: data.matrix.caller } });
+      setData((d) => ({ ...d, matrix: res.matrix }));
+      toast.success("Access control saved — users will see it on next login/refresh");
+    } catch (e) { toast.error(apiErr(e)); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="hivf-card p-4" data-testid="roles-access-control">
+      <div className="flex items-center justify-between">
+        <div>
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Roles &amp; Access Control</h3>
+          <p className="mt-1 text-xs text-slate-500">Define what each role can see and do. Admin always has full access. Changes apply on the user's next login or refresh.</p>
+        </div>
+        {isAdmin && <button data-testid="roles-save-button" onClick={save} disabled={saving} className="hivf-btn-primary !py-1.5 text-xs">{saving ? "Saving…" : "Save changes"}</button>}
+      </div>
+      <div className="mt-4 overflow-x-auto">
+        <table className="w-full text-sm" data-testid="roles-matrix-table">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-400">
+              <th className="px-2 py-2">Permission</th>
+              {roles.map((r) => (
+                <th key={r} className="px-2 py-2 text-center capitalize">{r}{r === "admin" && <LockSimple size={11} className="ml-1 inline text-slate-300" />}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map(([gLabel, perms]) => (
+              <React.Fragment key={gLabel}>
+                <tr className="bg-slate-50"><td colSpan={4} className="px-2 py-1.5 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">{gLabel}</td></tr>
+                {perms.map((perm) => (
+                  <tr key={perm} className="border-b border-slate-50" data-testid={`perm-row-${perm}`}>
+                    <td className="px-2 py-2 font-semibold text-slate-600">{data.labels[perm] || perm}</td>
+                    {roles.map((role) => {
+                      const checked = !!data.matrix[role][perm];
+                      const locked = role === "admin" || !isAdmin;
+                      return (
+                        <td key={role} className="px-2 py-2 text-center">
+                          <input type="checkbox" checked={checked} disabled={locked}
+                            onChange={() => toggle(role, perm)} data-testid={`perm-${role}-${perm}`}
+                            className={locked ? "cursor-not-allowed opacity-60" : "cursor-pointer accent-[#4A90E2]"} />
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </React.Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
@@ -323,6 +397,7 @@ function CustomFieldsTab() {
                       </p>
                     </div>
                     <code className="rounded bg-slate-50 px-1.5 py-0.5 text-[10px] text-slate-400">{f.key}</code>
+                    <button onClick={() => setModal({ section: f.section, field_type: f.field_type, field: f })} data-testid={`edit-field-${f.id}`} className="text-slate-300 hover:text-[#4A90E2]"><PencilSimple size={15} /></button>
                     <button onClick={() => del(f)} className="text-slate-300 hover:text-rose-500"><Trash size={15} /></button>
                   </div>
                 ))}
@@ -345,33 +420,46 @@ function CustomFieldsTab() {
         )}
       </div>
 
-      {modal && <AddFieldModal section={modal.section} fieldType={modal.field_type} onClose={() => setModal(null)}
+      {modal && <AddFieldModal section={modal.section} fieldType={modal.field_type} field={modal.field} onClose={() => setModal(null)}
         onCreated={() => { setModal(null); load(); refreshCatalogs(); }} />}
     </div>
   );
 }
 
-function AddFieldModal({ section, fieldType, onClose, onCreated }) {
-  const [form, setForm] = useState({ label: "", field_type: fieldType || "char", section, options: "", aliases: "" });
+function AddFieldModal({ section, fieldType, field, onClose, onCreated }) {
+  const isEdit = !!field;
+  const [form, setForm] = useState({
+    label: field?.label || "",
+    field_type: field?.field_type || fieldType || "char",
+    section: field?.section || section,
+    options: (field?.options || []).join(", "),
+    aliases: (field?.aliases || []).join(", "),
+  });
   const create = async (e) => {
     e.preventDefault();
     if (!form.label.trim()) return;
+    const payload = {
+      label: form.label.trim(),
+      field_type: form.field_type,
+      options: form.field_type === "selection" ? form.options.split(",").map((s) => s.trim()).filter(Boolean) : [],
+      section: form.section,
+      aliases: form.aliases.split(",").map((s) => s.trim()).filter(Boolean),
+    };
     try {
-      await API.post("/catalogs/custom-fields/create", {
-        label: form.label.trim(),
-        field_type: form.field_type,
-        options: form.field_type === "selection" ? form.options.split(",").map((s) => s.trim()).filter(Boolean) : [],
-        section: form.section,
-        aliases: form.aliases.split(",").map((s) => s.trim()).filter(Boolean),
-      });
-      toast.success("Field added — it now shows on every lead");
+      if (isEdit) {
+        await API.patch(`/catalogs/custom-fields/${field.id}`, payload);
+        toast.success("Field updated");
+      } else {
+        await API.post("/catalogs/custom-fields/create", payload);
+        toast.success("Field added — it now shows on every lead");
+      }
       onCreated();
     } catch (err) { toast.error(apiErr(err)); }
   };
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
       <form onSubmit={create} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="add-field-modal">
-        <h3 className="font-display text-lg font-extrabold">New Field</h3>
+        <h3 className="font-display text-lg font-extrabold">{isEdit ? "Edit Field" : "New Field"}</h3>
         <div className="mt-4 space-y-3">
           <div>
             <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Field label</label>
@@ -407,7 +495,7 @@ function AddFieldModal({ section, fieldType, onClose, onCreated }) {
         </div>
         <div className="mt-5 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="hivf-btn-secondary">Cancel</button>
-          <button type="submit" className="hivf-btn-primary" data-testid="field-create-submit"><Plus size={14} /> Add field</button>
+          <button type="submit" className="hivf-btn-primary" data-testid="field-create-submit"><Plus size={14} /> {isEdit ? "Save field" : "Add field"}</button>
         </div>
       </form>
     </div>
@@ -498,6 +586,7 @@ function AutomationsTab() {
   const { catalogs } = useCatalogs();
   const [rules, setRules] = useState(null);
   const [show, setShow] = useState(false);
+  const [editId, setEditId] = useState(null);
   const [form, setForm] = useState({ name: "", trigger: "on_create", tag_id: "", lead_stage: "", actions: [{ type: "send_whatsapp_template", value: "" }] });
   const [waTemplates, setWaTemplates] = useState([]);
   const [emailTemplates, setEmailTemplates] = useState([]);
@@ -508,6 +597,21 @@ function AutomationsTab() {
     API.get("/templates/whatsapp").then(({ data }) => setWaTemplates(data));
     API.get("/templates/email").then(({ data }) => setEmailTemplates(data));
   }, []);
+
+  const resetForm = () => { setForm({ name: "", trigger: "on_create", tag_id: "", lead_stage: "", actions: [{ type: "send_whatsapp_template", value: "" }] }); setEditId(null); };
+  const closeModal = () => { setShow(false); resetForm(); };
+
+  const startEdit = (r) => {
+    setEditId(r.id);
+    setForm({
+      name: r.name || "",
+      trigger: r.trigger || "on_create",
+      tag_id: r.condition?.tag_id ? String(r.condition.tag_id) : "",
+      lead_stage: r.condition?.lead_stage || "",
+      actions: (r.actions || []).length ? r.actions.map((a) => ({ type: a.type, value: String(a.value) })) : [{ type: "send_whatsapp_template", value: "" }],
+    });
+    setShow(true);
+  };
 
   const create = async (e) => {
     e.preventDefault();
@@ -523,9 +627,14 @@ function AutomationsTab() {
       }));
     if (!actions.length) { toast.error("Add at least one action"); return; }
     try {
-      await API.post("/admin/automations", { name: form.name, trigger: form.trigger, condition, actions });
-      toast.success("Automation created"); setShow(false);
-      setForm({ name: "", trigger: "on_create", tag_id: "", lead_stage: "", actions: [{ type: "send_whatsapp_template", value: "" }] });
+      if (editId) {
+        await API.patch(`/admin/automations/${editId}`, { name: form.name, trigger: form.trigger, condition, actions });
+        toast.success("Automation updated");
+      } else {
+        await API.post("/admin/automations", { name: form.name, trigger: form.trigger, condition, actions });
+        toast.success("Automation created");
+      }
+      closeModal();
       load();
     } catch (err) { toast.error(apiErr(err)); }
   };
@@ -542,7 +651,7 @@ function AutomationsTab() {
           <h3 className="font-display text-sm font-extrabold text-slate-800">Automation Rules</h3>
           <p className="text-xs text-slate-500">Replicates your Odoo automations (welcome WhatsApp/email on new lead, tag triggers…). Template sends queue until live APIs are connected.</p>
         </div>
-        <button data-testid="add-automation-button" onClick={() => setShow(true)} className="hivf-btn-primary !py-1.5 text-xs"><Plus size={14} /> New rule</button>
+        <button data-testid="add-automation-button" onClick={() => { resetForm(); setShow(true); }} className="hivf-btn-primary !py-1.5 text-xs"><Plus size={14} /> New rule</button>
       </div>
       <div className="mt-4 space-y-2" data-testid="automations-list">
         {rules.map((r) => (
@@ -557,15 +666,16 @@ function AutomationsTab() {
               className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${r.active ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-400"}`}>
               {r.active ? "ACTIVE" : "OFF"}
             </button>
+            <button data-testid={`automation-edit-${r.id}`} onClick={() => startEdit(r)} className="text-slate-300 hover:text-[#4A90E2]"><PencilSimple size={16} /></button>
             <button data-testid={`automation-delete-${r.id}`} onClick={async () => { if (window.confirm("Delete rule?")) { await API.delete(`/admin/automations/${r.id}`); load(); } }} className="text-slate-300 hover:text-rose-500"><Trash size={16} /></button>
           </div>
         ))}
         {rules.length === 0 && <p className="py-6 text-center text-sm text-slate-400">No automation rules yet.</p>}
       </div>
       {show && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setShow(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={closeModal}>
           <form onSubmit={create} onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="automation-modal">
-            <h3 className="font-display text-lg font-extrabold">New Automation</h3>
+            <h3 className="font-display text-lg font-extrabold">{editId ? "Edit Automation" : "New Automation"}</h3>
             <div className="mt-4 space-y-3">
               <input required className="hivf-input" placeholder="Rule name" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} data-testid="automation-name-input" />
               <select className="hivf-select w-full" value={form.trigger} onChange={(e) => setForm((f) => ({ ...f, trigger: e.target.value }))}>
@@ -613,8 +723,8 @@ function AutomationsTab() {
               </div>
             </div>
             <div className="mt-5 flex justify-end gap-2">
-              <button type="button" onClick={() => setShow(false)} className="hivf-btn-secondary">Cancel</button>
-              <button type="submit" className="hivf-btn-primary" data-testid="automation-submit">Create</button>
+              <button type="button" onClick={closeModal} className="hivf-btn-secondary">Cancel</button>
+              <button type="submit" className="hivf-btn-primary" data-testid="automation-submit">{editId ? "Save" : "Create"}</button>
             </div>
           </form>
         </div>

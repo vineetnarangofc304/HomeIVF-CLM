@@ -9,18 +9,18 @@ import IncomingCallBanner from "./IncomingCallBanner";
 import AgentStatusSwitcher from "./AgentStatusSwitcher";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard" },
-  { to: "/leads", label: "Leads", icon: UsersThree, testid: "nav-leads" },
-  { to: "/followups", label: "Follow-ups", icon: ClockCountdown, testid: "nav-followups" },
-  { to: "/call-center", label: "Call Center", icon: PhoneCall, testid: "nav-call-center" },
-  { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp" },
-  { to: "/marketing", label: "Marketing", icon: Megaphone, testid: "nav-marketing" },
-  { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports" },
-  { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates" },
+  { to: "/", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard", perm: "dashboard" },
+  { to: "/leads", label: "Leads", icon: UsersThree, testid: "nav-leads", perm: "leads" },
+  { to: "/followups", label: "Follow-ups", icon: ClockCountdown, testid: "nav-followups", perm: "followups" },
+  { to: "/call-center", label: "Call Center", icon: PhoneCall, testid: "nav-call-center", perm: "call_center" },
+  { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp", perm: "whatsapp" },
+  { to: "/marketing", label: "Marketing", icon: Megaphone, testid: "nav-marketing", perm: "marketing" },
+  { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports", perm: "reports" },
+  { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates", perm: "templates" },
 ];
 
 export default function Layout({ children }) {
-  const { user, logout } = useAuth();
+  const { user, logout, can } = useAuth();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
@@ -37,7 +37,7 @@ export default function Layout({ children }) {
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.25em] text-[#8B5CF6]">CRM</p>
         </div>
         <nav className="flex-1 space-y-1 px-3">
-          {NAV.map(({ to, label, icon: Icon, testid }) => (
+          {NAV.filter(({ perm }) => can(perm)).map(({ to, label, icon: Icon, testid }) => (
             <NavLink
               key={to}
               to={to}
@@ -53,7 +53,7 @@ export default function Layout({ children }) {
               {label}
             </NavLink>
           ))}
-          {(user.role === "admin" || user.role === "manager") && (
+          {(can("admin")) && (
             <NavLink
               to="/admin"
               data-testid="nav-admin"

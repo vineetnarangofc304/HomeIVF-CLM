@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from core.db import db
-from core.security import hash_password, require_roles, get_current_user
+from core.security import hash_password, require_roles, require_permission, get_current_user
 from core.utils import next_id, now_utc_str
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -33,7 +33,7 @@ async def list_users(user: dict = Depends(get_current_user)):
 
 
 @router.post("")
-async def create_user(body: UserCreate, admin: dict = Depends(require_roles("admin"))):
+async def create_user(body: UserCreate, admin: dict = Depends(require_permission("manage_users"))):
     email = body.email.strip().lower()
     if body.role not in ("admin", "manager", "caller"):
         raise HTTPException(status_code=400, detail="Invalid role")
@@ -50,7 +50,7 @@ async def create_user(body: UserCreate, admin: dict = Depends(require_roles("adm
 
 
 @router.patch("/{user_id}")
-async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_roles("admin"))):
+async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(require_permission("manage_users"))):
     user = await db.users.find_one({"id": user_id})
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
@@ -82,7 +82,7 @@ async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(requ
 
 
 @router.delete("/{user_id}")
-async def delete_user(user_id: int, user: dict = Depends(require_roles("admin"))):
+async def delete_user(user_id: int, user: dict = Depends(require_permission("manage_users"))):
     if user_id == user["id"]:
         raise HTTPException(status_code=400, detail="You cannot delete your own account")
     target = await db.users.find_one({"id": user_id}, {"_id": 0, "id": 1, "role": 1})

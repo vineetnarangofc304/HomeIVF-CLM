@@ -452,3 +452,76 @@ async def bulk_action(body: BulkBody, user: dict = Depends(require_roles("admin"
             else:
                 await run_automations("on_stage_set", l)
     return {"ok": True, "count": len(ids)}
+
+
+# ---------- Case 2: Follow-up entries (history with edit/delete) ----------
+async def _sync_lead_followup(lead_id: int):
+    """Keep the lead's follow_up_* fields pointed at the latest scheduled entry."""
+    latest = await db.follow_ups.find(
+        {"lead_id": lead_id, "follow_up_date": {"$gt": ""}}, {"_id": 0}
+    ).sort("follow_up_date", -1).limit(1).to_list(1)
+    if latest:
+        f = latest[0]
+        await db.leads.update_one({"id": lead_id}, {"$set": {
+            "follow_up_date": f.get("follow_up_date"), "follow_up_time": f.get("follow_up_time"),
+            "follow_up_tag": f.get("follow_up_tag")}})
+    else:
+        await db.leads.update_one({"id": lead_id}, {"$set": {
+            "follow_up_date": None, "follow_up_time": None, "follow_up_tag": None}})
+
+
+class FollowUpBody(BaseModel):
+    follow_up_date: Optional[str] = None
+    follow_up_time: Optional[str] = None
+    follow_up_tag: Optional[str] = None
+    note: Optional[str] = None
+
+
+@router.get("/{lead_id}/followups")
+async def list_followups(lead_id: int, user: dict = Depends(get_current_user)):
+    return await db.follow_ups.find({"lead_id": lead_id}, {"_id": 0}).sort([("follow_up_date", -1), ("id", -1)]).to_list(200)
+
+
+@router.post("/{lead_id}/followups")
+async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(get_current_user)):
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if not (body.follow_up_date or body.note):
+        raise HTTPException(status_code=400, detail="A follow-up date or note is required")
+    fid = await next_id("follow_up")
+    doc = {"id": fid, "lead_id": lead_id, "follow_up_date": body.follow_up_date or None,
+           "follow_up_time": body.follow_up_time or None, "follow_up_tag": body.follow_up_tag or None,
+           "note": (body.note or "").strip() or None, "created_by": user["id"],
+           "created_by_name": user["name"], "created_at": now_utc_str()}
+    await db.follow_ups.insert_one(doc)
+    await _sync_lead_followup(lead_id)
+    tag = f" · {doc['follow_up_tag']}" if doc.get("follow_up_tag") else ""
+    when = doc.get("follow_up_date") or "no date"
+    await log_message(lead_id, f"Follow-up scheduled for <b>{when}</b>{tag}"
+                      f"{('<br/>' + doc['note']) if doc.get('note') else ''}", author=user)
+    doc.pop("_id", None)
+    return doc
+
+
+@router.patch("/{lead_id}/followups/{fid}")
+async def update_followup(lead_id: int, fid: int, body: FollowUpBody, user: dict = Depends(get_current_user)):
+    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
+    if not fu:
+        raise HTTPException(status_code=404, detail="Follow-up not found")
+    updates = {"follow_up_date": body.follow_up_date or None, "follow_up_time": body.follow_up_time or None,
+               "follow_up_tag": body.follow_up_tag or None, "note": (body.note or "").strip() or None}
+    await db.follow_ups.update_one({"id": fid}, {"$set": updates})
+    await _sync_lead_followup(lead_id)
+    await log_message(lead_id, f"Follow-up updated → <b>{updates['follow_up_date'] or 'no date'}</b>", author=user)
+    return await db.follow_ups.find_one({"id": fid}, {"_id": 0})
+
+
+@router.delete("/{lead_id}/followups/{fid}")
+async def delete_followup(lead_id: int, fid: int, user: dict = Depends(get_current_user)):
+    res = await db.follow_ups.delete_one({"id": fid, "lead_id": lead_id})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Follow-up not found")
+    await _sync_lead_followup(lead_id)
+    await log_message(lead_id, "Follow-up entry deleted", author=user)
+    return {"ok": True}

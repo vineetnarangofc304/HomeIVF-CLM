@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from core.db import db
-from core.security import require_roles
+from core.security import require_permission
 from core.utils import next_id, now_utc_str, log_message
 from core import whatsapp_cloud as wac
 from routes.leads import build_query
@@ -37,12 +37,12 @@ class CampaignBody(BaseModel):
 
 
 @router.get("/campaigns")
-async def list_campaigns(user: dict = Depends(require_roles("admin", "manager"))):
+async def list_campaigns(user: dict = Depends(require_permission("marketing"))):
     return await db.campaigns.find({}, {"_id": 0}).sort("id", -1).to_list(200)
 
 
 @router.post("/campaigns")
-async def create_campaign(body: CampaignBody, user: dict = Depends(require_roles("admin", "manager"))):
+async def create_campaign(body: CampaignBody, user: dict = Depends(require_permission("marketing"))):
     if body.channel not in ("whatsapp", "email"):
         raise HTTPException(status_code=400, detail="Invalid channel")
     cid = await next_id("campaign")
@@ -56,13 +56,13 @@ async def create_campaign(body: CampaignBody, user: dict = Depends(require_roles
 
 
 @router.delete("/campaigns/{cid}")
-async def delete_campaign(cid: int, user: dict = Depends(require_roles("admin", "manager"))):
+async def delete_campaign(cid: int, user: dict = Depends(require_permission("marketing"))):
     await db.campaigns.delete_one({"id": cid})
     return {"ok": True}
 
 
 @router.post("/campaigns/{cid}/audience-count")
-async def audience_count(cid: int, user: dict = Depends(require_roles("admin", "manager"))):
+async def audience_count(cid: int, user: dict = Depends(require_permission("marketing"))):
     camp = await db.campaigns.find_one({"id": cid}, {"_id": 0})
     if not camp:
         raise HTTPException(status_code=404, detail="Campaign not found")
@@ -73,7 +73,7 @@ async def audience_count(cid: int, user: dict = Depends(require_roles("admin", "
 
 
 @router.post("/campaigns/{cid}/send")
-async def send_campaign(cid: int, user: dict = Depends(require_roles("admin", "manager"))):
+async def send_campaign(cid: int, user: dict = Depends(require_permission("marketing"))):
     camp = await db.campaigns.find_one({"id": cid}, {"_id": 0})
     if not camp:
         raise HTTPException(status_code=404, detail="Campaign not found")
