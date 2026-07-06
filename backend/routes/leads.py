@@ -17,6 +17,7 @@ LIST_PROJECTION = {
     "create_date": 1, "create_date_ist": 1, "follow_up_date": 1, "follow_up_time": 1, "follow_up_tag": 1,
     "source_lead": 1, "campaign_name": 1, "ads_platform": 1, "priority": 1, "active": 1,
     "probability": 1, "appointment_date": 1, "lost_reason_id": 1, "is_duplicate": 1, "duplicate_of": 1,
+    "ozonetel_lead": 1, "in_pipeline": 1,
 }
 
 EDITABLE_FIELDS = {
@@ -37,10 +38,15 @@ def build_query(
     search=None, stage_id=None, lead_stage=None, tags=None, user_id=None,
     source_lead=None, campaign_name=None, ads_platform=None, city=None, state_name=None,
     active="true", date_from=None, date_to=None, follow_up=None, priority=None,
-    follow_up_tag=None, lost_reason_id=None,
+    follow_up_tag=None, lost_reason_id=None, bucket=None,
     current_user=None,
 ):
     q = {}
+    if bucket == "ozonetel":
+        q["ozonetel_lead"] = True
+        q["in_pipeline"] = {"$ne": True}
+    elif bucket == "pipeline":
+        q["$and"] = [{"$or": [{"ozonetel_lead": {"$ne": True}}, {"in_pipeline": True}]}]
     if active == "true":
         q["active"] = True
     elif active == "false":
@@ -110,12 +116,14 @@ def query_params_dep(
     active: str = "true", date_from: Optional[str] = None, date_to: Optional[str] = None,
     follow_up: Optional[str] = None, priority: Optional[str] = None,
     follow_up_tag: Optional[str] = None, lost_reason_id: Optional[str] = None,
+    bucket: Optional[str] = None,
 ):
     return dict(
         search=search, stage_id=stage_id, lead_stage=lead_stage, tags=tags, user_id=user_id,
         source_lead=source_lead, campaign_name=campaign_name, ads_platform=ads_platform,
         city=city, state_name=state_name, active=active, date_from=date_from, date_to=date_to,
         follow_up=follow_up, priority=priority, follow_up_tag=follow_up_tag, lost_reason_id=lost_reason_id,
+        bucket=bucket,
     )
 
 
@@ -312,6 +320,61 @@ async def restore_lead(lead_id: int, user: dict = Depends(get_current_user)):
     await db.leads.update_one({"id": lead_id}, {"$set": {"active": True, "lost_reason_id": None}})
     await log_message(lead_id, "Lead restored", author=user)
     return {"ok": True}
+
+
+class PromoteBody(BaseModel):
+    name: Optional[str] = None
+    contact_name: Optional[str] = None
+    email_from: Optional[str] = None
+    city: Optional[str] = None
+    state_name: Optional[str] = None
+    phone: Optional[str] = None
+
+
+@router.post("/{lead_id}/promote-to-pipeline")
+async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depends(get_current_user)):
+    """Case 2 — validate a raw Ozonetel lead and move it into 'Lead in Pipeline'.
+    Dedup: if a pipeline lead already exists with the verified phone, merge this
+    lead's call activity into it instead of creating a duplicate."""
+    lead = await db.leads.find_one({"id": lead_id})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    phone = (body.phone or lead.get("phone") or "").strip()
+    pdig = re.sub(r"\D", "", phone)[-10:]
+    name = body.contact_name or body.name or lead.get("contact_name") or lead.get("name")
+
+    # Dedup — existing pipeline lead with same verified phone (not this raw one)
+    existing = None
+    if pdig and len(pdig) >= 8:
+        existing = await db.leads.find_one({
+            "phone_digits": pdig, "id": {"$ne": lead_id},
+            "$or": [{"ozonetel_lead": {"$ne": True}}, {"in_pipeline": True}],
+        }, {"_id": 0, "id": 1, "name": 1, "contact_name": 1}, sort=[("id", 1)])
+
+    if existing:
+        # map this lead's call activity to the existing pipeline record, archive the raw one
+        await db.call_events.update_many({"lead_id": lead_id}, {"$set": {"lead_id": existing["id"]}})
+        await db.leads.update_one({"id": lead_id}, {"$set": {"active": False, "merged_into": existing["id"], "write_date": now_utc_str()}})
+        await log_message(existing["id"], f"📞 Ozonetel call activity from #{lead_id} merged here (duplicate phone) by {user['name']}", author=user, subtype="comment")
+        await log_message(lead_id, f"Merged into pipeline lead #{existing['id']} (duplicate phone)", author=user)
+        return {"ok": True, "merged_into": existing["id"]}
+
+    updates = {"in_pipeline": True, "write_date": now_utc_str(), "write_uid": user["id"]}
+    if name:
+        updates["contact_name"] = name
+        updates["name"] = name
+    for f in ("email_from", "city", "state_name"):
+        v = getattr(body, f)
+        if v:
+            updates[f] = v.strip()
+    if phone:
+        updates["phone"] = phone
+        updates["phone_digits"] = pdig
+    if not lead.get("user_id"):
+        updates["user_id"] = user["id"]
+    await db.leads.update_one({"id": lead_id}, {"$set": updates})
+    await log_message(lead_id, f"✅ Moved to <b>Lead in Pipeline</b> (verified) by {user['name']}", author=user, subtype="comment")
+    return {"ok": True, "lead_id": lead_id, "in_pipeline": True}
 
 
 class SendWhatsAppBody(BaseModel):

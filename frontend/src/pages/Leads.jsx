@@ -89,6 +89,7 @@ export default function Leads() {
   const [selected, setSelected] = useState([]);
   const [savedFilters, setSavedFilters] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [promote, setPromote] = useState(null);
   const [showCols, setShowCols] = useState(false);
   const [visibleCols, setVisibleCols] = useState(() => {
     try { const s = JSON.parse(localStorage.getItem("leadsColumns")); if (Array.isArray(s) && s.length) return s; } catch { /* noop */ }
@@ -109,8 +110,11 @@ export default function Leads() {
       const v = params.get(k);
       if (v) obj[k] = v;
     });
+    obj.bucket = params.get("bucket") || "pipeline";
     return obj;
   }, [params]);
+
+  const bucket = params.get("bucket") || "pipeline";
 
   const sort = params.get("sort") || "create_date";
   const order = params.get("order") || "desc";
@@ -234,10 +238,19 @@ export default function Leads() {
 
   return (
     <div className="flex h-full flex-col" data-testid="leads-page">
+      {/* Case 2 — Lead Management buckets */}
+      <div className="flex gap-1 border-b border-slate-200 bg-white px-5 pt-3">
+        {[["pipeline", "Lead in Pipeline"], ["ozonetel", "Ozonetel Lead"]].map(([k, label]) => (
+          <button key={k} data-testid={`bucket-${k}`} onClick={() => setParam("bucket", k)}
+            className={`rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition-colors ${bucket === k ? "border-[#4A90E2] text-[#357ABD]" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
       {/* Toolbar */}
       <div className="border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="mr-2 font-display text-lg font-extrabold text-slate-900">Leads</h1>
+          <h1 className="mr-2 font-display text-lg font-extrabold text-slate-900">{bucket === "ozonetel" ? "Ozonetel Leads" : "Leads"}</h1>
           <input
             data-testid="leads-search-input"
             defaultValue={params.get("search") || ""}
@@ -379,6 +392,7 @@ export default function Leads() {
                     onChange={(e) => setSelected(e.target.checked ? data.items.map((l) => l.id) : [])} />
                 </th>
                 {cols.map((c) => <Th key={c.key} field={c.sort}>{c.label}</Th>)}
+                {bucket === "ozonetel" && <th className="px-3 py-2.5 text-right">Action</th>}
               </tr>
             </thead>
             <tbody>
@@ -394,6 +408,12 @@ export default function Leads() {
                       <LeadCell colKey={c.key} l={l} tagById={tagById} userById={userById} />
                     </td>
                   ))}
+                  {bucket === "ozonetel" && (
+                    <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <button data-testid={`promote-lead-${l.id}`} onClick={() => setPromote(l)}
+                        className="rounded-lg bg-[#4A90E2] px-2.5 py-1 text-[11px] font-bold text-white hover:bg-[#357ABD]">→ Pipeline</button>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -417,6 +437,7 @@ export default function Leads() {
       )}
 
       {showCreate && <CreateLeadModal onClose={() => setShowCreate(false)} onCreated={(l) => { setShowCreate(false); navigate(`/leads/${l.id}`); }} catalogs={catalogs} />}
+      {promote && <PromoteModal lead={promote} onClose={() => setPromote(null)} onDone={() => { setPromote(null); load(); }} />}
     </div>
   );
 }
@@ -450,6 +471,46 @@ function KanbanView({ groups, userById, tagById }) {
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function PromoteModal({ lead, onClose, onDone }) {
+  const [form, setForm] = useState({
+    contact_name: lead.contact_name || lead.name || "",
+    email_from: lead.email_from || "",
+    city: lead.city || "",
+    state_name: lead.state_name || "",
+    phone: lead.phone || "",
+  });
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (!form.contact_name.trim() || !form.phone.trim()) { toast.error("Name and verified phone are required"); return; }
+    setSaving(true);
+    try {
+      const { data } = await API.post(`/leads/${lead.id}/promote-to-pipeline`, form);
+      toast.success(data.merged_into ? `Merged into existing pipeline lead #${data.merged_into}` : "Moved to Lead in Pipeline ✓");
+      onDone();
+    } catch (e) { toast.error(apiErr(e)); } finally { setSaving(false); }
+  };
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="promote-modal">
+        <h3 className="font-display text-lg font-extrabold">Move to Lead in Pipeline</h3>
+        <p className="mt-1 text-xs text-slate-500">Confirm the verified details captured on the call. Duplicate phones are auto-merged.</p>
+        <div className="mt-4 space-y-3">
+          {[["contact_name", "Name *"], ["phone", "Verified Phone *"], ["email_from", "Email"], ["city", "City"], ["state_name", "State"]].map(([k, label]) => (
+            <div key={k}>
+              <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</label>
+              <input data-testid={`promote-${k}`} className="hivf-input mt-1 w-full" value={form[k]} onChange={(e) => setForm((f) => ({ ...f, [k]: e.target.value }))} />
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+          <button onClick={submit} disabled={saving} className="hivf-btn-primary" data-testid="promote-submit">{saving ? "Moving…" : "Move to Pipeline"}</button>
+        </div>
+      </div>
     </div>
   );
 }

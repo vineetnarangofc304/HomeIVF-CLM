@@ -697,8 +697,12 @@ function AutomationsTab() {
               )}
               <div className="space-y-2 rounded-xl bg-slate-50 p-3">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Actions to do (runs all, in order)</label>
-                {form.actions.map((a, idx) => (
-                  <div key={idx} className="flex gap-2" data-testid={`action-row-${idx}`}>
+                {form.actions.map((a, idx) => {
+                  const tpl = a.type === "send_whatsapp_template" ? waTemplates.find((t) => String(t.id) === String(a.value))
+                    : a.type === "send_email_template" ? emailTemplates.find((t) => String(t.id) === String(a.value)) : null;
+                  return (
+                  <div key={idx} data-testid={`action-row-${idx}`}>
+                   <div className="flex gap-2">
                     <select className="hivf-select flex-1" value={a.type} onChange={(e) => updateAction(idx, { type: e.target.value, value: "" })} data-testid={`action-type-${idx}`}>
                       <option value="send_whatsapp_template">Send WhatsApp template</option>
                       <option value="send_email_template">Send Email template</option>
@@ -717,8 +721,21 @@ function AutomationsTab() {
                     {form.actions.length > 1 && (
                       <button type="button" onClick={() => removeAction(idx)} className="shrink-0 text-slate-300 hover:text-rose-500" data-testid={`remove-action-${idx}`}><Trash size={16} /></button>
                     )}
+                   </div>
+                   {tpl && (
+                     <div className="mt-1.5 rounded-lg border border-slate-200 bg-white p-2" data-testid={`action-preview-${idx}`}>
+                       <p className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Preview — {tpl.name}</p>
+                       {a.type === "send_email_template" && tpl.subject && <p className="mt-0.5 text-[11px] font-bold text-slate-600">{tpl.subject}</p>}
+                       {a.type === "send_whatsapp_template" ? (
+                         <div className="mt-1 rounded-lg rounded-tl-sm bg-[#dcf8c6] p-2 text-[11px] text-slate-700 whitespace-pre-wrap">{(tpl.body || "").replace(/\{\{1\}\}/g, "Riya Sharma") || "(empty template)"}</div>
+                       ) : (
+                         <div className="chatter-body mt-1 max-h-32 overflow-auto text-[11px] text-slate-600" dangerouslySetInnerHTML={{ __html: (tpl.body || "(empty template)").replace(/\{\{1\}\}/g, "Riya Sharma") }} />
+                       )}
+                     </div>
+                   )}
                   </div>
-                ))}
+                  );
+                })}
                 <button type="button" onClick={addAction} className="text-xs font-bold text-[#357ABD]" data-testid="add-action-row">+ Add another action</button>
               </div>
             </div>

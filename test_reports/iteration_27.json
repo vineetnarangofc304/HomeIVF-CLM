@@ -1,0 +1,37 @@
+{
+  "summary": "Iteration 27 — Cases 2/3/4 tested end-to-end. Backend: 11/11 pytest passing (bucket filter, promote, dedup merge, WA lead panel data, regression). Frontend Playwright: bucket tabs render, promote modal fields + submit work (lead 500155 promoted successfully), Automations preview shows WhatsApp+Email template body and updates when template changes, WA lead panel shows messages with status badge (title=\"Status: Failed\") and clicking navigates to /wa/message/{id}. Regression (caller 403, follow-ups CRUD, pipeline search) intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/leads", "issue": "Stale 'lead' counter — the seed inserted lead 500155/500156 without bumping db.counters.lead, so the first create_lead call after that seed crashes with DuplicateKeyError (E11000). Reset the counter to MAX(id) after any external seed insert. Counter re-aligned during this test run."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter27_cases_2_3_4.py",
+    "/app/test_reports/pytest/iter27_results.xml"
+  ],
+  "action_items": [
+    "Consider fixing the seed script for the ozonetel_lead cases so it also updates db.counters ({_id: 'lead', seq: MAX_ID}) — otherwise fresh envs will 500 on first lead create.",
+    "Live WA send is failing with Meta error #132000 (parameter count mismatch) — expected because the seed template body still contains {{2}}/{{3}} placeholders that aren't populated. Tracking record is still created (status=failed), so UI flow works. Consider wiring parameter values into wac.send_lead_template."
+  ],
+  "critical_code_review_comments": [
+    "leads.py promote_to_pipeline: when merging into an existing pipeline lead, the raw lead is archived (active=false) but is_duplicate/duplicate_of are not set on the raw record. Consider also flagging is_duplicate=true, duplicate_of=<existing.id> for consistency with the create_lead dedup path.",
+    "leads.py build_query bucket='pipeline' uses q['$and']=[{'$or': [...]}] which conflicts if a later filter (e.g. search) also sets q['$or'] — the search $or will overwrite the pipeline $or unless nested. Not causing issues today because pipeline branch wraps in $and, but if any other code path adds top-level $or (e.g. tags/user_id) it may clash. Suggest always nesting bucket clauses under $and.",
+    "wa_tracking.py lead_messages endpoint has no pagination and is capped at 50 hard-coded — noted last iteration."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter27_cases_2_3_4.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026, agent@homeivf.com / Agent@2026",
+  "seed_data_creation": "Created 2 leads with unique random phone (pipe + ozonetel duplicate) for the dedup test — cleaned up implicitly (raw one archived). Reset lead 500155 to ozonetel state at test module start.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter27 pytest file test_iter27_cases_2_3_4.py has a module-scoped autouse fixture that resets lead 500155 to ozonetel state and re-aligns db.counters.lead so tests are idempotent. WA lead-panel endpoint is GET /api/wa/lead/{lead_id}/messages (returns raw list); each record has 'id' (used as track_id in the URL /wa/message/{id}), template_id, status, body. Automations preview: value dropdown is a plain <select>; preview only renders when action.type is send_whatsapp_template or send_email_template AND a template is selected. Meta live sends are failing on parameter count mismatch — expected; tracking record still created.",
+  "rca of the issue": "N/A — no bugs blocking the epic. Minor infra: seed-vs-counter drift causes 500 on next create_lead until counter is re-aligned; documented in action_items."
+}
