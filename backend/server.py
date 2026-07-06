@@ -31,6 +31,7 @@ from routes import templates as template_routes
 from routes import users as user_routes
 from routes import webhooks as webhook_routes
 from routes import whatsapp as whatsapp_routes
+from routes import wa_tracking as wa_tracking_routes
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ api.include_router(attachment_routes.router)
 api.include_router(export_routes.router)
 api.include_router(marketing_routes.router)
 api.include_router(gmail_routes.router)
+api.include_router(wa_tracking_routes.router)
 
 
 @api.get("/health")

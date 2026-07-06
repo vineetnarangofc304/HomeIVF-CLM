@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, NotePencil, Trash, WhatsappLogo, EnvelopeSimple } from "@phosphor-icons/react";
+import { Plus, NotePencil, Trash, WhatsappLogo, EnvelopeSimple, ArrowRight } from "@phosphor-icons/react";
 import { API, apiErr } from "../lib/api";
 import { useAuth } from "../context/AuthContext";
 import { Spinner, EmptyState } from "../components/Bits";
 
 export default function Templates() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [channel, setChannel] = useState("whatsapp");
   const [items, setItems] = useState(null);
   const [editing, setEditing] = useState(null); // null | {} | template
@@ -20,6 +22,14 @@ export default function Templates() {
   useEffect(() => { load(channel); /* eslint-disable-next-line */ }, [channel]);
 
   const canEdit = user.role !== "caller";
+
+  const newTemplate = async () => {
+    if (channel === "email") { setEditing({}); return; }
+    try {
+      const { data } = await API.post(`/templates/whatsapp`, { name: "New WhatsApp Template", body: "", status: "draft" });
+      navigate(`/templates/whatsapp/${data.id}`);
+    } catch (e) { toast.error(apiErr(e)); }
+  };
 
   const save = async (form) => {
     try {
@@ -45,7 +55,7 @@ export default function Templates() {
           <p className="text-sm text-slate-500">WhatsApp & Email templates migrated from Odoo</p>
         </div>
         {canEdit && (
-          <button data-testid="new-template-button" onClick={() => setEditing({})} className="hivf-btn-primary"><Plus size={15} /> New Template</button>
+          <button data-testid="new-template-button" onClick={newTemplate} className="hivf-btn-primary"><Plus size={15} /> New Template</button>
         )}
       </div>
 
@@ -65,22 +75,28 @@ export default function Templates() {
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3" data-testid="templates-grid">
           {items.map((t) => (
-            <div key={t.id} className="hivf-card flex flex-col p-4 transition-all hover:-translate-y-[2px] hover:shadow-md">
+            <div key={t.id} data-testid={`template-card-${t.id}`}
+              onClick={() => channel === "whatsapp" && navigate(`/templates/whatsapp/${t.id}`)}
+              className={`hivf-card flex flex-col p-4 transition-all hover:-translate-y-[2px] hover:shadow-md ${channel === "whatsapp" ? "cursor-pointer" : ""}`}>
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-bold text-slate-800">{t.name}</p>
                 <div className="flex shrink-0 gap-1">
-                  {t.status && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.status === "approved" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.status}</span>}
+                  {t.status && <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold capitalize ${t.status === "approved" ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600"}`}>{t.status}</span>}
                   {t.template_type && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500">{t.template_type}</span>}
                 </div>
               </div>
               {t.subject && <p className="mt-1 text-xs font-semibold text-slate-600">{t.subject}</p>}
               <div className="chatter-body mt-2 line-clamp-4 flex-1 text-xs text-slate-500" dangerouslySetInnerHTML={{ __html: (t.body || "").slice(0, 400) }} />
-              {canEdit && (
-                <div className="mt-3 flex justify-end gap-2 border-t border-slate-50 pt-2">
-                  <button data-testid={`edit-template-${t.id}`} onClick={() => setEditing(t)} className="text-slate-400 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
-                  {user.role === "admin" && <button onClick={() => remove(t.id)} className="text-slate-400 hover:text-rose-500"><Trash size={16} /></button>}
-                </div>
-              )}
+              <div className="mt-3 flex items-center justify-end gap-2 border-t border-slate-50 pt-2">
+                {channel === "whatsapp" ? (
+                  <span className="inline-flex items-center gap-1 text-xs font-bold text-[#357ABD]" data-testid={`open-template-${t.id}`}>Open <ArrowRight size={13} /></span>
+                ) : canEdit && (
+                  <>
+                    <button data-testid={`edit-template-${t.id}`} onClick={(e) => { e.stopPropagation(); setEditing(t); }} className="text-slate-400 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
+                    {user.role === "admin" && <button onClick={(e) => { e.stopPropagation(); remove(t.id); }} className="text-slate-400 hover:text-rose-500"><Trash size={16} /></button>}
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>

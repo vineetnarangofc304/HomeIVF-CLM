@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_permission
-from core.utils import next_id, now_utc_str, log_message
+from core.utils import next_id, now_utc_str, log_message, record_wa_outbound
 from core import whatsapp_cloud as wac
 from routes.leads import build_query
 
@@ -101,21 +101,34 @@ async def send_campaign(cid: int, user: dict = Depends(require_permission("marke
     async for lead in cursor:
         total += 1
         if camp["channel"] == "whatsapp":
+            phone = lead.get("phone") or lead.get("mobile") or ""
+            body_prev = (template.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
             if wa_live:
                 res = await wac.send_lead_template(lead, template)
                 if res.get("ok"):
                     sent += 1
+                    await record_wa_outbound(lead_id=lead["id"], template_id=template["id"],
+                        template_name=template["name"], sent_to=phone, body=body_prev,
+                        created_by=f"Campaign: {camp['name']}", status="sent",
+                        wamid=res.get("wamid"), source="campaign")
                 else:
                     failed += 1
                     queued += 1
                     await db.outbound_queue.insert_one({"channel": "whatsapp", "lead_id": lead["id"],
                         "template_id": template["id"], "status": "failed", "campaign_id": cid,
                         "error": res.get("error"), "created_at": now_utc_str()})
+                    await record_wa_outbound(lead_id=lead["id"], template_id=template["id"],
+                        template_name=template["name"], sent_to=phone, body=body_prev,
+                        created_by=f"Campaign: {camp['name']}", status="failed",
+                        source="campaign", error=res.get("error"))
             else:
                 queued += 1
                 await db.outbound_queue.insert_one({"channel": "whatsapp", "lead_id": lead["id"],
                     "template_id": template["id"], "status": "pending_api_credentials",
                     "campaign_id": cid, "created_at": now_utc_str()})
+                await record_wa_outbound(lead_id=lead["id"], template_id=template["id"],
+                    template_name=template["name"], sent_to=phone, body=body_prev,
+                    created_by=f"Campaign: {camp['name']}", status="in_queue", source="campaign")
         else:
             to = (lead.get("email_from") or "").strip()
             name = lead.get("contact_name") or "there"

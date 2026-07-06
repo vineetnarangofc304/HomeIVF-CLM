@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, today_ist, check_duplicate
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, today_ist, check_duplicate, record_wa_outbound
 from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -350,6 +350,12 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
         "status": send_status, "requested_by": user["name"], "wamid": wamid,
         "created_at": now_utc_str(),
     })
+    # Case 5 — track this outbound message for full lifecycle (sent→delivered→read…)
+    track_status = {"sent": "sent", "failed": "failed"}.get(send_status, "in_queue")
+    await record_wa_outbound(
+        lead_id=lead_id, template_id=template["id"], template_name=template["name"],
+        sent_to=phone, body=preview, created_by=user["name"], status=track_status,
+        wamid=wamid, source="manual", error=(send_note if send_status == "failed" else None))
     # mirror into the lead's WhatsApp thread if one exists
     digits = re.sub(r"\D", "", phone)[-10:]
     if len(digits) >= 8:

@@ -9,6 +9,7 @@ import {
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
 import { TagChip, Spinner, EmptyState } from "../components/Bits";
+import { waMeta } from "../lib/waStatus";
 
 export default function LeadDetail() {
   const { id } = useParams();
@@ -242,6 +243,8 @@ export default function LeadDetail() {
             </div>
             <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} />
           </div>
+
+          <WaLeadPanel leadId={lead.id} />
 
           {/* Tags — Case 2: inline new-tag creation */}
           <div className="hivf-card p-4">
@@ -847,6 +850,36 @@ function NewTagModal({ onClose, onCreated }) {
           <button data-testid="new-tag-submit" type="submit" disabled={saving} className="hivf-btn-primary">{saving ? "Creating…" : "Create & Add"}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+function WaLeadPanel({ leadId }) {
+  const navigate = useNavigate();
+  const [items, setItems] = useState(null);
+  useEffect(() => { API.get(`/wa/lead/${leadId}/messages`).then(({ data }) => setItems(data)).catch(() => setItems([])); }, [leadId]);
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="hivf-card p-4" data-testid="wa-lead-panel">
+      <div className="mb-2 flex items-center gap-2">
+        <WhatsappLogo size={16} weight="fill" className="text-[#25D366]" />
+        <h3 className="font-display text-sm font-extrabold text-slate-800">WhatsApp Messages</h3>
+      </div>
+      <div className="space-y-2">
+        {items.map((m) => {
+          const meta = waMeta(m.status);
+          return (
+            <div key={m.id} onClick={() => navigate(`/wa/message/${m.id}`)} data-testid={`wa-lead-msg-${m.id}`}
+              className="cursor-pointer rounded-xl border border-slate-100 p-2.5 transition-colors hover:bg-[#25D366]/5">
+              <div className="flex items-center justify-between gap-2">
+                <p className="truncate text-xs font-bold text-slate-700">{m.template_name}</p>
+                <span title={`Status: ${meta.label}`} className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.cls}`} data-testid={`wa-lead-msg-status-${m.id}`}>{meta.label}</span>
+              </div>
+              <p className="mt-0.5 line-clamp-2 text-[11px] text-slate-500">{m.body}</p>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

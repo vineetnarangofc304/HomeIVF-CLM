@@ -82,6 +82,29 @@ async def log_message(lead_id: int, body: str, author: dict = None, subtype: str
     return msg
 
 
+# WhatsApp message lifecycle (Case 5 — message tracking flow)
+WA_STATUS_FLOW = ["in_queue", "sent", "delivered", "read", "replied", "received", "failed", "bounced", "cancelled"]
+
+
+async def record_wa_outbound(*, lead_id, template_id, template_name, sent_to, body,
+                             created_by, status, wamid=None, source="manual", error=None):
+    """Store an outbound WhatsApp template message for end-to-end status tracking.
+    The same record is later updated from Meta status webhooks (by wamid)."""
+    tid = await next_id("wa_track")
+    now = now_utc_str()
+    doc = {
+        "id": tid, "wamid": wamid, "lead_id": lead_id,
+        "template_id": template_id, "template_name": template_name,
+        "sent_to": sent_to, "body": body, "created_by": created_by, "source": source,
+        "status": status, "error": error, "failure_type": None, "error_code": None,
+        "created_at": now, "status_at": now,
+        "status_history": [{"status": status, "at": now}],
+    }
+    await db.wa_tracking.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
 async def run_automations(trigger: str, lead: dict, extra: dict = None):
     """Execute automation rules. Template sends are queued (pending outbound) until live APIs are connected."""
     extra = extra or {}
@@ -109,18 +132,26 @@ async def run_automations(trigger: str, lead: dict, extra: dict = None):
                 updates["user_id"] = int(value)
             elif atype in ("send_whatsapp_template", "send_email_template"):
                 sent_live = False
+                res = {}
                 if atype == "send_whatsapp_template" and value:
                     from core import whatsapp_cloud as wac
-                    if await wac.is_configured():
-                        tmpl = await db.templates_whatsapp.find_one({"id": int(value)}, {"_id": 0})
-                        if tmpl and (lead.get("phone") or lead.get("mobile")):
-                            res = await wac.send_lead_template(lead, tmpl)
-                            sent_live = res.get("ok", False)
-                            await log_message(
-                                lead["id"],
-                                f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
-                                + ("delivered via Cloud API" if sent_live else f"failed ({res.get('error')})"),
-                            )
+                    tmpl = await db.templates_whatsapp.find_one({"id": int(value)}, {"_id": 0})
+                    phone = lead.get("phone") or lead.get("mobile")
+                    if await wac.is_configured() and tmpl and phone:
+                        res = await wac.send_lead_template(lead, tmpl)
+                        sent_live = res.get("ok", False)
+                        await log_message(
+                            lead["id"],
+                            f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
+                            + ("delivered via Cloud API" if sent_live else f"failed ({res.get('error')})"),
+                        )
+                    if tmpl:
+                        body_prev = (tmpl.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
+                        await record_wa_outbound(
+                            lead_id=lead["id"], template_id=int(value), template_name=tmpl.get("name") or str(value),
+                            sent_to=phone or "", body=body_prev, created_by=f"Automation: {rule['name']}",
+                            status=("sent" if sent_live else "in_queue"), wamid=res.get("wamid") if sent_live else None,
+                            source="automation", error=(res.get("error") if not sent_live else None))
                 if not sent_live:
                     await db.outbound_queue.insert_one({
                         "lead_id": lead["id"],

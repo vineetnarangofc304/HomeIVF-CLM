@@ -61,6 +61,22 @@ async def wa_webhook(request: Request):
                          "$push": {"status_history": {"status": new_status, "at": now}}},
                     )
                     status_updates += 1
+                # Case 5 — update the tracked outbound record with lifecycle + failure detail
+                failure_type = None
+                error_code = None
+                if st.get("errors"):
+                    e0 = st["errors"][0] or {}
+                    error_code = e0.get("code")
+                    ed = e0.get("error_data")
+                    failure_type = ed.get("details") if isinstance(ed, dict) else e0.get("href")
+                setd = {"status": new_status, "status_at": now, "error": err,
+                        "failure_type": failure_type, "error_code": error_code}
+                tr = await db.wa_tracking.update_one(
+                    {"wamid": wamid},
+                    {"$set": setd, "$push": {"status_history": {"status": new_status, "at": now}}},
+                )
+                if tr.modified_count:
+                    status_updates += 1
             for m in value.get("messages", []):
                 frm = m.get("from")
                 text = (m.get("text") or {}).get("body") or f"[{m.get('type')}]"
@@ -81,6 +97,15 @@ async def wa_webhook(request: Request):
                     lead = await db.leads.find_one({"phone_digits": digits}, {"id": 1}, sort=[("write_date", -1)])
                     if lead:
                         await log_message(lead["id"], f"💬 Inbound WhatsApp from {frm}: {text[:500]}", subtype="comment")
+                        # Case 5 — mark the most recent outbound template to this lead as Replied
+                        last = await db.wa_tracking.find_one(
+                            {"lead_id": lead["id"], "status": {"$in": ["sent", "delivered", "read"]}},
+                            {"_id": 0, "id": 1}, sort=[("id", -1)])
+                        if last:
+                            await db.wa_tracking.update_one(
+                                {"id": last["id"]},
+                                {"$set": {"status": "replied", "status_at": now},
+                                 "$push": {"status_history": {"status": "replied", "at": now}}})
                 stored += 1
     return {"status": "ok", "stored": stored, "status_updates": status_updates}
 

@@ -1,0 +1,29 @@
+{
+  "summary": "Iteration 26 — Case 5 WhatsApp templates + message tracking. Backend (14/14 pytest) and Frontend (all critical selectors + navigation) verified. Webhook HMAC-signed status update (sent -> delivered) works. Live WA send succeeded (real wamid) so lifecycle tracker is exercised end-to-end. Regression (RBAC export 403, reports/dashboard, follow-ups list, gmail auth-url) still green.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter26_wa_tracking.py",
+    "/app/test_reports/pytest/iter26_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wa_tracking.py: lead_messages endpoint has no pagination (limited to 50 hard-coded); acceptable for MVP but consider ?page/limit like template_messages if templates get spammy on hot leads.",
+    "templates.py PATCH update_template accepts arbitrary dict body — good field-whitelist is applied, but consider returning 400 when body is empty/no allowed keys instead of silently no-op $set.",
+    "record_wa_outbound stores app_secret-free wamid path; when send fails the wamid is null which means webhook can never re-attach a status. Consider persisting the client_message_id and matching against status.recipient_id + timestamp as fallback."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter26_wa_tracking.py (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026, agent@homeivf.com / Agent@2026",
+  "seed_data_creation": "Created 2 draft/approved templates named 'TEST_iter26_wa_tpl' (ids 222 & 223) and one 'New WhatsApp Template' (id 224 from UI flow). One live-sent wa_tracking record on lead 500154 (phone 9811100095) exists with real wamid and status delivered (via webhook test).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "WhatsApp Cloud credentials in preview are actually valid — live sends return real wamid and can be advanced through the lifecycle by posting HMAC-SHA256 signed webhook payloads to /api/webhooks/whatsapp using settings.whatsapp_cloud.app_secret. GET /api/admin/settings returns a dict keyed by settings-key (NOT a list) — use s['whatsapp_cloud']['app_secret'] directly. Template 222 (TEST_iter26_wa_tpl) has 1 tracked message (track_id=1, status=delivered).",
+  "rca of the issue": "N/A — no bugs."
+}

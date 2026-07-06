@@ -12,6 +12,9 @@ import FollowUps from "./pages/FollowUps";
 import WhatsAppInbox from "./pages/WhatsAppInbox";
 import Reports from "./pages/Reports";
 import Templates from "./pages/Templates";
+import WaTemplateDetail from "./pages/WaTemplateDetail";
+import WaMessageList from "./pages/WaMessageList";
+import WaMessageDetail from "./pages/WaMessageDetail";
 import Admin from "./pages/Admin";
 import ScreenPop from "./pages/ScreenPop";
 import CallCenter from "./pages/CallCenter";
@@ -51,6 +54,9 @@ function App() {
           <Route path="/whatsapp" element={<Guard perm="whatsapp"><WhatsAppInbox /></Guard>} />
           <Route path="/reports" element={<Guard perm="reports"><Reports /></Guard>} />
           <Route path="/templates" element={<Guard perm="templates"><Templates /></Guard>} />
+          <Route path="/templates/whatsapp/:id" element={<Guard perm="templates"><WaTemplateDetail /></Guard>} />
+          <Route path="/templates/whatsapp/:id/messages" element={<Guard perm="templates"><WaMessageList /></Guard>} />
+          <Route path="/wa/message/:trackId" element={<Guard perm="templates"><WaMessageDetail /></Guard>} />
           <Route path="/marketing" element={<Guard perm="marketing"><Marketing /></Guard>} />
           <Route path="/admin" element={<Guard perm="admin"><Admin /></Guard>} />
         </Routes>
