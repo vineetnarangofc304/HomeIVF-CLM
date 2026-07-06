@@ -1,5 +1,14 @@
 # HomeIVF CRM — PRD
 
+## Feature (2026-07) — 📲 Case 5: WhatsApp Template Management + Message Tracking (A→B→C) — iteration_26 (backend 100%, frontend 100%)
+- **Decision:** Template config stored in CRM only (Meta approval remains manual).
+- **Phase A — tracking:** New `wa_tracking` collection + `record_wa_outbound()` helper. Every outbound WhatsApp template (manual lead send, automation, campaign) is stored with wamid, template, lead, sent_to, created_by, body, status + status_history. Meta status webhook (`/api/webhooks/whatsapp`) updates the record by wamid through the lifecycle (sent→delivered→read→failed, with failure_type/error_code); inbound replies mark the latest outbound as `replied`. New API `routes/wa_tracking.py`: `/api/wa/template/{id}/summary`, `/api/wa/template/{id}/messages`, `/api/wa/message/{id}`, `/api/wa/lead/{id}/messages`. Lifecycle: In Queue→Sent→Delivered→Read→Replied→Received→Failed→Bounced→Cancelled (`core/utils.WA_STATUS_FLOW`).
+- **Phase B — full-page template:** WhatsApp templates now open as a full page (`/templates/whatsapp/:id`, `WaTemplateDetail.jsx`) with 3-step approval flow (Draft→Pending→Approved), info fields (Applies To, Phone Field, Language, Header Type, Category, Footer, User Access, Meta name), and Body/Button/Variables tabs + live preview + Submit. Approved templates show an "Ad Messages" summary box (total triggered) → message-list page (`WaMessageList.jsx`, table Created On/Created By/Sent To/State) → message-detail page (`WaMessageDetail.jsx`, visual lifecycle tracker + failure reason/code + history). `templates.py` extended with the new fields + single GET.
+- **Phase C — lead log:** LeadDetail shows a "WhatsApp Messages" panel (`WaLeadPanel`) listing tracked messages with a status badge (hover shows status) + preview; click opens the message detail.
+- Verified: 14/14 backend pytest incl. HMAC-signed webhook status advance; all frontend selectors/navigation. ⚠️ Needs production REDEPLOY.
+- **Still pending:** doc tab t.hx4luqwr4eh5 Case 7 (per user); doc tab t.lzutgaq803u Case 2 (Ozonetel raw-leads vs Pipeline split), Case 3/4 (automation preview + status icons in lead log — partially covered by WaLeadPanel).
+
+
 ## Fix (2026-07) — 📧 Gmail OAuth "Scope has changed" token-exchange failure — iteration_25 (backend 100%)
 - Google returns granted scopes reordered and adds the `email` alias (`email gmail.send openid userinfo.email`), which made oauthlib raise "Scope has changed" during `fetch_token` → connection failed even though consent + code were valid.
 - Fix: set `OAUTHLIB_RELAX_TOKEN_SCOPE=1` and `OAUTHLIB_IGNORE_SCOPE_CHANGE=1` at import of `core/gmail_send.py` (before token exchange). Callback also surfaces the real reason (`?gmail=error&reason=...`).
