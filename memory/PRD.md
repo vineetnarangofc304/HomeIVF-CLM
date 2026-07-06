@@ -1,5 +1,16 @@
 # HomeIVF CRM — PRD
 
+## Feature (2026-07) — 🔐 Roles & Access Control (RBAC) + 6 Phase-1 UI cases — iteration_24 (100% backend + frontend)
+- **RBAC:** 3 fixed roles (admin/manager/caller) with an editable permission matrix. New `core/permissions.py` (MODULE_PERMS + ACTION_PERMS, DEFAULT_PERMISSIONS, admin always full & non-reducible). `require_permission()` in security.py; `get_current_user`/login now attach `permissions`. New GET/PATCH `/api/admin/role-permissions`. Enforcement: reports (require_permission "reports"), export ("export"), marketing ("marketing"), users ("manage_users"). Frontend: `can()` in AuthContext, nav gated in Layout, `Guard` route wrapper in App.js (redirects to / if not allowed), and a "Roles & Access Control" matrix UI in Admin → Users (admin column locked). Defaults: caller no Marketing/Reports/Admin/export/delete; manager has Marketing+Reports+Admin(read-only) but no export/migration/manage_users/delete.
+- **Case 1:** Lead detail — left fields & right chatter columns scroll independently; header stays fixed.
+- **Case 2:** Follow-up ENTRIES — new `follow_ups` collection + CRUD `/api/leads/{id}/followups`, synced to lead.follow_up_date. UI: add form + list with edit/delete under Assignment & Follow-up. Removed the "Appointment" date field.
+- **Case 3:** Admin → Automations edit icon (prefilled "Edit Automation" modal, PATCH).
+- **Case 4:** Admin → Custom Fields edit icon (prefilled "Edit Field" modal, PATCH).
+- **Case 5 (Gmail):** Callback now surfaces the real Google error reason (`?gmail=error&reason=...`) + logs it. Redirect URI confirmed correct in Console; root cause is production consent-screen/test-user or client-secret config — pending user action after redeploy.
+- **Case 6:** Leads list "Columns" menu to show/hide columns; persists in localStorage.
+- **⚠️ Needs REDEPLOY** for production. RBAC applies on the user's next login/refresh.
+
+
 ## Original Problem Statement
 HomeIVF (homeivf.com, at-home IVF fertility care, venture of Seeds of Innocens) runs its entire CRM/lead management/follow-up/conversion cycle on Odoo (homeivf.odoo.com, Odoo 19 Enterprise SaaS). They want a fully-owned custom CRM ("HomeIVF CRM", to be hosted on homeivfcrm.com, branded "Powered by TagQuest") that:
 - **Phase 1**: Replicates ALL Odoo functionality they use — interfaces, flows, workflows, reports with filters/dropdowns, full backend admin — with FULL data migration.
