@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## Feature (2026-07) — Doc Tab 2 remaining cases 2/3/4 — iteration_27 (backend 100%, frontend 100%)
+- **Case 2 — Ozonetel vs Pipeline split:** Leads page now has two buckets: "Lead in Pipeline" (default) and "Ozonetel Lead" (raw, `ozonetel_lead=true & in_pipeline!=true`). Backend `bucket` filter in build_query/query_params_dep. New `POST /api/leads/{id}/promote-to-pipeline` validates a raw lead into the pipeline; DEDUP: if a pipeline lead has the same phone, the raw lead's call activity is merged into it (`merged_into`, is_duplicate/duplicate_of set) and the raw one archived. Frontend: bucket tabs + "→ Pipeline" button + PromoteModal (name/phone/email/city/state).
+- **Case 3 — Automation template preview:** In Admin → Automations, selecting a WhatsApp/Email template in an action now shows a live preview (body/subject) below the selector (`action-preview-{idx}`).
+- **Case 4 — In-lead message preview + status:** LeadDetail "WhatsApp Messages" panel (WaLeadPanel) shows each tracked message with preview + status badge (hover shows status) linking to the message detail. (Email delivery/read status is not available from Gmail API.)
+- ⚠️ Needs production REDEPLOY. NOTE: after any manual DB seed, re-align `db.counters.lead` to MAX(id) or create_lead will 500.
+- **ALL DOC CASES NOW COMPLETE** (Tab 1 Cases 1-6, Tab 2 Cases 1-5). Case 5/Gmail pending user's production redeploy confirmation.
+
+
 ## Feature (2026-07) — 📲 Case 5: WhatsApp Template Management + Message Tracking (A→B→C) — iteration_26 (backend 100%, frontend 100%)
 - **Decision:** Template config stored in CRM only (Meta approval remains manual).
 - **Phase A — tracking:** New `wa_tracking` collection + `record_wa_outbound()` helper. Every outbound WhatsApp template (manual lead send, automation, campaign) is stored with wamid, template, lead, sent_to, created_by, body, status + status_history. Meta status webhook (`/api/webhooks/whatsapp`) updates the record by wamid through the lifecycle (sent→delivered→read→failed, with failure_type/error_code); inbound replies mark the latest outbound as `replied`. New API `routes/wa_tracking.py`: `/api/wa/template/{id}/summary`, `/api/wa/template/{id}/messages`, `/api/wa/message/{id}`, `/api/wa/lead/{id}/messages`. Lifecycle: In Queue→Sent→Delivered→Read→Replied→Received→Failed→Bounced→Cancelled (`core/utils.WA_STATUS_FLOW`).

@@ -354,7 +354,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
     if existing:
         # map this lead's call activity to the existing pipeline record, archive the raw one
         await db.call_events.update_many({"lead_id": lead_id}, {"$set": {"lead_id": existing["id"]}})
-        await db.leads.update_one({"id": lead_id}, {"$set": {"active": False, "merged_into": existing["id"], "write_date": now_utc_str()}})
+        await db.leads.update_one({"id": lead_id}, {"$set": {"active": False, "merged_into": existing["id"], "is_duplicate": True, "duplicate_of": existing["id"], "write_date": now_utc_str()}})
         await log_message(existing["id"], f"📞 Ozonetel call activity from #{lead_id} merged here (duplicate phone) by {user['name']}", author=user, subtype="comment")
         await log_message(lead_id, f"Merged into pipeline lead #{existing['id']} (duplicate phone)", author=user)
         return {"ok": True, "merged_into": existing["id"]}
