@@ -1253,6 +1253,7 @@ function WhatsAppTab({ isAdmin }) {
         key: "whatsapp_cloud",
         value: {
           access_token: (cfg.access_token || "").trim(), waba_id: (cfg.waba_id || "").trim(),
+          app_id: (cfg.app_id || "").trim(),
           phone_number_id: (cfg.phone_number_id || "").trim(), app_secret: (cfg.app_secret || "").trim(),
           verify_token: (cfg.verify_token || "").trim(), graph_api_version: (cfg.graph_api_version || "v25.0").trim(),
         },
@@ -1300,6 +1301,7 @@ function WhatsAppTab({ isAdmin }) {
 
         <form onSubmit={save} className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
           {[["access_token", "System User Access Token", "password"], ["waba_id", "WhatsApp Business Account ID", "text"],
+            ["app_id", "App ID", "text"],
             ["phone_number_id", "Phone Number ID", "text"], ["app_secret", "App Secret", "password"],
             ["verify_token", "Verify Token (you choose)", "text"], ["graph_api_version", "Graph API Version", "text"]].map(([k, label, type]) => (
             <div key={k}>
