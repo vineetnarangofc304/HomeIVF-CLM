@@ -1,0 +1,23 @@
+{
+  "summary": "Iteration 28 — Case 4 (Chatter inline template preview + status badge) verified end-to-end. Backend pytest 10/10 passing (manual WA send logs wa_template chatter with preview+track_id+status; manual Email send logs email_template chatter with preview+subject+status; on_create automation with send_whatsapp_template and send_email_template both log corresponding chatter previews; regression: note post, follow-ups CRUD, caller 403 on reports, wa lead-messages, ozonetel bucket, WA templates list). Frontend Playwright on lead 500161: 3 chatter preview cards render inline with data-testid=activity-preview-{id} (2 WA green + 1 Email indigo). Each has data-testid=activity-status-{id} with title='Status: <Label>' matching wa_tracking live status ('Failed' for the two WA, 'In Queue' for email). Clicking the WA preview card navigates to /wa/message/{track_id} and the Message Detail page renders correctly. Clicking the email card does nothing (by design — only WA cards are clickable per code). Regression Cases 2/3/5 endpoints intact.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter28_case4_chatter_preview.py",
+    "/app/test_reports/pytest/iter28_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "LeadDetail.jsx: waTrackById is only populated from GET /wa/lead/{id}/messages — for email_template chatter entries the badge uses m.status snapshot (no live refresh). That's fine for now since email doesn't have a webhook, but if an email delivery tracking flow is added later, mirror the wa pattern with a separate emailTrackById map so the badge reflects live status.",
+    "chatter list_messages returns up to limit=30 sorted date desc — older wa_template previews may not show once a lead has 30+ notes. Consider a UI 'load more' or increasing the ceiling for template-heavy leads.",
+    "The email preview card is intentionally not clickable (clickable = isWa && m.track_id). Consider linking to an email detail page (or the outbound_queue record) in a future iteration so agents can inspect delivery/errors similarly."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter28_case4_chatter_preview.py (new)"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026, agent@homeivf.com / Agent@2026",
+  "seed_data_creation": "Two ephemeral leads created by the on_create automation tests (with random phone, TEST_iter28_* names). Cleanup: the two temporary automation rules are deleted in the test finally-block. The two chatter test messages remain on the lead (a wa_template + email_template preview) — matches iter27 pattern and is safe.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter28 pytest file test_iter28_case4_chatter_preview.py loads BOTH /app/backend/.env (for MONGO_URL) and /app/frontend/.env (for REACT_APP_BACKEND_URL). Chatter messages carry these extra fields when template send occurs: kind ('wa_template'|'email_template'), preview, template_name, status, and for WA also track_id. UI selectors: activity-preview-{msgId} on the card, activity-status-{msgId} on the badge (title='Status: <Label>'). Clicking a WA card navigates via react-router to /wa/message/{track_id}. Live Meta send still 400s with error #132000 because seed template contains {{2}}/{{3}} — expected; the chatter row + wa_tracking record are still created before the raise, so all UI/API tests are unaffected.",
+  "rca of the issue": "N/A — feature working end-to-end."
+}

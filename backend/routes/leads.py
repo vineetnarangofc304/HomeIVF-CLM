@@ -415,7 +415,7 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     })
     # Case 5 — track this outbound message for full lifecycle (sent→delivered→read…)
     track_status = {"sent": "sent", "failed": "failed"}.get(send_status, "in_queue")
-    await record_wa_outbound(
+    track = await record_wa_outbound(
         lead_id=lead_id, template_id=template["id"], template_name=template["name"],
         sent_to=phone, body=preview, created_by=user["name"], status=track_status,
         wamid=wamid, source="manual", error=(send_note if send_status == "failed" else None))
@@ -432,9 +432,10 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
             })
     await log_message(
         lead_id,
-        f"WhatsApp template <b>{template['name']}</b> to {phone} by {user['name']} "
-        f"({send_note})<br/><span style='color:#64748b'>{preview[:400]}</span>",
+        f"WhatsApp template <b>{template['name']}</b> to {phone} by {user['name']} ({send_note})",
         author=user,
+        extra={"kind": "wa_template", "channel": "whatsapp", "preview": preview,
+               "template_name": template["name"], "track_id": track["id"], "status": track_status},
     )
     if live and send_status == "failed":
         raise HTTPException(status_code=400, detail=send_note)
@@ -478,8 +479,11 @@ async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get
             else f"Email queued to <b>{to}</b> by {user['name']} (sends automatically once Gmail is connected)")
     await log_message(
         lead_id,
-        f"{note}<br/><b>Subject:</b> {body.subject}<br/><span style='color:#64748b'>{body.body[:500]}</span>",
+        f"{note}<br/><b>Subject:</b> {body.subject}",
         author=user, subtype="comment",
+        extra={"kind": "email_template", "channel": "email", "preview": body.body,
+               "template_name": body.subject, "subject": body.subject,
+               "status": "sent" if sent_live else "in_queue"},
     )
     return {"ok": True, "status": "queued", "to": to}
 

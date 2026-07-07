@@ -34,6 +34,7 @@ export default function LeadDetail() {
   const [showEmail, setShowEmail] = useState(false);
   const [showNewTag, setShowNewTag] = useState(false);
   const [viewAtt, setViewAtt] = useState(null);
+  const [waTrackById, setWaTrackById] = useState({});
 
   const load = useCallback(async () => {
     try {
@@ -53,6 +54,10 @@ export default function LeadDetail() {
       setWaChannels(w);
       setCalls(c);
       setAttachments(at);
+      API.get(`/wa/lead/${id}/messages`).then(({ data }) => {
+        const map = {}; (data || []).forEach((t) => { map[t.id] = t; });
+        setWaTrackById(map);
+      }).catch(() => {});
     } catch (e) {
       toast.error(apiErr(e));
     }
@@ -320,13 +325,16 @@ export default function LeadDetail() {
                 </div>
                 <div className="mt-4 space-y-3" data-testid="chatter-list">
                   {messages.map((m) => (
-                    <div key={m.id} className={`rounded-xl border p-3 ${m.subtype === "note" ? "border-amber-100 bg-amber-50/50" : m.subtype === "comment" ? "border-blue-100 bg-blue-50/40" : "border-slate-100 bg-white"}`}>
+                    <div key={m.id} className={`rounded-xl border p-3 ${m.subtype === "note" ? "border-amber-100 bg-amber-50/50" : m.subtype === "comment" ? "border-blue-100 bg-blue-50/40" : "border-slate-100 bg-white"}`} data-testid={`chatter-msg-${m.id}`}>
                       <div className="mb-1 flex items-center justify-between">
                         <span className="text-xs font-bold text-slate-700">{m.author_name || "System"}</span>
                         <span className="text-[11px] text-slate-400">{fmtDate(m.date)}</span>
                       </div>
-                      {m.subject && <p className="text-xs font-semibold text-slate-600">{m.subject}</p>}
+                      {m.subject && !m.kind && <p className="text-xs font-semibold text-slate-600">{m.subject}</p>}
                       <div className="chatter-body text-sm text-slate-700" dangerouslySetInnerHTML={{ __html: m.body }} />
+                      {(m.kind === "wa_template" || m.kind === "email_template") && (
+                        <TemplateActivityPreview m={m} liveStatus={m.track_id ? waTrackById[m.track_id]?.status : null} navigate={navigate} />
+                      )}
                     </div>
                   ))}
                   {messages.length < msgTotal && (
@@ -880,6 +888,32 @@ function WaLeadPanel({ leadId }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function TemplateActivityPreview({ m, liveStatus, navigate }) {
+  const status = liveStatus || m.status || "in_queue";
+  const meta = waMeta(status);
+  const isWa = m.kind === "wa_template";
+  const clickable = isWa && m.track_id;
+  return (
+    <div className={`mt-2 rounded-xl border p-2.5 ${isWa ? "border-[#25D366]/25 bg-[#dcf8c6]/30" : "border-indigo-100 bg-indigo-50/40"} ${clickable ? "cursor-pointer transition-colors hover:brightness-95" : ""}`}
+      data-testid={`activity-preview-${m.id}`}
+      onClick={() => clickable && navigate(`/wa/message/${m.track_id}`)}>
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1 truncate text-[11px] font-bold text-slate-600">
+          {isWa ? <WhatsappLogo size={13} weight="fill" className="text-[#25D366]" /> : <EnvelopeSimple size={13} className="text-indigo-500" />}
+          {m.template_name}
+        </p>
+        <span title={`Status: ${meta.label}`} data-testid={`activity-status-${m.id}`}
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.cls}`}>{meta.label}</span>
+      </div>
+      {isWa ? (
+        <p className="whitespace-pre-wrap text-[12px] text-slate-700">{m.preview}</p>
+      ) : (
+        <div className="chatter-body max-h-32 overflow-auto text-[12px] text-slate-600" dangerouslySetInnerHTML={{ __html: m.preview || "" }} />
+      )}
     </div>
   );
 }

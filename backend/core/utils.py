@@ -65,7 +65,7 @@ async def next_id(name: str) -> int:
     return doc["seq"]
 
 
-async def log_message(lead_id: int, body: str, author: dict = None, subtype: str = "tracking"):
+async def log_message(lead_id: int, body: str, author: dict = None, subtype: str = "tracking", extra: dict = None):
     mid = await next_id("message")
     msg = {
         "id": mid,
@@ -77,6 +77,8 @@ async def log_message(lead_id: int, body: str, author: dict = None, subtype: str
         "message_type": "comment" if subtype in ("note", "comment") else "notification",
         "subtype": subtype,
     }
+    if extra:
+        msg.update(extra)
     await db.messages.insert_one(msg)
     msg.pop("_id", None)
     return msg
@@ -130,41 +132,58 @@ async def run_automations(trigger: str, lead: dict, extra: dict = None):
                 updates["lead_stage"] = value
             elif atype == "assign_user" and value:
                 updates["user_id"] = int(value)
-            elif atype in ("send_whatsapp_template", "send_email_template"):
+            elif atype in ("send_whatsapp_template", "send_email_template") and value:
+                is_wa = atype == "send_whatsapp_template"
                 sent_live = False
                 res = {}
-                if atype == "send_whatsapp_template" and value:
+                if is_wa:
                     from core import whatsapp_cloud as wac
                     tmpl = await db.templates_whatsapp.find_one({"id": int(value)}, {"_id": 0})
                     phone = lead.get("phone") or lead.get("mobile")
+                    body_prev = ((tmpl.get("body") or "") if tmpl else "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
                     if await wac.is_configured() and tmpl and phone:
                         res = await wac.send_lead_template(lead, tmpl)
                         sent_live = res.get("ok", False)
-                        await log_message(
-                            lead["id"],
-                            f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
-                            + ("delivered via Cloud API" if sent_live else f"failed ({res.get('error')})"),
-                        )
+                    track = None
                     if tmpl:
-                        body_prev = (tmpl.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
-                        await record_wa_outbound(
+                        track = await record_wa_outbound(
                             lead_id=lead["id"], template_id=int(value), template_name=tmpl.get("name") or str(value),
                             sent_to=phone or "", body=body_prev, created_by=f"Automation: {rule['name']}",
                             status=("sent" if sent_live else "in_queue"), wamid=res.get("wamid") if sent_live else None,
                             source="automation", error=(res.get("error") if not sent_live else None))
+                        await log_message(
+                            lead["id"],
+                            f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
+                            + ("sent via Cloud API" if sent_live else (f"failed ({res.get('error')})" if res else "queued")),
+                            extra={"kind": "wa_template", "channel": "whatsapp", "preview": body_prev,
+                                   "template_name": tmpl.get("name"), "track_id": track["id"],
+                                   "status": ("sent" if sent_live else "in_queue")})
+                else:
+                    from core import gmail_send as gm
+                    tmpl = await db.templates_email.find_one({"id": int(value)}, {"_id": 0})
+                    email_body = (tmpl.get("body") if tmpl else "") or ""
+                    subject = (tmpl.get("subject") if tmpl else "") or "(no subject)"
+                    to = lead.get("email_from")
+                    if tmpl and to and await gm.is_connected():
+                        res = await gm.send_email(to, subject, email_body, html=True)
+                        sent_live = res.get("ok", False)
+                    if tmpl:
+                        await log_message(
+                            lead["id"],
+                            f"Automation '{rule['name']}': Email template <b>{subject}</b> " + ("sent" if sent_live else "queued"),
+                            subtype="comment",
+                            extra={"kind": "email_template", "channel": "email", "preview": email_body,
+                                   "template_name": subject, "subject": subject,
+                                   "status": ("sent" if sent_live else "in_queue")})
                 if not sent_live:
                     await db.outbound_queue.insert_one({
                         "lead_id": lead["id"],
-                        "channel": "whatsapp" if "whatsapp" in atype else "email",
+                        "channel": "whatsapp" if is_wa else "email",
                         "template_id": value,
                         "status": "pending_api_credentials",
                         "automation": rule["name"],
                         "created_at": now_utc_str(),
                     })
-                    await log_message(
-                        lead["id"],
-                        f"Automation '{rule['name']}': queued {('WhatsApp' if 'whatsapp' in atype else 'Email')} template (awaiting live API connection)",
-                    )
         if updates:
             await db.leads.update_one({"id": lead["id"]}, {"$set": updates})
             lead.update(updates)
