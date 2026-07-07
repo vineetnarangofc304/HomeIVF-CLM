@@ -1,76 +1,114 @@
 {
-  "theme": "Light",
-  "archetype": "1 (Organic & Earthy)",
-  "emotional_tone": "Warm, trusting, and empathetic, balanced with high-density data efficiency. Soft medical aesthetic.",
+  "app_info": {
+    "name": "HomeIVF CRM Chat Workspace",
+    "type": "Desktop CRM Chat Workspace (Hybrid SaaS)"
+  },
+  "theme_and_archetype": {
+    "theme": "Light",
+    "archetype": "Organic & Earthy + Soft Utility",
+    "description": "A trustworthy, calming interface combining healthcare/IVF empathy with high-efficiency SaaS functionality. Uses a 3-pane WhatsApp-style layout adapted for desktop."
+  },
   "typography": {
-    "fonts_required": ["Nunito", "Figtree"],
-    "heading_family": "font-sans (Nunito)",
-    "body_family": "font-sans (Figtree)",
-    "scales": {
-      "h1": "text-4xl sm:text-5xl tracking-tight",
-      "h2": "text-2xl sm:text-3xl tracking-tight",
-      "h3": "text-xl sm:text-2xl",
-      "h4": "text-lg sm:text-xl",
-      "body": "text-sm md:text-base",
-      "small_labels": "text-xs uppercase tracking-[0.2em]"
+    "fonts": {
+      "heading": "Figtree, sans-serif",
+      "body": "Nunito, sans-serif"
+    },
+    "rules": {
+      "h1": "text-2xl sm:text-3xl font-bold tracking-tight text-slate-900",
+      "h2": "text-xl sm:text-2xl font-semibold tracking-tight text-slate-800",
+      "h3": "text-lg font-medium text-slate-800",
+      "body": "text-sm text-slate-600 leading-relaxed",
+      "small_labels": "text-xs font-semibold tracking-[0.05em] uppercase text-slate-500"
     }
   },
   "colors": {
-    "background": "bg-slate-50",
-    "surface": "bg-white",
-    "primary": "bg-[#4A90E2]",
-    "secondary": "bg-[#8B5CF6]",
-    "accent_success": "bg-emerald-500",
-    "accent_warning": "bg-amber-500",
-    "accent_danger": "bg-rose-500",
-    "text_primary": "text-slate-900",
-    "text_secondary": "text-slate-600",
-    "border": "border-slate-200"
-  },
-  "layout_and_spacing": {
-    "grid_strategy": "The 'Control Room' Grid for dashboards (grid-cols-1 md:grid-cols-3 lg:grid-cols-4) with gap-4 or gap-6. Dense but clear.",
-    "spacing_scale": "Use p-6 to p-8 for main cards. For data tables, use p-2 or p-3 to maintain density.",
-    "radii": "rounded-2xl for outer containers, rounded-xl or rounded-lg for internal elements to reflect the 'rounded friendly shapes' brand requirement."
-  },
-  "visual_enhancers": {
-    "shadows": "Soft, diffuse ambient shadows (shadow-sm, shadow-[0_8px_32px_rgba(0,0,0,0.04)]).",
-    "borders": "1px solid border-slate-200. Avoid glassmorphism for this medical CRM; use solid surfaces to prevent visual refraction of data.",
-    "motion": "Subtle hover states (-translate-y-[2px], shadow-md). Transitions on buttons and table rows."
-  },
-  "icons": "@phosphor-icons/react (best for dense dashboards and developer tools)",
-  "components": {
-    "AppShell": "Sidebar with active state highlighted via soft blue/violet background and primary text color. Topbar with global search and user profile.",
-    "DataTable": "Dense layout. Sticky headers. Expandable rows or column toggles. Sortable headers. Hover effects on rows.",
-    "Cards": "Flat background, 1px subtle border, no shadow by default. Hover adds slight lift and shadow.",
-    "Badges/Chips": "Soft tinted backgrounds (e.g., bg-blue-50 text-blue-700) for lead stages and tags. Fully rounded (rounded-full).",
-    "Buttons": "Primary: solid bg-[#4A90E2] hover:bg-[#357ABD] text-white. Secondary: border border-slate-200 hover:bg-slate-50.",
-    "AI_Hooks": "Floating 'AI Brain' chat button. Inline AI insight panels with soft violet gradients and a sparkle icon."
-  },
-  "media": {
-    "image_urls": {
-      "logo": {
-        "url": "https://homeivf.com/_next/static/media/homeivglogo.3a89a3c2.svg",
-        "description": "HomeIVF Brand Logo (Use in sidebar header and login screen)"
-      },
-      "avatars": {
-        "url": "https://images.pexels.com/photos/29852895/pexels-photo-29852895.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
-        "description": "Placeholder Avatar for user profiles and leaderboard"
-      }
+    "brand_primary": "#8B5CF6",
+    "brand_secondary": "#6366F1",
+    "whatsapp_accent": "#25D366",
+    "whatsapp_tick_blue": "#3B82F6",
+    "backgrounds": {
+      "app_bg": "#F8FAFC",
+      "panel_bg": "#FFFFFF",
+      "chat_pane_bg": "#F0F2F5",
+      "chat_bubble_agent": "#DCF8C6",
+      "chat_bubble_customer": "#FFFFFF",
+      "hover_state": "#F1F5F9"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#475569",
+      "muted": "#94A3B8"
     }
   },
-  "accessibility": {
-    "contrast": "Ensure text over primary buttons is pure white. Muted text must meet 4.5:1 ratio on slate-50.",
-    "focus": "focus:ring-2 focus:ring-[#4A90E2] focus:outline-none focus:ring-offset-2",
-    "motion": "Respect prefers-reduced-motion for all transitions."
+  "layout_and_spacing": {
+    "global_strategy": "The app fits into a desktop viewport. Assuming the main app sidebar is on the far left, this workspace occupies the remaining width and height. It uses a 3-pane responsive-flex or CSS grid architecture: [Chat List (350px)] [Main Chat (flex-1)] [Context Panel (300px)].",
+    "chat_list_pane": "Fixed width 350px, border-r border-slate-200, bg-white, h-full flex flex-col.",
+    "chat_main_pane": "Flex-1, bg-chat-pane bg-[#F0F2F5] h-full flex flex-col relative.",
+    "context_pane": "Fixed width 300px, border-l border-slate-200, bg-white, h-full flex flex-col overflow-y-auto."
+  },
+  "components": [
+    {
+      "name": "ChatWorkspaceContainer",
+      "description": "Main wrapper. h-screen (or h-full of parent), w-full, flex row. Fits into the existing CRM layout.",
+      "libraries": ["Tailwind CSS"]
+    },
+    {
+      "name": "ConversationListPane",
+      "description": "Left pane. Header with search. Category filter tabs (All / Unread / Interested Customer) using custom buttons or Shadcn Tabs. Scrollable list of chat row items.",
+      "interaction": "Clicking a row selects the active chat. Rows with unread messages are bold and have a WhatsApp Green (#25D366) badge."
+    },
+    {
+      "name": "ChatThreadPane",
+      "description": "Center pane. Includes a Header (Avatar, Name, Status, Starred Messages Toggle). Pinned Messages bar below header. Message list with scrollable area. WhatsApp-style bubbles.",
+      "rules": "Customer messages on left (white bg), Agent messages on right (#DCF8C6 bg). Include Date separators (e.g., 'Today'). Message bubbles show timestamp and status ticks (Sent/Delivered/Read)."
+    },
+    {
+      "name": "MessageBubble",
+      "description": "Individual message bubble. Rounded corners, dropping the corner on the side of the sender (WhatsApp style).",
+      "hover_actions": "On hovering a message bubble, reveal actions: React (emoji), Reply (quote), Star, Pin. Smooth fade-in."
+    },
+    {
+      "name": "ComposerBar",
+      "description": "Bottom of chat pane. Attach button (Paperclip), Emoji button (Smiley), text input (rounded-full bg-white, grows on multi-line), Send button (PaperPlaneTilt).",
+      "libraries": ["@phosphor-icons/react"]
+    },
+    {
+      "name": "ContextPanel",
+      "description": "Right pane. Avatar, Lead Name, Phone, Email. Big CTA button 'Move to Interested Customer' using Brand Primary (#8B5CF6). Quick info list.",
+      "interaction": "Can be toggled via header button in ChatThreadPane."
+    },
+    {
+      "name": "GlobalNotificationToast",
+      "description": "Floating WhatsApp-style notification toast. Appears globally when new inbound message arrives.",
+      "libraries": ["Sonner"]
+    }
+  ],
+  "icon_strategy": {
+    "library": "@phosphor-icons/react",
+    "usage": "Use Phosphor icons with 'weight' set to 'regular' or 'fill' depending on active state. Install via: yarn add @phosphor-icons/react. Key icons: Checks (for read receipts), Paperclip, PaperPlaneTilt, MagnifyingGlass, Star, PushPin, Smiley."
+  },
+  "media": {
+    "customer_avatars": [
+      "https://images.unsplash.com/photo-1494790108377-be9c29b29330?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwxfHxzbWlsaW5nJTIwd29tYW4lMjBwb3J0cmFpdCUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3ODM0NDg1ODZ8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1568602471122-7832951cc4c5?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwxfHxmcmllbmRseSUyMG1hbiUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc4MzQ0ODU4NXww&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1506863530036-1efeddceb993?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NTY2NzB8MHwxfHNlYXJjaHwyfHxzbWlsaW5nJTIwd29tYW4lMjBwb3J0cmFpdCUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3ODM0NDg1ODZ8MA&ixlib=rb-4.1.0&q=85",
+      "https://images.unsplash.com/photo-1764084052338-23a317e34ea1?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA1NTZ8MHwxfHNlYXJjaHwyfHxmcmllbmRseSUyMG1hbiUyMHBvcnRyYWl0JTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc4MzQ0ODU4NXww&ixlib=rb-4.1.0&q=85"
+    ]
+  },
+  "testing_and_accessibility": {
+    "rules": [
+      "All interactive and key informational elements MUST include a data-testid attribute.",
+      "Use kebab-case and role-based naming (e.g., data-testid='chat-row-user-1', data-testid='message-input', data-testid='send-button', data-testid='tab-unread').",
+      "Contrast ratio must exceed 4.5:1. Ensure text over WhatsApp green is dark/legible."
+    ]
   },
   "instructions_to_main_agent": [
-    "Install and configure Nunito and Figtree fonts from Google Fonts.",
-    "Ensure 'Powered by TagQuest' text is visible in the sidebar footer and login page.",
-    "Build the dashboard with Shadcn UI components but heavily customize the appearance: use dense variants of tables and forms.",
-    "Lead detail page MUST be a two-column layout: Left for fields/stepper, Right for chatter timeline.",
-    "Filter bar in Leads should replicate Odoo functionality (multi-select, tags).",
-    "Embed placeholders for Phase 2 AI insights (e.g., an 'AI Summary' card on Lead Detail).",
-    "All interactive elements MUST have data-testid attributes.",
-    "Do not use generic Inter font. Do not use dark mode. Stick to the soft medical aesthetic."
+    "Create the 3-pane layout assuming it sits to the right of an existing app sidebar.",
+    "Use React + Tailwind CSS + Shadcn UI primitives. Write components using .js or .jsx extensions, NOT .tsx.",
+    "Implement Phosphor icons (@phosphor-icons/react) as the primary icon set.",
+    "Use Sonner for the global new message toast.",
+    "Ensure all components map to the 'data-testid' requirement.",
+    "Use the provided image URLs for contact avatars in the conversation list.",
+    "Implement the specific message bubble colors (#DCF8C6 for right/agent, #FFFFFF for left/customer) and the specific ticks for Sent/Delivered/Read."
   ]
 }
