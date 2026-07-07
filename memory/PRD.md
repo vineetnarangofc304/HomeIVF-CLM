@@ -1,6 +1,12 @@
 # HomeIVF CRM — PRD
 
-## Fix (2026-07) — WhatsApp status stuck at "Sent" (delivered/read not updating) — iteration_29 (100% backend + frontend)
+## Fix (2026-06) — WhatsApp "read/delivered not showing" → added one-click Diagnose tool — iteration_30 (100% backend + frontend)
+- Confirmed CRM code is CORRECT end-to-end (wamid stored on send; webhook matches wamid → advances sent→delivered→read; preview verdict='healthy', 5/5 status webhooks matched). The production "stuck at Sent" is a **Meta-side delivery config** issue, not a CRM bug.
+- New: `GET /api/admin/whatsapp/diagnose` (wa_cloud.py) + `check_app_subscriptions()` (whatsapp_cloud.py, reads {app_id}/subscriptions via app token). Returns a plain-English **verdict + next_step** and a 5-point checklist: (1) token+phone configured, (2) WABA subscribed to an app, (3) app 'whatsapp_business_account' webhook has 'messages' field + points to this CRM, (4) status webhooks actually received, (5) tracked msgs carry a wamid. Verdict trusts observed matched status webhooks first.
+- UI: Admin → WhatsApp → "Diagnose delivery status" button (data-testid=wa-diagnose-button) → verdict panel (wa-diagnose-result / wa-diagnose-verdict).
+- **USER ACTION on production (after redeploy):** Admin → WhatsApp → add App ID + App Secret → click "Diagnose delivery status". It will name the exact broken link. Most likely fix: in Meta → App → WhatsApp → Configuration set Callback URL to the prod CRM's /api/webhooks/whatsapp and subscribe the **messages** field, then click "Subscribe WABA to webhooks". NOTE: messages sent BEFORE this stay "Sent" forever — send a fresh one to confirm.
+
+
 - Root cause: CRM webhook→wa_tracking status logic is CORRECT (verified: signed webhook advances sent→delivered→read→failed with history). Production stayed "Sent" because **Meta wasn't delivering status webhooks** — the WABA wasn't subscribed to the app.
 - Fix: `subscribe_waba()`/`get_subscribed_apps()` in whatsapp_cloud.py + admin endpoints `POST /api/admin/whatsapp/subscribe`, `GET /api/admin/whatsapp/subscribed-apps`. Added a webhook diagnostic log (`wa_webhook_log`) + `GET /api/admin/whatsapp/webhook-log`. Admin → WhatsApp UI: "Subscribe WABA to webhooks" + "Recent webhook deliveries" buttons/panel.
 - USER ACTION on production (after redeploy): click "Subscribe WABA to webhooks", and ensure the **messages** field is subscribed in Meta → WhatsApp → Configuration. Then delivered/read/replied will flow live.
