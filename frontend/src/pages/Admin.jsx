@@ -1255,6 +1255,8 @@ function WhatsAppTab({ isAdmin }) {
   const [phones, setPhones] = useState(null);
   const [templates, setTemplates] = useState(null);
   const [testTo, setTestTo] = useState("");
+  const [subs, setSubs] = useState(null);
+  const [whLog, setWhLog] = useState(null);
   const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/whatsapp`;
 
   const load = () => {
@@ -1298,6 +1300,17 @@ function WhatsAppTab({ isAdmin }) {
       toast.success(`Linked ${data.linked_updated} approved templates from Odoo (${data.created} new)`);
     } catch (err) { toast.error(apiErr(err)); }
   };
+  const subscribeWaba = async () => {
+    try {
+      const { data } = await API.post("/admin/whatsapp/subscribe");
+      setSubs(data.subscribed_apps?.data || []);
+      toast.success("WABA subscribed — delivered/read status will now flow in ✓");
+    } catch (err) { toast.error(apiErr(err)); }
+  };
+  const loadWebhookLog = async () => {
+    try { const { data } = await API.get("/admin/whatsapp/webhook-log"); setWhLog(data.items || []); }
+    catch (err) { toast.error(apiErr(err)); }
+  };
 
   if (!cfg) return <Spinner />;
   return (
@@ -1333,9 +1346,34 @@ function WhatsAppTab({ isAdmin }) {
               <button type="button" onClick={fetchPhones} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-phones">Fetch phone numbers</button>
               <button type="button" onClick={fetchTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-templates">Fetch templates</button>
               <button type="button" onClick={syncOdooTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-sync-odoo-templates">Sync approved templates from Odoo</button>
+              <button type="button" onClick={subscribeWaba} className="hivf-btn-secondary !py-2" data-testid="wa-subscribe-button">Subscribe WABA to webhooks</button>
+              <button type="button" onClick={loadWebhookLog} className="hivf-btn-secondary !py-2" data-testid="wa-webhook-log-button">Recent webhook deliveries</button>
             </div>
           )}
         </form>
+
+        {subs && (
+          <div className="mt-3 rounded-xl bg-emerald-50/60 p-3 text-xs" data-testid="wa-subscribed-apps">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Subscribed apps</p>
+            {subs.length === 0 ? <p className="text-slate-400">No app subscribed to this WABA yet — that's why status stops at "Sent". Click again after checking your token permissions.</p>
+              : subs.map((a, i) => <p key={i} className="font-semibold text-slate-600">{a.whatsapp_business_api_data?.name || a.name || JSON.stringify(a)}</p>)}
+          </div>
+        )}
+        {whLog && (
+          <div className="mt-3 rounded-xl bg-slate-50 p-3" data-testid="wa-webhook-log">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Recent webhook deliveries (last 30)</p>
+            {whLog.length === 0 ? <p className="mt-1 text-xs text-slate-400">No webhooks received yet. If sends work but status stays "Sent", Meta isn't delivering status events — click "Subscribe WABA to webhooks" and ensure the <b>messages</b> field is subscribed in Meta → WhatsApp → Configuration.</p>
+              : whLog.map((w) => (
+                <div key={w.id} className="mt-1 flex flex-wrap items-center gap-2 border-b border-slate-100 py-1 text-[11px]">
+                  <span className="text-slate-400">{w.create_date}</span>
+                  {(w.statuses || []).length > 0
+                    ? (w.statuses || []).map((s, i) => <span key={i} className="rounded-full bg-white px-2 py-0.5 font-bold text-slate-600">{s.status}</span>)
+                    : <span className="text-slate-400">inbound message</span>}
+                  <span className={`ml-auto font-bold ${w.matched ? "text-emerald-600" : "text-amber-600"}`}>{w.matched ? `${w.matched} matched` : "0 matched"}</span>
+                </div>
+              ))}
+          </div>
+        )}
 
         {phones && (
           <div className="mt-3 rounded-xl bg-slate-50 p-3" data-testid="wa-phones-list">

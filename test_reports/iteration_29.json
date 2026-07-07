@@ -1,0 +1,24 @@
+{
+  "summary": "Iter29 — WhatsApp webhook status lifecycle + Meta subscribe endpoints + Admin UI verified end-to-end. Backend pytest 8/8 passing: (1) Signed webhook advances wa_tracking sent→delivered→read→failed with status_history appended; failed carries error_code=131026 and failure_type from errors[0].error_data.details. (2) Bad HMAC signature returns 401 and record is NOT mutated. (3) GET /api/admin/whatsapp/webhook-log returns log items with statuses arrays and matched counts >0 for our seeded wamid. (4) POST /api/admin/whatsapp/subscribe and GET /api/admin/whatsapp/subscribed-apps return 400 (WABA ID present but token invalid for the operation) — importantly NOT 500 — meeting the acceptance criteria. Frontend Playwright: Admin → WhatsApp tab renders data-testid=wa-subscribe-button and data-testid=wa-webhook-log-button; clicking the log button populates data-testid=wa-webhook-log panel showing our seeded status events (delivered/read/failed) with '1 matched' each. Regression /api/wa/track/{id} reflects updated status.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter29_wa_webhook_status.py",
+    "/app/test_reports/pytest/iter29_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wa_cloud.py line 60: wa_messages lookup fetches {id, channel_id} but never uses them — the update_one below re-queries by wamid. Minor: drop the projected fetch or use msg to short-circuit.",
+    "wa_webhook_log grows unbounded (comment says 'keeps last ~200' but there's no capped-collection / TTL / trim logic). Consider adding a periodic prune or MongoDB capped collection to prevent bloat.",
+    "subscribe_waba/get_subscribed_apps require waba_id but not access_token — _graph_post/_graph_get do return {'error':{'message':'not configured'}} when token missing, which is surfaced as HTTP 400 correctly, good. However when 'error' key is missing from a successful response with empty data, endpoint returns raw graph JSON as-is (fine).",
+    "verify_signature uses hmac.compare_digest which is timing-safe — good.",
+    "In webhook loop the status_updates counter double-counts (once for wa_messages match, once for wa_tracking modified). Harmless for diagnostics but the log 'status_updates' number may confuse operators."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter29_wa_webhook_status.py (new)"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Seeded 1 wa_tracking doc with wamid=TEST_iter29_wamid_* and status=sent; overrode settings.whatsapp_cloud.app_secret temporarily. Both fully restored in fixture teardown (original app_secret preserved via __iter29_orig_app_secret side field and swapped back; wa_tracking doc deleted). db.counters left untouched (no lead seeded). wa_webhook_log entries created by our POSTs remain (by design — diagnostic log, ~5 rows).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter29 test file test_iter29_wa_webhook_status.py loads both env files and directly mutates settings.whatsapp_cloud.app_secret for the duration of the run. If a future iteration modifies whatsapp_cloud schema, the __iter29_orig_app_secret sidecar restore logic in the seed fixture is straightforward to adapt. HMAC pattern for signed webhook: raw_body = json.dumps(payload).encode(); sig = hmac.new(secret.encode(), raw, hashlib.sha256).hexdigest(); header 'X-Hub-Signature-256: sha256=<sig>'. wa_webhook_log endpoint returns items sorted desc by id, top 30."
+}

@@ -104,6 +104,36 @@ async def _graph_get(path: str, params: dict = None) -> dict:
         return {"error": {"message": str(e)}}
 
 
+async def _graph_post(path: str, data: dict = None) -> dict:
+    c = await get_config()
+    if not c.get("access_token"):
+        return {"error": {"message": "not configured"}}
+    ver = c.get("graph_api_version") or GRAPH_VERSION
+    url = f"https://graph.facebook.com/{ver}/{path}"
+    try:
+        async with httpx.AsyncClient(timeout=20) as cl:
+            r = await cl.post(url, params={"access_token": c["access_token"]}, json=(data or {}))
+        return r.json()
+    except Exception as e:
+        return {"error": {"message": str(e)}}
+
+
+async def subscribe_waba() -> dict:
+    """Subscribe the app to this WABA's webhooks so Meta delivers message + status
+    events (sent/delivered/read/failed). Required for delivery-status tracking."""
+    c = await get_config()
+    if not c.get("waba_id"):
+        return {"error": {"message": "WABA ID required"}}
+    return await _graph_post(f"{c['waba_id']}/subscribed_apps")
+
+
+async def get_subscribed_apps() -> dict:
+    c = await get_config()
+    if not c.get("waba_id"):
+        return {"error": {"message": "WABA ID required"}}
+    return await _graph_get(f"{c['waba_id']}/subscribed_apps")
+
+
 async def list_phone_numbers() -> dict:
     c = await get_config()
     if not c.get("waba_id"):

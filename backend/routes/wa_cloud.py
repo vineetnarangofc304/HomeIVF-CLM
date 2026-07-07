@@ -40,6 +40,9 @@ async def wa_webhook(request: Request):
 
     stored = 0
     status_updates = 0
+    # diagnostics — record what Meta actually delivered (esp. delivered/read events)
+    log_statuses = []
+    log_matched = 0
     for entry in payload.get("entry", []):
         for change in entry.get("changes", []):
             value = change.get("value", {})
@@ -49,6 +52,7 @@ async def wa_webhook(request: Request):
                 new_status = st.get("status")  # sent | delivered | read | failed
                 if not wamid or not new_status:
                     continue
+                log_statuses.append({"wamid": wamid, "status": new_status})
                 now = now_utc_str()
                 err = None
                 if st.get("errors"):
@@ -77,6 +81,7 @@ async def wa_webhook(request: Request):
                 )
                 if tr.modified_count:
                     status_updates += 1
+                    log_matched += 1
             for m in value.get("messages", []):
                 frm = m.get("from")
                 text = (m.get("text") or {}).get("body") or f"[{m.get('type')}]"
@@ -107,6 +112,16 @@ async def wa_webhook(request: Request):
                                 {"$set": {"status": "replied", "status_at": now},
                                  "$push": {"status_history": {"status": "replied", "at": now}}})
                 stored += 1
+    # persist a diagnostic log entry (keeps last ~200)
+    try:
+        await db.wa_webhook_log.insert_one({
+            "id": await next_id("wa_webhook_log"), "create_date": now_utc_str(),
+            "statuses": log_statuses, "status_updates": status_updates,
+            "matched": log_matched, "messages_in": stored,
+            "has_statuses": bool(log_statuses),
+        })
+    except Exception:
+        pass
     return {"status": "ok", "stored": stored, "status_updates": status_updates}
 
 
@@ -121,6 +136,30 @@ async def wa_status(user: dict = Depends(require_roles("admin", "manager"))):
         "has_verify_token": bool(c.get("verify_token")),
         "graph_api_version": c.get("graph_api_version") or wac.GRAPH_VERSION,
     }
+
+
+@router.post("/admin/whatsapp/subscribe")
+async def wa_subscribe(user: dict = Depends(require_roles("admin", "manager"))):
+    """Subscribe the app to this WABA's webhooks (enables delivered/read status events)."""
+    res = await wac.subscribe_waba()
+    if res.get("error"):
+        raise HTTPException(status_code=400, detail=res["error"].get("message", str(res["error"])))
+    subs = await wac.get_subscribed_apps()
+    return {"ok": True, "subscribe_result": res, "subscribed_apps": subs}
+
+
+@router.get("/admin/whatsapp/subscribed-apps")
+async def wa_subscribed_apps(user: dict = Depends(require_roles("admin", "manager"))):
+    data = await wac.get_subscribed_apps()
+    if data.get("error"):
+        raise HTTPException(status_code=400, detail=data["error"].get("message", str(data["error"])))
+    return data
+
+
+@router.get("/admin/whatsapp/webhook-log")
+async def wa_webhook_log(user: dict = Depends(require_roles("admin", "manager"))):
+    items = await db.wa_webhook_log.find({}, {"_id": 0}).sort("id", -1).limit(30).to_list(30)
+    return {"items": items}
 
 
 @router.post("/admin/whatsapp/phone-numbers")
