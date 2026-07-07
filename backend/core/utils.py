@@ -89,7 +89,8 @@ WA_STATUS_FLOW = ["in_queue", "sent", "delivered", "read", "replied", "received"
 
 
 async def record_wa_outbound(*, lead_id, template_id, template_name, sent_to, body,
-                             created_by, status, wamid=None, source="manual", error=None):
+                             created_by, status, wamid=None, source="manual", error=None,
+                             campaign_id=None):
     """Store an outbound WhatsApp template message for end-to-end status tracking.
     The same record is later updated from Meta status webhooks (by wamid)."""
     tid = await next_id("wa_track")
@@ -98,6 +99,7 @@ async def record_wa_outbound(*, lead_id, template_id, template_name, sent_to, bo
         "id": tid, "wamid": wamid, "lead_id": lead_id,
         "template_id": template_id, "template_name": template_name,
         "sent_to": sent_to, "body": body, "created_by": created_by, "source": source,
+        "campaign_id": campaign_id,
         "status": status, "error": error, "failure_type": None, "error_code": None,
         "created_at": now, "status_at": now,
         "status_history": [{"status": status, "at": now}],

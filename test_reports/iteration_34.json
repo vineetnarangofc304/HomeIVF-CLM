@@ -1,0 +1,35 @@
+{
+  "summary": "Frontend E2E test of Marketing Campaigns UI (Case 3 enhancements). All 11 flows in the request passed successfully: template preview for WhatsApp & Email, audience preview (1313 recipients), campaign creation with rich card (channel chip, template name, trigger, status badge, progress bar, 7 metric stats: Total/Sent/Delivered/Read/Replies/Queued/Failed), send transitions Draft->In Progress with live progress increment (0%->1% via 3s poll), pause transitions to Paused with Resume button, failures modal listing 30 recipient+reason rows, edit persistence, and delete cleanup.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Marketing.jsx: 'Failed' stat is rendered twice in WhatsApp view (once in the 4-col grid line 141 and again in the 3-col replies row line 147). Same for 'Queued'. Minor visual duplication - consider removing from the top row for WhatsApp channel.",
+    "CampaignModal.preview() creates a real campaign then deletes it just to count audience — this is a bit hacky but functional; consider a dedicated GET /audience-count?filters=... endpoint that doesn't mutate DB."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created and cleaned up a test campaign 'TEST_WA_Campaign' (renamed to 'TEST_WA_Campaign_EDITED' during edit test, then deleted).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Marketing UI is fully functional. All data-testids present and working: new-campaign-button, campaign-modal, campaign-template-select, template-preview, template-preview-body, campaign-channel-whatsapp/email, campaign-preview-button, campaign-audience-count, campaign-create-button, campaign-card-<id>, campaign-status-<id>, campaign-progress-<id>, campaign-stat-<label>, campaign-send/pause/resume/edit/delete/failures-<id>, campaign-failures-modal, failure-row-<i>. Live polling every 3s while status=in_progress works.",
+  "verified_flows": [
+    "Login and navigate to /marketing - page renders",
+    "New Campaign modal opens",
+    "WhatsApp template dropdown lists 57 templates; selecting one renders preview with {1} replaced by 'Priya Sharma' in green WhatsApp bubble",
+    "Switch to Email channel: dropdown lists email templates; preview shows Subject line + HTML body",
+    "Preview audience button returns count (1313 recipients for Contact Attempt stage filter)",
+    "Create campaign: card shows channel=WhatsApp, Template: Appointment Booking, Trigger: Stage: Contact Attempt, status=Draft, progress=0%, all 7 stat labels present",
+    "Send: status -> In Progress, Pause button appears; after 5s poll, progress rose to 1% (live polling works)",
+    "Pause: status -> Paused, Resume button appears",
+    "Failed count > 0 (20 failures, expected per WA Cloud errors in preview) -> failures link opens modal with 30 rows showing 'To' and 'Reason' (some pending + failed)",
+    "Edit: modal opens with existing values, changed name, save updates card",
+    "Delete: card removed"
+  ]
+}
