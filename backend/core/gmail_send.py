@@ -12,6 +12,8 @@ import base64
 import warnings
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
+from email.utils import formataddr
+from email.header import Header
 
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleRequest
@@ -82,7 +84,9 @@ async def send_email(to: str, subject: str, body: str, html: bool = False) -> di
         service = build("gmail", "v1", credentials=creds, cache_discovery=False)
         msg = MIMEText(body or "", "html" if html else "plain", "utf-8")
         msg["to"] = to
-        msg["from"] = cfg.get("email") or "me"
+        sender_email = cfg.get("email")
+        sender_name = cfg.get("sender_name") or "HomeIVF"
+        msg["from"] = formataddr((str(Header(sender_name, "utf-8")), sender_email)) if sender_email else sender_name
         msg["subject"] = subject or "(no subject)"
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         sent = service.users().messages().send(userId="me", body={"raw": raw}).execute()

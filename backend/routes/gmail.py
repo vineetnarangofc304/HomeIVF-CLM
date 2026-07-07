@@ -82,7 +82,19 @@ async def gmail_callback(code: str = Query(None), state: str = Query(None),
 async def gmail_status(user: dict = Depends(require_roles("admin", "manager"))):
     cfg = await gm.get_config()
     return {"connected": bool(cfg and cfg.get("refresh_token")), "email": cfg.get("email") if cfg else None,
+            "sender_name": (cfg.get("sender_name") if cfg else None) or "HomeIVF",
             "connected_at": cfg.get("connected_at") if cfg else None}
+
+
+class SenderName(BaseModel):
+    sender_name: str
+
+
+@router.post("/admin/gmail/sender-name")
+async def gmail_sender_name(body: SenderName, user: dict = Depends(require_roles("admin"))):
+    name = (body.sender_name or "").strip() or "HomeIVF"
+    await db.settings.update_one({"key": "gmail"}, {"$set": {"sender_name": name}}, upsert=True)
+    return {"ok": True, "sender_name": name}
 
 
 @router.post("/admin/gmail/disconnect")

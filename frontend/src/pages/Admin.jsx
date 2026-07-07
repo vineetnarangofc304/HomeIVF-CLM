@@ -1183,8 +1183,14 @@ function FacebookTab({ isAdmin }) {
 function EmailTab({ isAdmin }) {
   const [status, setStatus] = useState(null);
   const [testTo, setTestTo] = useState("");
-  const load = () => API.get("/admin/gmail/status").then(({ data }) => setStatus(data)).catch(() => setStatus({ connected: false }));
+  const [senderName, setSenderName] = useState("");
+  const load = () => API.get("/admin/gmail/status").then(({ data }) => { setStatus(data); setSenderName(data.sender_name || "HomeIVF"); }).catch(() => setStatus({ connected: false }));
   useEffect(() => { load(); }, []);
+
+  const saveSenderName = async () => {
+    try { const { data } = await API.post("/admin/gmail/sender-name", { sender_name: senderName.trim() || "HomeIVF" }); setSenderName(data.sender_name); toast.success("Sender name saved ✓"); }
+    catch (e) { toast.error(apiErr(e)); }
+  };
 
   const connect = async () => {
     try {
@@ -1228,6 +1234,16 @@ function EmailTab({ isAdmin }) {
         {status.connected ? (
           <div className="mt-4">
             <p className="text-sm text-slate-700">Connected as <b>{status.email}</b></p>
+            {isAdmin && (
+              <div className="mt-3 flex flex-wrap items-end gap-2">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Sender display name (shown to recipients)</label>
+                  <input data-testid="gmail-sender-name" className="hivf-input mt-1" placeholder="HomeIVF" value={senderName} onChange={(e) => setSenderName(e.target.value)} />
+                </div>
+                <button onClick={saveSenderName} className="hivf-btn-secondary !py-2" data-testid="gmail-save-sender-name">Save name</button>
+              </div>
+            )}
+            <p className="mt-1 text-[11px] text-slate-400">Emails will appear from <b>{senderName || "HomeIVF"}</b> &lt;{status.email}&gt;</p>
             <div className="mt-3 flex flex-wrap items-end gap-2">
               <div className="flex-1 min-w-[220px]">
                 <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Send test email to</label>
