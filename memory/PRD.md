@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+## Feature (2026-07) — Case 3: Marketing Campaigns overhaul (WhatsApp + Email) — iteration_34 (frontend 100%, backend curl-verified)
+- **Template preview on create/edit:** selecting a WhatsApp/Email template in the campaign modal now renders a live preview (`template-preview` / `template-preview-body`) with {{1}}→sample name; email shows Subject + rendered HTML.
+- **Rich campaign box:** each card now shows channel chip (WhatsApp/Email), template name, trigger/logic (`trigger_desc` from audience filters), status badge (Draft/In Progress/Paused/Completed/Failed/Queued), a progress bar + %, and metrics Total/Sent/Delivered/Read/Replies/Queued/Failed. WA delivered/read/replied are computed live from `wa_tracking` aggregation by `campaign_id` (added `campaign_id` to `record_wa_outbound`).
+- **Actions:** Send, **Pause** (in-progress), **Resume** (paused, continues via `/send` skipping already-processed leads), **Edit** (PATCH, blocked while running), Delete, and **View failures & reasons** modal (`/campaigns/{cid}/failures`).
+- **Background sender:** `POST /campaigns/{cid}/send` now launches an asyncio background task, sets status `in_progress`, updates counters live (frontend polls every 3s), honours the pause flag, and auto-sets **completed** at 100%.
+- New/updated endpoints in `routes/marketing.py`: enriched `GET /campaigns`, `PATCH /campaigns/{cid}`, `POST /campaigns/{cid}/pause`, `GET /campaigns/{cid}/failures`. NOTE: preview WA send returns Meta errors (not connected) → failures panel is populated as expected.
+
 ## Feature (2026-06) — Email sender name + WhatsApp Chat Workspace (Case 1 + Case 2 Phase-2A/2B) — iteration_33 (100%: 16/16 backend + all frontend)
 - **Case 1 — Email sender name → HomeIVF:** send_email now sets From as `HomeIVF <account>` via `formataddr`. Admin can edit the display name in Admin → Email (`POST /admin/gmail/sender-name`, default "HomeIVF"). Live email send confirmable only on production (Gmail connect).
 - **Case 2 — WhatsApp Chat Workspace overhaul (followed the referenced Figma design system):**
