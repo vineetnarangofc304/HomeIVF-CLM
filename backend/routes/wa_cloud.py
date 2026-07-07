@@ -161,6 +161,80 @@ async def wa_webhook_log(user: dict = Depends(require_roles("admin", "manager"))
     return {"items": items}
 
 
+@router.get("/admin/whatsapp/diagnose")
+async def wa_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
+    """One-click end-to-end check for the 'status stuck at Sent' problem.
+    Walks the full chain and returns a plain-English verdict + next step."""
+    c = await wac.get_config()
+    checks = []
+
+    configured = bool(c.get("access_token") and c.get("phone_number_id"))
+    checks.append({"key": "configured", "ok": configured,
+                   "label": "Access token + Phone Number ID configured",
+                   "detail": (c.get("phone_number_id") or "missing phone_number_id")})
+
+    subs = await wac.get_subscribed_apps()
+    sub_list = subs.get("data") if isinstance(subs, dict) else None
+    waba_subscribed = bool(sub_list)
+    checks.append({"key": "waba_subscribed", "ok": waba_subscribed,
+                   "label": "WABA is subscribed to an app",
+                   "detail": (subs.get("error", {}).get("message") if subs.get("error")
+                              else f"{len(sub_list or [])} app(s) subscribed")})
+
+    appsub = await wac.check_app_subscriptions()
+    wa_obj = None
+    for o in (appsub.get("data") or []):
+        if o.get("object") == "whatsapp_business_account":
+            wa_obj = o
+            break
+    callback_url = wa_obj.get("callback_url") if wa_obj else None
+    fields = []
+    if wa_obj:
+        fields = [(f.get("name") if isinstance(f, dict) else f) for f in (wa_obj.get("fields") or [])]
+    has_messages_field = "messages" in fields
+    points_here = bool(callback_url and "/api/webhooks/whatsapp" in callback_url)
+    checks.append({"key": "app_webhook", "ok": bool(wa_obj) and has_messages_field,
+                   "label": "App 'whatsapp_business_account' webhook has the 'messages' field",
+                   "detail": ({"callback_url": callback_url, "fields": fields, "points_to_this_crm": points_here}
+                              if wa_obj else (appsub.get("error", {}).get("message") or "no whatsapp_business_account webhook on this app"))})
+
+    total_hits = await db.wa_webhook_log.count_documents({})
+    status_hits = await db.wa_webhook_log.count_documents({"has_statuses": True})
+    matched_hits = await db.wa_webhook_log.count_documents({"matched": {"$gt": 0}})
+    checks.append({"key": "status_received", "ok": status_hits > 0,
+                   "label": "Delivery-status webhooks received from Meta",
+                   "detail": f"{status_hits} status webhook(s) received, {matched_hits} matched a tracked message (total {total_hits} webhook hits)"})
+
+    tracked = await db.wa_tracking.count_documents({})
+    with_wamid = await db.wa_tracking.count_documents({"wamid": {"$ne": None}})
+    checks.append({"key": "tracked_msgs", "ok": with_wamid > 0,
+                   "label": "Outbound messages tracked with a Meta message id (wamid)",
+                   "detail": f"{with_wamid}/{tracked} tracked messages have a wamid (needed to match status events)"})
+
+    # Verdict — trust observed status webhooks first (they prove the chain works)
+    app_check_ran = bool(wa_obj) or not appsub.get("error")
+    if matched_hits > 0:
+        verdict, next_step = "healthy", "Delivered/read status IS flowing (status webhooks are arriving and matching your messages). If a specific old message stays 'Sent', it was sent before Meta started delivering status — send a fresh one to confirm."
+    elif not configured:
+        verdict, next_step = "not_connected", "Enter the System User Access Token and Phone Number ID (use 'Fetch phone numbers'), then Save."
+    elif wa_obj and callback_url and not points_here:
+        verdict, next_step = ("wrong_callback",
+                              f"Meta is delivering WhatsApp events to a DIFFERENT URL ({callback_url}), not this CRM. In Meta → App → WhatsApp → Configuration, set the Callback URL to this CRM's /api/webhooks/whatsapp and subscribe the 'messages' field.")
+    elif wa_obj and not has_messages_field:
+        verdict, next_step = ("messages_field_off",
+                              "In Meta → App → WhatsApp → Configuration → Webhook fields, subscribe the 'messages' field (it carries sent/delivered/read/failed). Then click 'Subscribe WABA to webhooks' here.")
+    elif not waba_subscribed:
+        verdict, next_step = "waba_not_subscribed", "Click 'Subscribe WABA to webhooks' above (token needs whatsapp_business_management permission)."
+    elif status_hits == 0:
+        verdict, next_step = ("no_status_yet",
+                              "Config looks correct — now send a FRESH WhatsApp message to a real number and watch its status. Messages sent before this setup stay 'Sent' forever (Meta only delivers status for messages sent after subscription)." + ("" if app_check_ran else " (Tip: add App ID + App Secret in the form above so this tool can also verify your Meta webhook 'messages' field.)"))
+    else:
+        verdict, next_step = "received_not_matched", "Status webhooks are arriving but not matching a tracked message by wamid. Send a fresh message from a lead and re-check."
+
+    return {"verdict": verdict, "next_step": next_step, "checks": checks,
+            "callback_url": callback_url, "waba_id": c.get("waba_id")}
+
+
 @router.post("/admin/whatsapp/phone-numbers")
 async def wa_phone_numbers(user: dict = Depends(require_roles("admin", "manager"))):
     data = await wac.list_phone_numbers()

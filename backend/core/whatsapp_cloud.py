@@ -134,6 +134,25 @@ async def get_subscribed_apps() -> dict:
     return await _graph_get(f"{c['waba_id']}/subscribed_apps")
 
 
+async def check_app_subscriptions() -> dict:
+    """Read the Meta app's webhook subscriptions (uses an app access token).
+    Reveals the callback URL + subscribed fields for whatsapp_business_account —
+    i.e. whether Meta is pointed at THIS CRM and the 'messages' field is on
+    (which carries delivery/read status events)."""
+    c = await get_config()
+    app_id, app_secret = c.get("app_id"), c.get("app_secret")
+    if not app_id or not app_secret:
+        return {"error": {"message": "App ID and App Secret required"}}
+    ver = c.get("graph_api_version") or GRAPH_VERSION
+    url = f"https://graph.facebook.com/{ver}/{app_id}/subscriptions"
+    try:
+        async with httpx.AsyncClient(timeout=20) as cl:
+            r = await cl.get(url, params={"access_token": f"{app_id}|{app_secret}"})
+        return r.json()
+    except Exception as e:
+        return {"error": {"message": str(e)}}
+
+
 async def list_phone_numbers() -> dict:
     c = await get_config()
     if not c.get("waba_id"):

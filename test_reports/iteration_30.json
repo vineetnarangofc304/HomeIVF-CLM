@@ -1,0 +1,25 @@
+{
+  "summary": "Iter30 — Tested new WhatsApp Diagnose delivery-status endpoint + UI, plus light webhook lifecycle regression. All backend and frontend checks pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter30_wa_diagnose.py",
+    "/app/backend/tests/test_iter29_wa_webhook_status.py",
+    "/app/test_reports/pytest/iter30_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wa_cloud.py routes file grew to ~265 lines and mixes webhook + admin + diagnose + test-send logic — consider splitting webhook handlers vs admin introspection into two modules once it grows further.",
+    "check_app_subscriptions() and other Graph helpers duplicate httpx.AsyncClient boilerplate — the existing _graph_get helper could be reused (currently uses user access_token so a small parameter would let it accept app access tokens too).",
+    "diagnose endpoint performs sequential Graph calls (get_subscribed_apps + check_app_subscriptions) with 20s timeouts each — could hang up to 40s+ on Graph outages; consider gathering in parallel with asyncio.gather() and shorter timeouts.",
+    "Pre-login /api/auth/me 401 is logged as a console error on the login page — cosmetic but noisy in production; suppress or gate the /me call until token exists."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter30_wa_diagnose.py"],
+  "success_rate": {"backend": "100% (7/7 iter30 + 8/8 iter29 regression)", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (verified working)",
+  "seed_data_creation": "None permanent. Iter29 fixture briefly overrides settings.whatsapp_cloud.app_secret and restores after run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "New endpoint GET /api/admin/whatsapp/diagnose is implemented in /app/backend/routes/wa_cloud.py. It returns {verdict, next_step, checks[], callback_url, waba_id}. UI wired via [data-testid='wa-diagnose-button'|'wa-diagnose-result'|'wa-diagnose-verdict'] on Admin → WhatsApp. On preview verdict='healthy' due to matched_hits>0 from iter29 seed webhooks; the 'app_webhook' check shows ok=false with 'App ID and App Secret required' — EXPECTED on preview (app_id not configured).",
+  "rca of the issue": "The diagnose tool itself works end-to-end on preview and correctly reports 'healthy'. The user's 'stuck at Sent' symptom is a Meta-side config issue (webhook not pointed at prod CRM or 'messages' field not subscribed) — the new tool will show them exactly which check fails and how to fix it. No CRM-side bug to fix."
+}

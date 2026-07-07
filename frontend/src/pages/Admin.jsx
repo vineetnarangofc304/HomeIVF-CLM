@@ -1257,6 +1257,8 @@ function WhatsAppTab({ isAdmin }) {
   const [testTo, setTestTo] = useState("");
   const [subs, setSubs] = useState(null);
   const [whLog, setWhLog] = useState(null);
+  const [diag, setDiag] = useState(null);
+  const [diagLoading, setDiagLoading] = useState(false);
   const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/whatsapp`;
 
   const load = () => {
@@ -1311,6 +1313,12 @@ function WhatsAppTab({ isAdmin }) {
     try { const { data } = await API.get("/admin/whatsapp/webhook-log"); setWhLog(data.items || []); }
     catch (err) { toast.error(apiErr(err)); }
   };
+  const runDiagnose = async () => {
+    setDiagLoading(true);
+    try { const { data } = await API.get("/admin/whatsapp/diagnose"); setDiag(data); }
+    catch (err) { toast.error(apiErr(err)); }
+    finally { setDiagLoading(false); }
+  };
 
   if (!cfg) return <Spinner />;
   return (
@@ -1348,10 +1356,28 @@ function WhatsAppTab({ isAdmin }) {
               <button type="button" onClick={syncOdooTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-sync-odoo-templates">Sync approved templates from Odoo</button>
               <button type="button" onClick={subscribeWaba} className="hivf-btn-secondary !py-2" data-testid="wa-subscribe-button">Subscribe WABA to webhooks</button>
               <button type="button" onClick={loadWebhookLog} className="hivf-btn-secondary !py-2" data-testid="wa-webhook-log-button">Recent webhook deliveries</button>
+              <button type="button" onClick={runDiagnose} disabled={diagLoading} className="hivf-btn-primary !py-2 !bg-slate-800" data-testid="wa-diagnose-button">{diagLoading ? "Diagnosing…" : "Diagnose delivery status"}</button>
             </div>
           )}
         </form>
 
+        {diag && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3" data-testid="wa-diagnose-result">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">WhatsApp delivery diagnosis</p>
+            <div className={`mt-1 rounded-lg p-2 text-xs font-semibold ${diag.verdict === "healthy" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`} data-testid="wa-diagnose-verdict">
+              {diag.verdict === "healthy" ? "✓ " : "⚠ "}{diag.next_step}
+            </div>
+            <div className="mt-2 space-y-1">
+              {(diag.checks || []).map((ch) => (
+                <div key={ch.key} className="flex items-start gap-2 text-[11px]">
+                  <span className={`mt-0.5 font-bold ${ch.ok ? "text-emerald-600" : "text-rose-500"}`}>{ch.ok ? "✓" : "✕"}</span>
+                  <span className="font-semibold text-slate-700">{ch.label}</span>
+                  <span className="ml-auto max-w-[45%] truncate text-right text-slate-400" title={typeof ch.detail === "object" ? JSON.stringify(ch.detail) : String(ch.detail)}>{typeof ch.detail === "object" ? JSON.stringify(ch.detail) : String(ch.detail)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {subs && (
           <div className="mt-3 rounded-xl bg-emerald-50/60 p-3 text-xs" data-testid="wa-subscribed-apps">
             <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600">Subscribed apps</p>
