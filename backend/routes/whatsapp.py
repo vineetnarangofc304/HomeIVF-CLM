@@ -50,16 +50,18 @@ async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get
     now = now_utc_str()
     status = "pending_api_credentials"
     wamid = None
+    err = None
     if await wac.is_configured() and ch.get("phone_digits"):
         res = await wac.send_text(ch["phone_digits"], body.body)
         if res.get("ok"):
             status, wamid = "sent", res.get("wamid")
         else:
             status = "failed"
+            err = res.get("error")
     msg = {
         "id": mid, "channel_id": channel_id, "body": body.body,
         "author_name": user["name"], "date": now, "message_type": "comment",
-        "direction": "outbound", "status": status, "wamid": wamid,
+        "direction": "outbound", "status": status, "wamid": wamid, "error": err,
     }
     await db.wa_messages.insert_one(msg)
     await db.wa_channels.update_one({"id": channel_id}, {"$set": {"last_message_date": now}})
@@ -69,6 +71,10 @@ async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get
             "status": status, "created_at": now, "user_id": user["id"],
         })
     msg.pop("_id", None)
+    # Free-text replies are only allowed inside Meta's 24-hour customer-service
+    # window; outside it Meta rejects the send — surface that clearly to the agent.
+    if status == "failed":
+        raise HTTPException(status_code=400, detail=err or "WhatsApp send failed. Free-text replies are only allowed within 24 hours of the customer's last message — send an approved template instead.")
     return msg
 
 

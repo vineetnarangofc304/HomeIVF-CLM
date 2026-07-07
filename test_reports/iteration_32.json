@@ -1,0 +1,47 @@
+{
+  "summary": "Iter32 WhatsApp 2-way chat fixes fully verified. 8/8 new backend tests pass; iter29+iter31 regression 15/15 pass; frontend UI end-to-end works.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "tests_executed": {
+    "backend_new": [
+      "TestWebhookAutoCreate.test_bad_signature_rejected — 401, no channel created",
+      "TestWebhookAutoCreate.test_inbound_new_number_creates_channel — new wa_channel auto-created, id > previous max (11263), inbound message stored with direction='inbound' status='received', created_via='inbound_webhook'",
+      "TestWebhookAutoCreate.test_inbound_same_number_reuses_channel — 2nd inbound reuses same channel, no duplicate",
+      "TestWebhookExistingThread.test_inbound_existing_channel_appends — regression: existing channel still receives inbound, no duplicate created",
+      "TestReplyEndpoint.test_reply_not_configured_returns_queued — POST /api/whatsapp/channels/{id}/send returns 200 with status='pending_api_credentials' and queues to outbound_queue (does NOT 500) when access_token/phone_number_id absent",
+      "TestReplyEndpoint.test_reply_channel_not_found — 404",
+      "TestListingIntegration.test_new_channel_appears_in_list — search finds auto-created channel",
+      "TestListingIntegration.test_messages_endpoint_returns_inbound — thread returns inbound message"
+    ],
+    "backend_regression": [
+      "test_iter31_new_features.py — 7/7 passed (Gmail PKCE, field options, WA webhook status lifecycle sent->delivered->read, bad signature 401, Quick Reply automation + replied marking)",
+      "test_iter29_wa_webhook_status.py — 8/8 passed (delivered/read/failed status advance, bad-sig 401, admin webhook log, subscribe endpoints, wa_message detail reflects read)"
+    ],
+    "frontend": [
+      "Login as admin@homeivf.com — success",
+      "Navigate to /whatsapp — [data-testid=whatsapp-page] rendered",
+      "[data-testid=wa-channel-list] populated (10,945 conversations)",
+      "Click first channel → [data-testid=wa-messages] loads with prior inbound",
+      "Type into [data-testid=wa-message-input] and click [data-testid=wa-send-button] — message appears in thread, toast 'Message sent ✓' shown (WA IS actually configured in preview so Meta returned a wamid)",
+      "After ~10s of 8s polling: message count stable (no duplication), page still alive, no console errors"
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter32_wa_2way.py",
+    "/app/test_reports/pytest/iter32.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "wa_cloud.py _next_channel_id() self-heals the counter to max(id) on first use — correct and idempotent; safe against migrated data.",
+    "Regex match `phone_digits: {$regex: digits + '$'}` on wa_channels for lookup is not anchored at start and could theoretically match a longer number ending with the same 10 digits; acceptable for Indian mobile numbers but flag for future review.",
+    "whatsapp.py send_message now surfaces real Meta errors (HTTP 400) instead of silently succeeding — good. Message doc is still inserted with status='failed' before raising, so agents see the failed bubble in the thread; confirm this is intended (a failed send leaves an artifact in the thread — usually desired for auditability).",
+    "Preview environment has WhatsApp Cloud FULLY configured (access_token + phone_number_id present). The 'not configured' code path was still exercised because backend test's wa_secret fixture temporarily nulls those fields and restores them on teardown."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created (and cleaned up) 1 auto-created wa_channel + inbound wa_messages for phone 91999900011X during backend tests. Also removed a leftover wa_channels doc (id=11265, TEST_iter31_lead_1783431874) and a UI-test outbound message; DB restored to pre-test state. whatsapp_cloud settings snapshotted and restored (app_secret, access_token, phone_number_id).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Preview WhatsApp Cloud is fully configured (access_token + phone_number_id present in settings.whatsapp_cloud). If you send a real WhatsApp message via the reply endpoint or the WhatsApp Inbox UI without a fixture that nulls out credentials, Meta will actually accept it and issue a wamid (as observed in this iteration). To exercise the 'pending_api_credentials' branch, use the wa_secret fixture pattern from test_iter32_wa_2way.py which snapshots and restores the settings. Existing wa_channels count ~10944, max id ~11263 (unchanged). Iter31 seed data appears cleaned up already."
+}

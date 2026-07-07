@@ -42,10 +42,23 @@ export default function WhatsAppInbox() {
       const { data } = await API.post(`/whatsapp/channels/${activeId}/send`, { body: draft.trim() });
       setMessages((m) => [...(m || []), data]);
       setDraft("");
-      toast.info("Message queued — will send once WhatsApp API is connected");
+      if (data.status === "sent") toast.success("Message sent ✓");
+      else toast.info("Message queued — will send once WhatsApp API is connected");
       setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
     } catch (e) { toast.error(apiErr(e)); }
   };
+
+  // Poll the open thread + channel list for near-real-time 2-way chat.
+  useEffect(() => {
+    if (!activeId) return;
+    const t = setInterval(() => {
+      API.get(`/whatsapp/channels/${activeId}/messages`).then(({ data }) => {
+        setMessages((prev) => (prev && data.items.length === prev.length ? prev : data.items));
+      }).catch(() => {});
+      loadChannels(1, search);
+    }, 8000);
+    return () => clearInterval(t);
+  }, [activeId, search, loadChannels]);
 
   return (
     <div className="flex h-full" data-testid="whatsapp-page">

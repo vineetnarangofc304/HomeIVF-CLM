@@ -14,6 +14,16 @@ from core.utils import log_message, next_id, now_utc_str, run_automation_by_id
 router = APIRouter(tags=["whatsapp-cloud"])
 
 
+async def _next_channel_id() -> int:
+    """Allocate a wa_channel id, self-healing the counter to max(existing id)
+    on first use so auto-created inbound threads never collide with migrated ids."""
+    cur = await db.counters.find_one({"_id": "wa_channel"})
+    if not cur or "seq" not in cur:
+        mx = await db.wa_channels.find_one({}, sort=[("id", -1)], projection={"id": 1})
+        await db.counters.update_one({"_id": "wa_channel"}, {"$set": {"seq": int((mx or {}).get("id") or 0)}}, upsert=True)
+    return await next_id("wa_channel")
+
+
 # ---- Inbound webhook verification ----
 @router.get("/webhooks/whatsapp")
 async def wa_verify(request: Request):
@@ -95,8 +105,16 @@ async def wa_webhook(request: Request):
                 text = (m.get("text") or {}).get("body") or reply_title or f"[{mtype}]"
                 now = now_utc_str()
                 digits = re.sub(r"\D", "", frm or "")[-10:]
-                # mirror into existing WhatsApp thread for this number, if any
+                # mirror into a WhatsApp thread for this number — auto-create one
+                # if it doesn't exist yet so inbound always shows in the 2-way inbox.
                 ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}}) if len(digits) >= 8 else None
+                if not ch and len(digits) >= 8:
+                    lead_nm = await db.leads.find_one({"phone_digits": digits}, {"_id": 0, "contact_name": 1, "name": 1})
+                    ch_id = await _next_channel_id()
+                    ch = {"id": ch_id, "phone_digits": digits,
+                          "name": (lead_nm or {}).get("contact_name") or (lead_nm or {}).get("name") or frm,
+                          "whatsapp_number": frm, "last_message_date": now, "created_via": "inbound_webhook"}
+                    await db.wa_channels.insert_one(dict(ch))
                 if ch:
                     await db.wa_messages.insert_one({
                         "id": await next_id("wa_message"), "channel_id": ch["id"], "body": text,
