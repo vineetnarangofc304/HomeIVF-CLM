@@ -1,6 +1,19 @@
 # HomeIVF CRM — PRD
 
-## Fix (2026-06) — 2-way WhatsApp chat robustness — iteration_32 (100% backend 8/8 + regression 15/15 + frontend)
+## Feature (2026-06) — Email sender name + WhatsApp Chat Workspace (Case 1 + Case 2 Phase-2A/2B) — iteration_33 (100%: 16/16 backend + all frontend)
+- **Case 1 — Email sender name → HomeIVF:** send_email now sets From as `HomeIVF <account>` via `formataddr`. Admin can edit the display name in Admin → Email (`POST /admin/gmail/sender-name`, default "HomeIVF"). Live email send confirmable only on production (Gmail connect).
+- **Case 2 — WhatsApp Chat Workspace overhaul (followed the referenced Figma design system):**
+  - Unread indicators + per-chat unread counts (bold rows + green badge), auto-marked read on open (`unread_count` on wa_channels, inbound webhook increments it, `POST /whatsapp/channels/{id}/read`).
+  - Global floating "new WhatsApp message" notifier (`WaNotifier` in Layout, `GET /whatsapp/unread-summary`, 15s poll) — appears app-wide so no chat is missed.
+  - Filter tabs All / Unread / Interested; conversation search; in-conversation message search (`?search=`).
+  - "Interested Customer" categorization — `POST /whatsapp/channels/{id}/category` tags the linked lead "Interested" + sets lead_stage="Contacted" + chatter note + runs on_tag_set automations.
+  - Star & Pin messages + a Starred side panel (`/messages/{id}/star|pin`, `?starred=true`, pinned bar).
+  - Emoji picker (curated, no dep), quote-reply (reply_to snippet).
+  - Attachments (image/file/video) — `POST /whatsapp/media/upload` stores a CRM-viewable copy + uploads to Meta (media id) → `send_media`; served via `GET /whatsapp/media?path=&auth=`. Emoji reactions — `/messages/{id}/react` + inbound `reaction` webhook attaches emoji.
+  - Backend bug fixed by QA: toggle_star/pin used `if not m` (empty projection dict is falsy) → changed to `is None`.
+- **Deferred:** received (inbound) customer media currently shows a "[type]" placeholder (full inbound media download/render not built); voice notes explicitly skipped per user.
+
+
 - **Gap 1 — inbound from new numbers was dropped:** the inbound webhook only mirrored into an EXISTING wa_channel, so a first-time inbound (number with no migrated thread) never appeared in the WhatsApp inbox. Now `wa_webhook()` auto-creates a wa_channel (via `_next_channel_id()` which self-heals the `wa_channel` counter to max(id) to avoid colliding with the 10.9k migrated channels), then stores the inbound message. Same number reuses the thread.
 - **Gap 2 — reply always said "queued":** `POST /whatsapp/channels/{id}/send` now surfaces the real result — returns the live status/wamid on success, and raises HTTP 400 with the Meta error (e.g. free-text only allowed within the 24-hour customer-service window → send a template) on failure. Frontend inbox toasts by status + polls the open thread & channel list every 8s for near-real-time chat.
 - **Confirmed working:** testing verified a live reply was accepted by Meta (wamid returned) in preview. So 2-way chat itself works. **Two dependencies for it to flow on production:** (a) the app's WhatsApp `messages` webhook must be subscribed & pointed at the prod CRM (same requirement as delivery-status — use Admin → WhatsApp → "Diagnose delivery status"); (b) free-text replies only work inside Meta's 24h window — outside it, agents must send an approved template.
