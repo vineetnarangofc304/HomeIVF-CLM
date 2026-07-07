@@ -12,7 +12,7 @@ import pytest
 import requests
 from pymongo import MongoClient
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://lead-capture-debug-1.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-crm-preview.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 from dotenv import load_dotenv  # noqa: E402
