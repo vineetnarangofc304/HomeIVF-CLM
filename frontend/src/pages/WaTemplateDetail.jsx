@@ -111,7 +111,7 @@ export default function WaTemplateDetail() {
         </Field>
         <Field label="Phone Field">
           <select className="hivf-select" disabled={!canEdit} value={tpl.phone_field || ""} onChange={(e) => set("phone_field", e.target.value)} data-testid="info-phone-field">
-            <option value="">Select field…</option>{fieldOpts.map((o) => <option key={o.key} value={o.key}>{o.label} ({o.key})</option>)}
+            <option value="">Select field…</option>{fieldOpts.map((o) => <option key={o.key} value={o.key}>{`${o.label} (${o.key})`}</option>)}
           </select>
         </Field>
         <Field label="Language"><input className="hivf-input" disabled={!canEdit} placeholder="English" value={tpl.lang || ""} onChange={(e) => set("lang", e.target.value)} /></Field>
@@ -251,7 +251,7 @@ function VariablesTab({ tpl, set, canEdit, fieldOpts = [] }) {
               <option value="">Type…</option>{VAR_TYPES.map((t) => <option key={t}>{t}</option>)}
             </select>
             <select className="hivf-select" disabled={!canEdit} value={v.field || ""} onChange={(e) => upd(i, "field", e.target.value)} data-testid={`variable-field-${i}`}>
-              <option value="">Map CRM field…</option>{fieldOpts.map((o) => <option key={o.key} value={o.key}>{o.label} ({o.key})</option>)}
+              <option value="">Map CRM field…</option>{fieldOpts.map((o) => <option key={o.key} value={o.key}>{`${o.label} (${o.key})`}</option>)}
             </select>
           </div>
           {canEdit && <button onClick={() => set("variables", vars.filter((_, idx) => idx !== i))} className="mt-2 text-xs font-bold text-rose-500"><Trash size={13} className="inline" /> Remove</button>}
