@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+## Fix (2026-07) — WhatsApp status stuck at "Sent" (delivered/read not updating) — iteration_29 (100% backend + frontend)
+- Root cause: CRM webhook→wa_tracking status logic is CORRECT (verified: signed webhook advances sent→delivered→read→failed with history). Production stayed "Sent" because **Meta wasn't delivering status webhooks** — the WABA wasn't subscribed to the app.
+- Fix: `subscribe_waba()`/`get_subscribed_apps()` in whatsapp_cloud.py + admin endpoints `POST /api/admin/whatsapp/subscribe`, `GET /api/admin/whatsapp/subscribed-apps`. Added a webhook diagnostic log (`wa_webhook_log`) + `GET /api/admin/whatsapp/webhook-log`. Admin → WhatsApp UI: "Subscribe WABA to webhooks" + "Recent webhook deliveries" buttons/panel.
+- USER ACTION on production (after redeploy): click "Subscribe WABA to webhooks", and ensure the **messages** field is subscribed in Meta → WhatsApp → Configuration. Then delivered/read/replied will flow live.
+- NOTE: Case 2 (Ozonetel split) IS built & tested in preview (iter27) — if user doesn't see it, it's because production hasn't been redeployed since.
+
+
 ## Feature (2026-07) — Case 4 fully closed: inline template preview + live status in Activity Log — iteration_28 (100% backend + frontend)
 - **Gap fixed:** Case 4 previously used a separate side panel. Now, when a WhatsApp/Email template is sent (manual OR automation), the lead's **Chatter/Activity log** shows the message as an inline **preview card** with a **status badge on the top-right** (hover shows Sent/Delivered/Read/Failed/Bounced/Replied). WhatsApp cards are clickable → message lifecycle detail page; badge reflects live `wa_tracking` status.
 - Backend: `log_message` now accepts an `extra` dict; `send_whatsapp`, `send_email`, and `run_automations` attach `{kind, preview, template_name, track_id, status, channel}` to the chatter message. Frontend: `TemplateActivityPreview` in LeadDetail + `waTrackById` live-status map.

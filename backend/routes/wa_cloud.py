@@ -57,13 +57,12 @@ async def wa_webhook(request: Request):
                 err = None
                 if st.get("errors"):
                     err = (st["errors"][0] or {}).get("title") or str(st["errors"][0])
-                msg = await db.wa_messages.find_one({"wamid": wamid}, {"_id": 0, "id": 1, "channel_id": 1})
-                if msg:
-                    await db.wa_messages.update_one(
-                        {"wamid": wamid},
-                        {"$set": {"status": new_status, "status_at": now, "error": err},
-                         "$push": {"status_history": {"status": new_status, "at": now}}},
-                    )
+                res_wam = await db.wa_messages.update_one(
+                    {"wamid": wamid},
+                    {"$set": {"status": new_status, "status_at": now, "error": err},
+                     "$push": {"status_history": {"status": new_status, "at": now}}},
+                )
+                if res_wam.modified_count:
                     status_updates += 1
                 # Case 5 — update the tracked outbound record with lifecycle + failure detail
                 failure_type = None
