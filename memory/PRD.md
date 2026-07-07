@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+## Feature (2026-07) — Case 4 fully closed: inline template preview + live status in Activity Log — iteration_28 (100% backend + frontend)
+- **Gap fixed:** Case 4 previously used a separate side panel. Now, when a WhatsApp/Email template is sent (manual OR automation), the lead's **Chatter/Activity log** shows the message as an inline **preview card** with a **status badge on the top-right** (hover shows Sent/Delivered/Read/Failed/Bounced/Replied). WhatsApp cards are clickable → message lifecycle detail page; badge reflects live `wa_tracking` status.
+- Backend: `log_message` now accepts an `extra` dict; `send_whatsapp`, `send_email`, and `run_automations` attach `{kind, preview, template_name, track_id, status, channel}` to the chatter message. Frontend: `TemplateActivityPreview` in LeadDetail + `waTrackById` live-status map.
+- Note: email delivery/read status isn't available from Gmail API (email badge shows Sent/In Queue snapshot).
+- **ALL doc Tab-2 cases (1–5) now fully complete & tested.** Case 1/Gmail pending user's production redeploy confirmation.
+
+
 ## Feature (2026-07) — Doc Tab 2 remaining cases 2/3/4 — iteration_27 (backend 100%, frontend 100%)
 - **Case 2 — Ozonetel vs Pipeline split:** Leads page now has two buckets: "Lead in Pipeline" (default) and "Ozonetel Lead" (raw, `ozonetel_lead=true & in_pipeline!=true`). Backend `bucket` filter in build_query/query_params_dep. New `POST /api/leads/{id}/promote-to-pipeline` validates a raw lead into the pipeline; DEDUP: if a pipeline lead has the same phone, the raw lead's call activity is merged into it (`merged_into`, is_duplicate/duplicate_of set) and the raw one archived. Frontend: bucket tabs + "→ Pipeline" button + PromoteModal (name/phone/email/city/state).
 - **Case 3 — Automation template preview:** In Admin → Automations, selecting a WhatsApp/Email template in an action now shows a live preview (body/subject) below the selector (`action-preview-{idx}`).
