@@ -23,7 +23,8 @@ async def gmail_auth_url(origin: str = Query(None), user: dict = Depends(require
     url, state = flow.authorization_url(access_type="offline", prompt="consent", include_granted_scopes="true")
     await db.oauth_states.delete_many({"provider": "gmail"})
     await db.oauth_states.insert_one({"provider": "gmail", "state": state, "user_id": user["id"],
-                                      "redirect": redirect, "created_at": now_utc_str()})
+                                      "redirect": redirect, "code_verifier": getattr(flow, "code_verifier", None),
+                                      "created_at": now_utc_str()})
     return {"url": url}
 
 
@@ -45,6 +46,10 @@ async def gmail_callback(code: str = Query(None), state: str = Query(None),
         return RedirectResponse(f"{base}/admin?tab=Email&gmail=badstate")
     await db.oauth_states.delete_one({"_id": st["_id"]})
     flow = gm.make_flow(redirect)
+    # Restore the PKCE code_verifier generated when the auth URL was built —
+    # a fresh Flow has none, so Google would reject with "Missing code verifier".
+    if st.get("code_verifier"):
+        flow.code_verifier = st["code_verifier"]
     try:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")

@@ -1,0 +1,24 @@
+{
+  "summary": "Iter31 — Case 1 Gmail PKCE, Case 2 Move-to-Pipeline, Case 4 activity preview+status, and Case 5 (field options, WhatsApp template dropdowns, Quick Reply automation via webhook) all pass end-to-end. 7/7 backend tests + all frontend flows verified against preview URL.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter31_new_features.py",
+    "/app/test_reports/pytest/iter31_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "React hydration warning: <option> in WaTemplateDetail.jsx line ~114 renders {o.label} wrapped by dev instrumentation as a <span> child of <option>, causing 'In HTML, <span> cannot be a child of <option>' console error. Cosmetic only (functional select works), but should be cleaned before prod / by disabling the dev overlay instrumentation for <option> children.",
+    "wa_cloud.py webhook now does 2 DB roundtrips per inbound message (leads.find_one + wa_tracking.find_one + templates_whatsapp.find_one) — fine for current volume; if webhook traffic grows, batch by aggregating or caching template lookup.",
+    "run_automation_by_id() silently returns None for unknown automation_id — good defensive behavior, but no warn/log line makes debugging misconfigured Quick Reply buttons harder. Consider a print('[wa] quick reply automation not found: %s' % aid).",
+    "LeadDetail.jsx moveToPipeline sends contact_name/phone/email_from/city/state_name from stale state; if lead data was edited but not saved, the promote call will echo those unsaved values into the DB — acceptable but worth a comment."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter31_new_features.py"],
+  "success_rate": {"backend": "100% (7/7)", "frontend": "100% (Case 2, 4, 5 all verified)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (verified working)",
+  "seed_data_creation": "Backend test creates & tears down: TEST_iter31 automation, lead, whatsapp template, wa_tracking (all cleaned in fixture). Frontend test created lead 500155 (raw Ozonetel) + one message doc (both cleaned via __iter31_seed flag).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Backend test file test_iter31_new_features.py covers Gmail PKCE + code_verifier persistence, catalogs/lead-field-options (>=15), WhatsApp webhook status advance (sent→delivered→read), bad signature 401 no-mutation, and Quick Reply inbound button → replied + automation trigger (set_lead_stage). Case 4 activity-preview verified visually on preview URL after seeding a wa_template message with kind='wa_template', preview text and status='sent'. Case 5 UI: info-applies-to(3), info-phone-field(18), info-header-type(6), info-user-access(2), variable-field-0(18) all confirmed <select>; button-automation-0 is a <select> and quick-reply-guide amber note renders on Quick Reply/Set Automation button. NB: React dev-mode logs hydration warning for span-inside-option — cosmetic.",
+  "rca of the issue": "N/A — no bugs found. All 4 cases implemented per spec and working end-to-end. The prior WhatsApp 'stuck at Sent' user report is a Meta-side webhook subscription issue (confirmed in iter30) and remains outside CRM scope."
+}

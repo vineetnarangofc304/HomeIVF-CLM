@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from core import whatsapp_cloud as wac
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str
+from core.utils import log_message, next_id, now_utc_str, run_automation_by_id
 
 router = APIRouter(tags=["whatsapp-cloud"])
 
@@ -83,7 +83,16 @@ async def wa_webhook(request: Request):
                     log_matched += 1
             for m in value.get("messages", []):
                 frm = m.get("from")
-                text = (m.get("text") or {}).get("body") or f"[{m.get('type')}]"
+                mtype = m.get("type")
+                # Case 5 — Quick Reply / interactive reply button tap
+                reply_title = reply_id = None
+                if mtype == "button":
+                    b = m.get("button") or {}
+                    reply_title, reply_id = b.get("text"), b.get("payload")
+                elif mtype == "interactive":
+                    br = (m.get("interactive") or {}).get("button_reply") or {}
+                    reply_title, reply_id = br.get("title"), br.get("id")
+                text = (m.get("text") or {}).get("body") or reply_title or f"[{mtype}]"
                 now = now_utc_str()
                 digits = re.sub(r"\D", "", frm or "")[-10:]
                 # mirror into existing WhatsApp thread for this number, if any
@@ -98,18 +107,40 @@ async def wa_webhook(request: Request):
                     await db.wa_channels.update_one({"id": ch["id"]}, {"$set": {"last_message_date": now}})
                 # log to a matching lead's chatter
                 if len(digits) >= 8:
-                    lead = await db.leads.find_one({"phone_digits": digits}, {"id": 1}, sort=[("write_date", -1)])
+                    lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)])
                     if lead:
                         await log_message(lead["id"], f"💬 Inbound WhatsApp from {frm}: {text[:500]}", subtype="comment")
                         # Case 5 — mark the most recent outbound template to this lead as Replied
                         last = await db.wa_tracking.find_one(
                             {"lead_id": lead["id"], "status": {"$in": ["sent", "delivered", "read"]}},
-                            {"_id": 0, "id": 1}, sort=[("id", -1)])
+                            {"_id": 0, "id": 1, "template_id": 1}, sort=[("id", -1)])
                         if last:
                             await db.wa_tracking.update_one(
                                 {"id": last["id"]},
                                 {"$set": {"status": "replied", "status_at": now},
                                  "$push": {"status_history": {"status": "replied", "at": now}}})
+                        # Case 5 — Quick Reply → capture + run the button's mapped automation
+                        if reply_title or reply_id:
+                            tmpl = None
+                            if last and last.get("template_id"):
+                                tmpl = await db.templates_whatsapp.find_one({"id": last["template_id"]}, {"_id": 0})
+                            btn = None
+                            for b in ((tmpl or {}).get("buttons") or []):
+                                if (reply_title and (b.get("text") or "").strip().lower() == reply_title.strip().lower()) \
+                                        or (reply_id and str(b.get("id") or b.get("payload") or "") == str(reply_id)):
+                                    btn = b
+                                    break
+                            await log_message(
+                                lead["id"],
+                                f"↩️ WhatsApp Quick Reply: <b>{reply_title or reply_id}</b>"
+                                + (f" (template: {tmpl['name']})" if tmpl else ""),
+                                subtype="comment",
+                                extra={"kind": "wa_quick_reply", "reply": reply_title or reply_id,
+                                       "template_name": (tmpl or {}).get("name"),
+                                       "track_id": (last or {}).get("id")})
+                            aid = (btn or {}).get("automation_id")
+                            if aid:
+                                await run_automation_by_id(aid, lead)
                 stored += 1
     # persist a diagnostic log entry (keeps last ~200)
     try:

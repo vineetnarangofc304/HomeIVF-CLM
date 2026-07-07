@@ -50,6 +50,27 @@ async def list_custom_fields(user: dict = Depends(get_current_user)):
     return await db.custom_fields.find({}, {"_id": 0}).sort([("sequence", 1), ("id", 1)]).to_list(300)
 
 
+# Standard lead fields exposed for template mapping (Phone Field / Variables Field dropdowns)
+STANDARD_LEAD_FIELDS = [
+    ("contact_name", "Name"), ("phone", "Phone"), ("mobile", "Mobile"),
+    ("email_from", "Email"), ("city", "City"), ("state_name", "State"),
+    ("country", "Country"), ("street", "Address"), ("gender", "Gender"),
+    ("age", "Age"), ("spouse_name", "Spouse Name"), ("doctor_name", "Doctor"),
+    ("source_lead", "Source"), ("campaign_name", "Campaign"), ("follow_up_date", "Follow-up Date"),
+]
+
+
+@router.get("/lead-field-options")
+async def lead_field_options(user: dict = Depends(get_current_user)):
+    """All mappable CRM lead fields (standard + custom) for WhatsApp template dropdowns."""
+    opts = [{"key": k, "label": lbl, "group": "Standard"} for k, lbl in STANDARD_LEAD_FIELDS]
+    cf = await db.custom_fields.find({"active": {"$ne": False}}, {"_id": 0, "key": 1, "label": 1}).sort([("sequence", 1), ("id", 1)]).to_list(300)
+    for f in cf:
+        if f.get("key"):
+            opts.append({"key": f["key"], "label": f.get("label") or f["key"], "group": "Custom"})
+    return {"options": opts}
+
+
 @router.post("/custom-fields/create")
 async def create_custom_field(body: CustomFieldCreate, user: dict = Depends(require_roles("admin", "manager"))):
     label = body.label.strip()

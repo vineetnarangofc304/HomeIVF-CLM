@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
   ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
-  Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash, Warning, Eye, X,
+  Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash, Warning, Eye, X, ArrowRight,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
@@ -107,6 +107,21 @@ export default function LeadDetail() {
     finally { setDialing(false); }
   };
 
+  const [moving, setMoving] = useState(false);
+  const moveToPipeline = async () => {
+    setMoving(true);
+    try {
+      const { data } = await API.post(`/leads/${id}/promote-to-pipeline`, {
+        contact_name: lead.contact_name || lead.name, phone: lead.phone,
+        email_from: lead.email_from, city: lead.city, state_name: lead.state_name,
+      });
+      toast.success(data.merged_into ? `Merged into existing pipeline lead #${data.merged_into}` : "Moved to Lead in Pipeline ✓");
+      if (data.merged_into) navigate(`/leads/${data.merged_into}`);
+      else load();
+    } catch (e) { toast.error(apiErr(e)); }
+    finally { setMoving(false); }
+  };
+
   const reloadAttachments = async () => {
     const { data } = await API.get(`/leads/${id}/attachments`);
     setAttachments(data);
@@ -174,6 +189,12 @@ export default function LeadDetail() {
               title={`Same phone as lead #${lead.duplicate_of}`}
               className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-200">
               <Warning size={14} weight="fill" /> Duplicate{lead.duplicate_of ? ` of #${lead.duplicate_of}` : ""}
+            </button>
+          )}
+          {lead.ozonetel_lead && !lead.in_pipeline && (
+            <button data-testid="move-to-pipeline-button" onClick={moveToPipeline} disabled={moving}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#4A90E2] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#357ABD] disabled:opacity-60">
+              <ArrowRight size={15} weight="bold" /> {moving ? "Moving…" : "Move to Pipeline"}
             </button>
           )}
           <button data-testid="click-to-dial-button" onClick={clickToDial} disabled={dialing}
