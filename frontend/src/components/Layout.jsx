@@ -6,6 +6,7 @@ import {
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
 import IncomingCallBanner from "./IncomingCallBanner";
+import WaNotifier from "./WaNotifier";
 import AgentStatusSwitcher from "./AgentStatusSwitcher";
 
 const NAV = [
@@ -110,6 +111,7 @@ export default function Layout({ children }) {
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
       <IncomingCallBanner />
+      <WaNotifier />
     </div>
   );
 }

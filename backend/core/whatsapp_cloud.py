@@ -73,6 +73,54 @@ async def send_template(to: str, template_name: str, language: str = "en", body_
     })
 
 
+async def upload_media(data: bytes, content_type: str) -> dict:
+    """Upload media bytes to Meta → returns a media id for sending (works without a public URL)."""
+    c = await get_config()
+    if not c.get("access_token") or not c.get("phone_number_id"):
+        return {"ok": False, "error": "WhatsApp Cloud API not configured"}
+    ver = c.get("graph_api_version") or GRAPH_VERSION
+    url = f"https://graph.facebook.com/{ver}/{c['phone_number_id']}/media"
+    files = {"file": ("upload", data, content_type or "application/octet-stream")}
+    form = {"messaging_product": "whatsapp", "type": content_type or "application/octet-stream"}
+    try:
+        async with httpx.AsyncClient(timeout=60) as cl:
+            r = await cl.post(url, headers={"Authorization": f"Bearer {c['access_token']}"}, data=form, files=files)
+        j = r.json()
+    except Exception as e:
+        return {"ok": False, "error": str(e)}
+    if j.get("id"):
+        return {"ok": True, "id": j["id"]}
+    return {"ok": False, "error": (j.get("error") or {}).get("message", str(j))}
+
+
+async def send_media(to: str, mtype: str, link: str = None, media_id: str = None, caption: str = "", filename: str = "") -> dict:
+    """Send an image/video/document message via Cloud API by Meta media id or hosted link."""
+    mt = (mtype or "document").lower()
+    if mt not in ("image", "video", "document", "audio"):
+        mt = "document"
+    obj = {}
+    if media_id:
+        obj["id"] = media_id
+    elif link:
+        obj["link"] = link
+    if caption and mt in ("image", "video", "document"):
+        obj["caption"] = caption
+    if filename and mt == "document":
+        obj["filename"] = filename
+    return await _post_message({
+        "messaging_product": "whatsapp", "recipient_type": "individual",
+        "to": norm_msisdn(to), "type": mt, mt: obj,
+    })
+
+
+async def send_reaction(to: str, wamid: str, emoji: str) -> dict:
+    return await _post_message({
+        "messaging_product": "whatsapp", "recipient_type": "individual",
+        "to": norm_msisdn(to), "type": "reaction",
+        "reaction": {"message_id": wamid, "emoji": emoji or ""},
+    })
+
+
 async def send_lead_template(lead: dict, template: dict) -> dict:
     """Send a templates_whatsapp record to a lead via Cloud API.
     Uses the approved Cloud template name (wa_template_name) when set, else falls

@@ -1,0 +1,56 @@
+{
+  "summary": "Iter33 — Case 1 (Gmail sender name → HomeIVF) + Case 2 Phase-2A WhatsApp Workspace overhaul fully verified. 16/16 new backend tests pass, all critical UI flows work. One real backend bug found (toggle_star returns 404 for messages that never had a `starred` field) — FIXED in-place.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "tests_executed": {
+    "backend": [
+      "TestGmailSenderName x3 — POST /api/admin/gmail/sender-name persists, GET /admin/gmail/status returns sender_name, empty defaults to 'HomeIVF'",
+      "TestChannelsListing x4 — filter=all|unread|interested behaves correctly, unread-summary returns {total_unread, unread_chats, recent}",
+      "TestUnreadLifecycle x2 — signed inbound webhook increments channel unread_count, appears in unread-summary; POST /channels/{id}/read resets to 0; bad HMAC → 401",
+      "TestMessageActions x1 — search (?search=needle) returns matching msg; ?starred=true filter; star/pin/react toggles persist and reflect in message list",
+      "TestInterestedCategory x2 — POST /channels/{id}/category {category:'interested'} tags matching lead with 'Interested' + sets lead_stage='Contacted' + chatter note; category=null clears it",
+      "TestSendReply x1 — POST /channels/{id}/send with reply_to stores reply snippet (author + body)",
+      "TestMediaUpload x1 — POST /whatsapp/media/upload works (returns storage_path + media_url + media_id); GET /whatsapp/media without token → 401; with ?auth=<jwt> returns exact bytes",
+      "TestInboundReactionWebhook x2 — reaction webhook attaches emoji to target wamid, does NOT create a chat line; bad HMAC on reaction → 401"
+    ],
+    "frontend": [
+      "Login admin → /whatsapp loads [data-testid=whatsapp-page]",
+      "Filter tabs wa-filter-all|unread|interested switch correctly",
+      "Channel list [data-testid=wa-channel-list] shows 30 items; clicking opens thread [data-testid=wa-messages]",
+      "Composer: type in wa-message-input, click wa-emoji-btn opens emoji-picker, selecting emoji appends 😀 to input",
+      "Header toggles wa-search-toggle (reveals wa-msg-search), wa-starred-toggle (opens wa-starred-panel), wa-interested-toggle all present",
+      "Hover message bubble → wa-star-{id}, wa-pin-{id}, wa-reply-{id}, wa-react-{id} all rendered",
+      "Clicking star persists, clicking pin shows wa-pinned-bar, clicking reply shows wa-reply-preview",
+      "Global FAB [data-testid=wa-notifier-fab] appears on Dashboard when total_unread>0; clicking opens wa-notifier-panel"
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter33_wa_workspace.py",
+    "/app/test_reports/pytest/iter33.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED: /app/backend/routes/whatsapp.py — toggle_star used `if not m:` after `find_one({'id':message_id}, {'_id':0,'starred':1})`. When the document existed but had no `starred` field, MongoDB returned `{}` which is falsy, incorrectly raising 404. Changed to `if m is None:` (same defensive fix applied to toggle_pin for symmetry). Verified by real API call: 5000012 which existed in DB returned 404 before the fix and 200 after. Users would previously never be able to star a message the first time.",
+    "whatsapp.py list_channels `search` builds regex on `phone_digits` unanchored — could match longer numbers ending with the query digits. Low impact for Indian 10-digit numbers but flagged again from iter32.",
+    "wa_cloud.py webhook picks channel by regex `phone_digits + '$'` without sort — non-deterministic when multiple channels end with the same 10 digits. Consider indexing on phone_digits and matching most-recently-active.",
+    "toggle_react endpoint stores emoji verbatim without length/validation cap — consider limiting to a single grapheme."
+  ],
+  "updated_files": [
+    "/app/backend/routes/whatsapp.py",
+    "/app/backend/tests/test_iter33_wa_workspace.py"
+  ],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "100% (all documented flows verified)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Created 5 TEST_iter33_lead_* leads + up to 3 auto-created inbound wa_channels (11266–11268) + a few wa_messages during backend tests. Also seeded 1 unread wa_channel (11269, phone 913449667415) via signed webhook for the FAB notifier UI test. All seed data cleaned up after tests. wa_channels count restored to ~10944.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "The `if not m` truthiness bug in toggle_star/toggle_pin has been fixed. If touching those endpoints again, keep `is None`. Preview WhatsApp Cloud is still fully configured (access_token + phone_number_id set) so free-text sends within the 24h session window actually go through Meta. The Interested category flow requires the channel's phone_digits to exactly match a lead's phone_digits (both 10 digits, last 10 of msisdn) — seed both accordingly. Category set to 'interested' will run on_tag_set automations for the linked lead — be aware of side effects.",
+  "rca of the issue": "Bug: POST /api/whatsapp/messages/{id}/star returned 404 'Message not found' for every message that had never been starred before. Root cause: find_one used projection `{_id:0, starred:1}` — MongoDB returns `{}` (empty dict) when the projected field isn't in the doc; empty dict is falsy in Python; `if not m` triggered HTTP 404. Repro: create a fresh wa_message (any inbound), POST /star → 404. Fix: change `if not m:` to `if m is None:` in toggle_star and toggle_pin (same latent risk). Verified fixed via manual curl and pytest run."
+}

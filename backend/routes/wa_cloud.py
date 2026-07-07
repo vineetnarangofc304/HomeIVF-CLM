@@ -94,6 +94,15 @@ async def wa_webhook(request: Request):
             for m in value.get("messages", []):
                 frm = m.get("from")
                 mtype = m.get("type")
+                now = now_utc_str()
+                # Inbound emoji reaction → attach to the target message, skip as a chat line
+                if mtype == "reaction":
+                    rc = m.get("reaction") or {}
+                    tgt_wamid, emoji = rc.get("message_id"), rc.get("emoji")
+                    if tgt_wamid:
+                        await db.wa_messages.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
+                        await db.wa_tracking.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
+                    continue
                 # Case 5 — Quick Reply / interactive reply button tap
                 reply_title = reply_id = None
                 if mtype == "button":
@@ -103,7 +112,6 @@ async def wa_webhook(request: Request):
                     br = (m.get("interactive") or {}).get("button_reply") or {}
                     reply_title, reply_id = br.get("title"), br.get("id")
                 text = (m.get("text") or {}).get("body") or reply_title or f"[{mtype}]"
-                now = now_utc_str()
                 digits = re.sub(r"\D", "", frm or "")[-10:]
                 # mirror into a WhatsApp thread for this number — auto-create one
                 # if it doesn't exist yet so inbound always shows in the 2-way inbox.
@@ -122,7 +130,7 @@ async def wa_webhook(request: Request):
                         "message_type": "comment", "direction": "inbound", "status": "received",
                         "wamid": m.get("id"),
                     })
-                    await db.wa_channels.update_one({"id": ch["id"]}, {"$set": {"last_message_date": now}})
+                    await db.wa_channels.update_one({"id": ch["id"]}, {"$set": {"last_message_date": now}, "$inc": {"unread_count": 1}})
                 # log to a matching lead's chatter
                 if len(digits) >= 8:
                     lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)])
