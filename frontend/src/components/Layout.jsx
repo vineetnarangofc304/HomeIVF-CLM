@@ -7,6 +7,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import IncomingCallBanner from "./IncomingCallBanner";
 import WaNotifier from "./WaNotifier";
+import FollowUpReminder from "./FollowUpReminder";
 import AgentStatusSwitcher from "./AgentStatusSwitcher";
 
 const NAV = [
@@ -112,6 +113,7 @@ export default function Layout({ children }) {
       </div>
       <IncomingCallBanner />
       <WaNotifier />
+      <FollowUpReminder />
     </div>
   );
 }

@@ -22,11 +22,20 @@ async def _label_maps():
 
 
 COLUMNS = [
-    ("id", "Lead ID"), ("contact_name", "Name"), ("phone", "Phone"), ("email_from", "Email"),
-    ("city", "City"), ("state_name", "State"), ("lead_stage", "Lead Stage"), ("_tags", "Tags"),
-    ("_agent", "Assigned Agent"), ("source_lead", "Source"), ("campaign_name", "Campaign"),
-    ("ads_platform", "Ads Platform"), ("follow_up_tag", "Follow-up Tag"), ("follow_up_date", "Follow-up Date"),
-    ("_status", "Status"), ("_lost", "Lost Reason"), ("create_date_ist", "Created (IST)"),
+    ("id", "Lead ID"), ("contact_name", "Name"), ("name", "Display Name"), ("phone", "Phone"),
+    ("email_from", "Email"), ("street", "Address"), ("city", "City"), ("state_name", "State"),
+    ("country", "Country"), ("gender", "Gender"), ("age", "Age"), ("male_age", "Male Age"),
+    ("female_age", "Female Age"), ("spouse_name", "Spouse Name"), ("spouse_age", "Spouse Age"),
+    ("pre_conditions", "Pre-conditions"), ("doctor_name", "Doctor"), ("query", "Query"), ("remark", "Remark"),
+    ("lead_stage", "Lead Stage"), ("_tags", "Tags"), ("_agent", "Assigned Agent"),
+    ("source_lead", "Source"), ("campaign_name", "Campaign"), ("ads_platform", "Ads Platform"),
+    ("ads_campaign_name", "Ads Campaign"), ("ads_name", "Ad Name"),
+    ("utm_source", "UTM Source"), ("utm_medium", "UTM Medium"), ("utm_campaign", "UTM Campaign"),
+    ("priority", "Priority"), ("follow_up_date", "Follow-up Date"), ("follow_up_time", "Follow-up Time"),
+    ("follow_up_tag", "Follow-up Tag"), ("_status", "Status"), ("_lost", "Lost Reason"),
+    ("is_duplicate", "Duplicate?"), ("duplicate_of", "Duplicate Of"),
+    ("facebook_lead", "Facebook Lead"), ("fb_form_name", "FB Form"),
+    ("create_date_ist", "Created (IST)"), ("write_date", "Last Updated"), ("_custom", "Q&A / Custom Fields"),
 ]
 
 
@@ -50,12 +59,19 @@ async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict
         c.font = head_font
     r = 2
     async for lead in cursor:
+        custom = lead.get("custom") or {}
+        custom_str = "; ".join(
+            f"{k.replace('x_custom_', '').replace('x_studio_', '').replace('_', ' ')}: {v}"
+            for k, v in custom.items() if v not in (None, "", False))
         row = {
             **lead,
             "_tags": ", ".join(tags.get(t, str(t)) for t in (lead.get("tags") or [])),
             "_agent": users.get(lead.get("user_id"), ""),
             "_status": "Active" if lead.get("active", True) else "Lost/Archived",
             "_lost": lost.get(lead.get("lost_reason_id"), ""),
+            "_custom": custom_str,
+            "is_duplicate": "Yes" if lead.get("is_duplicate") else "",
+            "facebook_lead": "Yes" if lead.get("facebook_lead") else "",
         }
         for ci, (key, _) in enumerate(COLUMNS, 1):
             val = row.get(key, "")

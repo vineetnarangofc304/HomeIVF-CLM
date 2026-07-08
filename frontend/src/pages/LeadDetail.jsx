@@ -270,6 +270,9 @@ export default function LeadDetail() {
             <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} />
           </div>
 
+          {/* Caller Activities — Case 2 */}
+          <CallerActivities leadId={lead.id} />
+
           <WaLeadPanel leadId={lead.id} />
 
           {/* Tags — Case 2: inline new-tag creation */}
@@ -941,7 +944,7 @@ function TemplateActivityPreview({ m, liveStatus, navigate }) {
 
 function FollowUpSection({ leadId, catalogs, onChanged }) {
   const [items, setItems] = useState(null);
-  const [form, setForm] = useState({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "" });
+  const [form, setForm] = useState({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "", status: "" });
   const [editId, setEditId] = useState(null);
   const [edit, setEdit] = useState({});
 
@@ -949,19 +952,27 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {
-    if (!form.follow_up_date && !form.note.trim()) { toast.error("Pick a date or add a note"); return; }
+    if (!form.note.trim()) { toast.error("Note is required for every follow-up"); return; }
     try {
       await API.post(`/leads/${leadId}/followups`, form);
-      setForm({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "" });
+      setForm({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "", status: "" });
       toast.success("Follow-up added");
       load(); onChanged && onChanged();
     } catch (e) { toast.error(apiErr(e)); }
   };
-  const startEdit = (f) => { setEditId(f.id); setEdit({ follow_up_date: f.follow_up_date || "", follow_up_time: f.follow_up_time || "", follow_up_tag: f.follow_up_tag || "", note: f.note || "" }); };
+  const startEdit = (f) => { setEditId(f.id); setEdit({ follow_up_date: f.follow_up_date || "", follow_up_time: f.follow_up_time || "", follow_up_tag: f.follow_up_tag || "", note: f.note || "", status: f.status || "" }); };
   const saveEdit = async (fid) => {
+    if (!edit.note.trim()) { toast.error("Note is required"); return; }
     try {
       await API.patch(`/leads/${leadId}/followups/${fid}`, edit);
       setEditId(null); toast.success("Follow-up updated");
+      load(); onChanged && onChanged();
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+  const setStatus = async (fid, status) => {
+    try {
+      await API.post(`/leads/${leadId}/followups/${fid}/status`, { status });
+      toast.success(status ? `Marked ${status}` : "Status cleared");
       load(); onChanged && onChanged();
     } catch (e) { toast.error(apiErr(e)); }
   };
@@ -972,6 +983,8 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
   };
 
   const tagOptions = catalogs?.follow_up_tag || [];
+  const statusOptions = catalogs?.followup_status || [];
+  const statusTone = (s) => ({ Completed: "bg-emerald-50 text-emerald-600", "Not Done": "bg-rose-50 text-rose-600", Rescheduled: "bg-amber-50 text-amber-600", Cancelled: "bg-slate-100 text-slate-500" }[s] || "bg-[#4A90E2]/10 text-[#357ABD]");
 
   return (
     <div className="mt-4" data-testid="followup-section">
@@ -980,11 +993,15 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
         <div className="mt-1 grid grid-cols-2 gap-2">
           <input data-testid="followup-add-date" type="date" className="hivf-select" value={form.follow_up_date} onChange={(e) => setForm((f) => ({ ...f, follow_up_date: e.target.value }))} />
           <input data-testid="followup-add-time" type="time" className="hivf-select" value={form.follow_up_time} onChange={(e) => setForm((f) => ({ ...f, follow_up_time: e.target.value }))} />
-          <select data-testid="followup-add-tag" className="hivf-select col-span-2" value={form.follow_up_tag} onChange={(e) => setForm((f) => ({ ...f, follow_up_tag: e.target.value }))}>
+          <select data-testid="followup-add-tag" className="hivf-select" value={form.follow_up_tag} onChange={(e) => setForm((f) => ({ ...f, follow_up_tag: e.target.value }))}>
             <option value="">Follow-up tag (optional)…</option>
             {tagOptions.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
-          <input data-testid="followup-add-note" className="hivf-input col-span-2" placeholder="Note (optional)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
+          <select data-testid="followup-add-status" className="hivf-select" value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
+            <option value="">Status (optional)…</option>
+            {statusOptions.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+          </select>
+          <textarea data-testid="followup-add-note" rows={2} className="hivf-input col-span-2" placeholder="Note * (what happened on the call)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} />
         </div>
         <button data-testid="followup-add-button" onClick={add} className="hivf-btn-primary mt-2 !py-1.5 text-xs"><Plus size={13} /> Add follow-up</button>
       </div>
@@ -999,11 +1016,15 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
                   <div className="grid grid-cols-2 gap-2">
                     <input type="date" className="hivf-select" value={edit.follow_up_date} onChange={(e) => setEdit((d) => ({ ...d, follow_up_date: e.target.value }))} data-testid={`followup-edit-date-${f.id}`} />
                     <input type="time" className="hivf-select" value={edit.follow_up_time} onChange={(e) => setEdit((d) => ({ ...d, follow_up_time: e.target.value }))} />
-                    <select className="hivf-select col-span-2" value={edit.follow_up_tag} onChange={(e) => setEdit((d) => ({ ...d, follow_up_tag: e.target.value }))}>
+                    <select className="hivf-select" value={edit.follow_up_tag} onChange={(e) => setEdit((d) => ({ ...d, follow_up_tag: e.target.value }))}>
                       <option value="">Follow-up tag…</option>
                       {tagOptions.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
                     </select>
-                    <input className="hivf-input col-span-2" placeholder="Note" value={edit.note} onChange={(e) => setEdit((d) => ({ ...d, note: e.target.value }))} />
+                    <select className="hivf-select" value={edit.status} onChange={(e) => setEdit((d) => ({ ...d, status: e.target.value }))} data-testid={`followup-edit-status-${f.id}`}>
+                      <option value="">Status…</option>
+                      {statusOptions.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
+                    <textarea className="hivf-input col-span-2" rows={2} placeholder="Note *" value={edit.note} onChange={(e) => setEdit((d) => ({ ...d, note: e.target.value }))} />
                   </div>
                   <div className="flex justify-end gap-2">
                     <button onClick={() => setEditId(null)} className="text-xs font-bold text-slate-400">Cancel</button>
@@ -1017,14 +1038,60 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
                     <p className="text-sm font-bold text-slate-700">
                       {f.follow_up_date ? fmtDay(f.follow_up_date) : "No date"}{f.follow_up_time ? ` · ${f.follow_up_time}` : ""}
                       {f.follow_up_tag ? <span className="ml-2 rounded-full bg-[#4A90E2]/10 px-2 py-0.5 text-[10px] font-bold text-[#357ABD]">{f.follow_up_tag}</span> : null}
+                      {f.status ? <span className={`ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold ${statusTone(f.status)}`} data-testid={`followup-status-badge-${f.id}`}>{f.status}</span> : null}
                     </p>
                     {f.note && <p className="text-xs text-slate-500">{f.note}</p>}
                     <p className="text-[10px] text-slate-400">{f.created_by_name} · {fmtDate(f.created_at)}</p>
+                    <select value={f.status || ""} onChange={(e) => setStatus(f.id, e.target.value)} data-testid={`followup-set-status-${f.id}`}
+                      className="mt-1.5 rounded-md border border-slate-200 bg-white px-1.5 py-0.5 text-[11px] font-semibold text-slate-600">
+                      <option value="">Set status…</option>
+                      {statusOptions.map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
+                    </select>
                   </div>
                   <button onClick={() => startEdit(f)} className="text-slate-300 hover:text-[#4A90E2]" data-testid={`followup-edit-${f.id}`} title="Edit"><NotePencil size={15} /></button>
                   <button onClick={() => del(f.id)} className="text-slate-300 hover:text-rose-500" data-testid={`followup-delete-${f.id}`} title="Delete"><Trash size={15} /></button>
                 </div>
               )}
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+function CallerActivities({ leadId }) {
+  const [items, setItems] = useState(null);
+  const [feedback, setFeedback] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = () => API.get(`/leads/${leadId}/caller-activities`).then(({ data }) => setItems(data));
+  useEffect(() => { load(); }, [leadId]);
+
+  const add = async () => {
+    if (!feedback.trim()) { toast.error("Enter a feedback note"); return; }
+    setSaving(true);
+    try {
+      await API.post(`/leads/${leadId}/caller-activities`, { feedback: feedback.trim() });
+      setFeedback("");
+      toast.success("Caller activity added");
+      load();
+    } catch (e) { toast.error(apiErr(e)); } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="hivf-card p-4" data-testid="caller-activities-section">
+      <h3 className="mb-1 font-display text-sm font-extrabold text-slate-800">Caller Activities</h3>
+      <p className="mb-3 text-[11px] text-slate-400">Log what happened on each call so any teammate can read the history before calling again.</p>
+      <textarea data-testid="caller-activity-input" rows={2} className="hivf-input" placeholder="Customer / call feedback…" value={feedback} onChange={(e) => setFeedback(e.target.value)} />
+      <button data-testid="caller-activity-add" onClick={add} disabled={saving} className="hivf-btn-primary mt-2 !py-1.5 text-xs"><Plus size={13} /> Add More Note</button>
+
+      <div className="mt-3 space-y-2" data-testid="caller-activity-list">
+        {items === null ? <div className="text-xs text-slate-400">Loading…</div>
+          : items.length === 0 ? <p className="text-xs text-slate-400" data-testid="caller-activity-empty">No caller activities yet.</p>
+          : items.map((a) => (
+            <div key={a.id} className="rounded-xl border border-slate-100 bg-slate-50/60 p-2.5" data-testid={`caller-activity-${a.id}`}>
+              <p className="text-sm text-slate-700 whitespace-pre-wrap">{a.feedback}</p>
+              <p className="mt-1 text-[10px] font-semibold text-slate-400">{a.created_by_name} · {fmtDate(a.created_at)}</p>
             </div>
           ))}
       </div>

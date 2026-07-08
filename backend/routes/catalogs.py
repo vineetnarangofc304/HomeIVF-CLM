@@ -12,7 +12,7 @@ router = APIRouter(prefix="/catalogs", tags=["catalogs"])
 
 CATALOG_TYPES = ["tag", "stage", "lost_reason", "lead_stage", "follow_up_tag",
                  "utm_source", "utm_medium", "utm_campaign", "activity_type", "source_lead",
-                 "state", "country"]
+                 "state", "country", "followup_status"]
 
 
 @router.get("")

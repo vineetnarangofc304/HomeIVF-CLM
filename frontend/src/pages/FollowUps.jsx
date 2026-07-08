@@ -20,6 +20,13 @@ export default function FollowUps() {
   const [activities, setActivities] = useState([]);
   const [counts, setCounts] = useState({});
   const [noteLead, setNoteLead] = useState(null);
+  const [anaDate, setAnaDate] = useState(todayStr());
+  const [analytics, setAnalytics] = useState(null);
+
+  useEffect(() => {
+    API.get("/leads/followups/analytics", { params: { date: anaDate } })
+      .then(({ data }) => setAnalytics(data)).catch(() => setAnalytics(null));
+  }, [anaDate]);
 
   const load = useCallback(async () => {
     setLeads(null);
@@ -47,6 +54,29 @@ export default function FollowUps() {
     <div className="p-6" data-testid="followups-page">
       <h1 className="font-display text-2xl font-extrabold text-slate-900">Follow-ups</h1>
       <p className="text-sm text-slate-500">Your recall queue — click a lead to open it, or log a quick note right here</p>
+
+      {/* Case 5 — follow-up analytics */}
+      <div className="mt-5 hivf-card p-4" data-testid="followup-analytics">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Follow-up Summary</h3>
+          <input type="date" data-testid="followup-analytics-date" className="hivf-select !py-1.5 text-xs" value={anaDate} onChange={(e) => setAnaDate(e.target.value)} />
+        </div>
+        <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-6">
+          {[
+            ["Total", analytics?.total, "text-slate-800"],
+            ["Completed", analytics?.completed, "text-emerald-600"],
+            ["Not Done", analytics?.not_done, "text-rose-600"],
+            ["Rescheduled", analytics?.rescheduled, "text-amber-600"],
+            ["Cancelled", analytics?.cancelled, "text-slate-500"],
+            ["Pending", analytics?.pending, "text-[#357ABD]"],
+          ].map(([label, val, tone]) => (
+            <div key={label} className="rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-center" data-testid={`followup-analytics-${label.toLowerCase().replace(" ", "-")}`}>
+              <p className={`font-display text-2xl font-extrabold ${tone}`}>{val ?? 0}</p>
+              <p className="text-[10px] uppercase tracking-wider text-slate-400">{label}</p>
+            </div>
+          ))}
+        </div>
+      </div>
 
       <div className="mt-5 flex gap-2">
         {TABS.map(([k, label, color]) => (

@@ -157,6 +157,14 @@ async def startup():
             {"$setOnInsert": {"id": i + 1, "type": "follow_up_tag", "name": name, "sequence": i + 1, "active": True}},
             upsert=True,
         )
+    # Seed follow-up status values (Case 5 — dynamic, admin-editable)
+    for i, name in enumerate(["Completed", "Not Done", "Rescheduled", "Cancelled"]):
+        await db.catalogs.update_one(
+            {"type": "followup_status", "name": name},
+            {"$setOnInsert": {"id": i + 1, "type": "followup_status", "name": name, "sequence": i + 1, "active": True}},
+            upsert=True,
+        )
+    await db.counters.update_one({"_id": "catalog_followup_status"}, {"$max": {"seq": 5}}, upsert=True)
     # Seed default source_lead values (collision-safe: ensure_catalog computes max-id+1,
     # so it never clashes with migrated Odoo catalog ids)
     for name in ["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads"]:

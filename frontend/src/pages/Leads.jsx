@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple } from "@phosphor-icons/react";
 import { API, apiErr, fmtDay, fmtDate } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { TagChip, StageBadge, Spinner, EmptyState } from "../components/Bits";
@@ -89,6 +89,7 @@ export default function Leads() {
   const [selected, setSelected] = useState([]);
   const [savedFilters, setSavedFilters] = useState([]);
   const [showCreate, setShowCreate] = useState(false);
+  const [showExport, setShowExport] = useState(false);
   const [promote, setPromote] = useState(null);
   const [showCols, setShowCols] = useState(false);
   const [visibleCols, setVisibleCols] = useState(() => {
@@ -338,6 +339,9 @@ export default function Leads() {
             </span>
           ))}
           <div className="flex-1" />
+          {user.role === "admin" && bucket === "pipeline" && (
+            <button data-testid="export-leads-button" onClick={() => setShowExport(true)} className="hivf-btn-secondary !px-3 !py-1.5 text-xs"><DownloadSimple size={14} /> Export</button>
+          )}
           <button data-testid="new-lead-button" onClick={() => setShowCreate(true)} className="hivf-btn-primary !px-3 !py-1.5 text-xs"><Plus size={14} /> New Lead</button>
         </div>
       </div>
@@ -437,6 +441,7 @@ export default function Leads() {
       )}
 
       {showCreate && <CreateLeadModal onClose={() => setShowCreate(false)} onCreated={(l) => { setShowCreate(false); navigate(`/leads/${l.id}`); }} catalogs={catalogs} />}
+      {showExport && <ExportModal onClose={() => setShowExport(false)} />}
       {promote && <PromoteModal lead={promote} onClose={() => setPromote(null)} onDone={() => { setPromote(null); load(); }} />}
     </div>
   );
@@ -516,7 +521,7 @@ function PromoteModal({ lead, onClose, onDone }) {
 }
 
 function CreateLeadModal({ onClose, onCreated, catalogs }) {
-  const [form, setForm] = useState({ contact_name: "", phone: "", email_from: "", city: "", state_name: "", source_lead: "", lead_stage: "", user_id: "", query: "" });
+  const [form, setForm] = useState({ contact_name: "", phone: "", email_from: "", city: "", state_name: "", country: "India", source_lead: "", lead_stage: "", user_id: "", query: "" });
   const [saving, setSaving] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -544,6 +549,9 @@ function CreateLeadModal({ onClose, onCreated, catalogs }) {
           <input placeholder="Email" className="hivf-input" value={form.email_from} onChange={(e) => set("email_from", e.target.value)} />
           <input placeholder="City" className="hivf-input" value={form.city} onChange={(e) => set("city", e.target.value)} />
           <input placeholder="State" className="hivf-input" value={form.state_name} onChange={(e) => set("state_name", e.target.value)} />
+          <select data-testid="create-lead-country" className="hivf-select" value={form.country} onChange={(e) => set("country", e.target.value)}>
+            {(catalogs?.country || []).map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
+          </select>
           <select className="hivf-select" value={form.source_lead} onChange={(e) => set("source_lead", e.target.value)}>
             <option value="">Source…</option>
             {(catalogs?.source_lead || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -563,6 +571,54 @@ function CreateLeadModal({ onClose, onCreated, catalogs }) {
           <button data-testid="create-lead-submit" type="submit" disabled={saving} className="hivf-btn-primary">{saving ? "Creating…" : "Create Lead"}</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+
+function ExportModal({ onClose }) {
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const run = async () => {
+    setBusy(true);
+    try {
+      const qs = new URLSearchParams({ bucket: "pipeline", active: "all" });
+      if (from) qs.set("date_from", from);
+      if (to) qs.set("date_to", to);
+      const res = await API.get(`/export/leads.xlsx?${qs.toString()}`, { responseType: "blob" });
+      const blobUrl = URL.createObjectURL(res.data);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = `homeivf_leads_${to || "all"}.xlsx`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+      toast.success("Leads exported to Excel");
+      onClose();
+    } catch (e) { toast.error(apiErr(e)); } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={onClose}>
+      <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="export-modal">
+        <h3 className="flex items-center gap-2 font-display text-lg font-extrabold text-slate-900"><DownloadSimple size={20} className="text-[#357ABD]" /> Export Leads (Excel)</h3>
+        <p className="mt-1 text-xs text-slate-500">Downloads all pipeline lead fields within the selected date range. Leave dates empty to export everything.</p>
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">From</label>
+            <input data-testid="export-date-from" type="date" className="hivf-select mt-1 w-full" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div>
+            <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">To</label>
+            <input data-testid="export-date-to" type="date" className="hivf-select mt-1 w-full" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <button onClick={onClose} className="hivf-btn-secondary">Cancel</button>
+          <button data-testid="export-download-button" onClick={run} disabled={busy} className="hivf-btn-primary">{busy ? "Exporting…" : "Download Excel"}</button>
+        </div>
+      </div>
     </div>
   );
 }

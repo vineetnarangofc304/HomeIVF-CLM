@@ -271,6 +271,7 @@ function DropdownsTab() {
     <div className="space-y-4">
       <CatalogTab ctype="lead_stage" title="Lead Stages" />
       <CatalogTab ctype="follow_up_tag" title="Follow-up Tags" />
+      <CatalogTab ctype="followup_status" title="Follow-up Statuses" />
       <CatalogTab ctype="lost_reason" title="Lost Reasons" />
       <CatalogTab ctype="source_lead" title="Lead Sources" />
       <CatalogTab ctype="stage" title="Pipeline Stages (Odoo)" />

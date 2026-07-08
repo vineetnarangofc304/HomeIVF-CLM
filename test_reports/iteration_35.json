@@ -1,0 +1,34 @@
+{
+  "summary": "Verified all 6 new HomeIVF CRM cases (Lead view & Follow-ups). Backend: 15/15 pytest cases green (note-mandatory 400, followup POST/PATCH/status endpoints, caller-activities empty/create/list newest-first, lead country defaults to India + respects override, /leads/followups/analytics shape + specific-date, /leads/followups/reminders admin + caller-scoped, /export/leads.xlsx admin 200 + caller forbidden, catalogs.followup_status seeded with Completed/Not Done/Rescheduled/Cancelled). Frontend: E2E validated for both admin and caller roles.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter35_six_cases.py", "/app/test_reports/pytest/iter35_results.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "FIXED by tester: /app/frontend/src/pages/Leads.jsx was crashing the entire Leads page with ReferenceError: 'showExport is not defined'. The `<button data-testid=\"export-leads-button\" onClick={() => setShowExport(true)}>` and `{showExport && <ExportModal .../>}` referenced a state that was never declared. Added `const [showExport, setShowExport] = useState(false);` next to `showCreate`. Without this fix the entire /leads page was a blank white screen with a runtime error banner — Case 6 (Export) would have been unusable in production."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/Leads.jsx (added missing useState for showExport)",
+    "/app/backend/tests/test_iter35_six_cases.py (new pytest suite for the 6 cases)"
+  ],
+  "success_rate": {"backend": "100% (15/15)", "frontend": "100% (all 6 cases verified as admin + caller-scoping verified)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026, agent@homeivf.com / Agent@2026",
+  "seed_data_creation": "Created 3 TEST_-prefixed leads (TEST_iter35 Lead, TEST_country_default, TEST_country_us) + 2 TEST_ caller activities + 1 TEST_ follow-up. Backend DELETE returned non-2xx (test data left in place — harmless because of TEST_ prefix).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Follow-ups page route is /followups (not /follow-ups). Follow-up analytics tiles render labels as UPPERCASE (TOTAL/COMPLETED/NOT DONE/RESCHEDULED/CANCELLED/PENDING). Export downloads as homeivf_leads_all.xlsx when dates empty. Caller (agent@homeivf.com) sees only 2 own leads and no export button. FollowUpReminder polls /api/leads/followups/reminders without errors.",
+  "verified_flows": [
+    "Case 1: POST /followups {} → 400; with note → 200 (note+status persisted). PATCH requires note. UI: empty add blocked; add with note appears in list.",
+    "Case 2: /caller-activities POST empty → 400; with feedback → creates entry (created_by_name, created_at, feedback). GET newest-first. UI: caller-activities-section + input + add + list all functional; agent name + timestamp shown.",
+    "Case 3: POST /leads without country → country='India'. With country='United States' → respected. UI CreateLeadModal Country <select> default value = 'India'.",
+    "Case 4: GET /leads/followups/reminders returns {now, reminders:[]} for admin and caller-scoped for caller. No console errors on poll.",
+    "Case 5: GET /leads/followups/analytics returns {total, completed, not_done, rescheduled, cancelled, pending} as integers. UI 6 metric tiles present; changing date from today → 2030-01-01 updated Total=1 Completed=1. Inline followup-set-status-<id> dropdown changes status → followup-status-badge-<id> renders.",
+    "Case 6: Admin sees 'Export' button beside 'New Lead' in Lead-in-Pipeline; opens modal with export-date-from/to and export-download-button; download triggered → homeivf_leads_all.xlsx (spreadsheet Content-Type, size > 200B). Caller does NOT see export button and API returns 403.",
+    "Catalog: /api/catalogs.followup_status contains Completed/Not Done/Rescheduled/Cancelled."
+  ],
+  "rca of the issue": "Leads.jsx used `showExport`/`setShowExport` without declaring the useState hook — likely a copy/typo when adding the new ExportModal in Case 6. React threw ReferenceError during render, blanking the whole Leads route. Fix: added `const [showExport, setShowExport] = useState(false);` alongside the existing `showCreate` state. Reproduction: navigate to /leads as admin → red 'Uncaught runtime errors: showExport is not defined' overlay. After fix, /leads renders normally and Export flow works end-to-end."
+}

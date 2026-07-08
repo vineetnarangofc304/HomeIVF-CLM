@@ -1,7 +1,10 @@
 import re
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+
+IST = timezone(timedelta(hours=5, minutes=30))
 from pydantic import BaseModel
 
 from core.db import db
@@ -206,11 +209,13 @@ class LeadCreate(BaseModel):
     male_age: Optional[str] = None
     female_age: Optional[str] = None
     query: Optional[str] = None
+    country: Optional[str] = None
 
 
 @router.post("")
 async def create_lead(body: LeadCreate, user: dict = Depends(get_current_user)):
     data = {k: v for k, v in body.model_dump().items() if v is not None}
+    data.setdefault("country", "India")  # Case 3 — default market
     if not data.get("name"):
         data["name"] = data.get("contact_name") or data.get("phone") or "New Lead"
     lid = await next_id("lead")
@@ -548,6 +553,7 @@ class FollowUpBody(BaseModel):
     follow_up_time: Optional[str] = None
     follow_up_tag: Optional[str] = None
     note: Optional[str] = None
+    status: Optional[str] = None
 
 
 @router.get("/{lead_id}/followups")
@@ -560,19 +566,19 @@ async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(ge
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    if not (body.follow_up_date or body.note):
-        raise HTTPException(status_code=400, detail="A follow-up date or note is required")
+    note = (body.note or "").strip()
+    if not note:  # Case 1 — note is mandatory for every follow-up
+        raise HTTPException(status_code=400, detail="A note is required for every follow-up")
     fid = await next_id("follow_up")
     doc = {"id": fid, "lead_id": lead_id, "follow_up_date": body.follow_up_date or None,
            "follow_up_time": body.follow_up_time or None, "follow_up_tag": body.follow_up_tag or None,
-           "note": (body.note or "").strip() or None, "created_by": user["id"],
+           "note": note, "status": body.status or None, "created_by": user["id"],
            "created_by_name": user["name"], "created_at": now_utc_str()}
     await db.follow_ups.insert_one(doc)
     await _sync_lead_followup(lead_id)
     tag = f" · {doc['follow_up_tag']}" if doc.get("follow_up_tag") else ""
     when = doc.get("follow_up_date") or "no date"
-    await log_message(lead_id, f"Follow-up scheduled for <b>{when}</b>{tag}"
-                      f"{('<br/>' + doc['note']) if doc.get('note') else ''}", author=user)
+    await log_message(lead_id, f"Follow-up scheduled for <b>{when}</b>{tag}<br/>{note}", author=user)
     doc.pop("_id", None)
     return doc
 
@@ -582,11 +588,30 @@ async def update_followup(lead_id: int, fid: int, body: FollowUpBody, user: dict
     fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
+    note = (body.note or "").strip()
+    if not note:
+        raise HTTPException(status_code=400, detail="A note is required for every follow-up")
     updates = {"follow_up_date": body.follow_up_date or None, "follow_up_time": body.follow_up_time or None,
-               "follow_up_tag": body.follow_up_tag or None, "note": (body.note or "").strip() or None}
+               "follow_up_tag": body.follow_up_tag or None, "note": note, "status": body.status or None}
     await db.follow_ups.update_one({"id": fid}, {"$set": updates})
     await _sync_lead_followup(lead_id)
-    await log_message(lead_id, f"Follow-up updated → <b>{updates['follow_up_date'] or 'no date'}</b>", author=user)
+    await log_message(lead_id, f"Follow-up updated → <b>{updates['follow_up_date'] or 'no date'}</b>"
+                      f"{(' · ' + updates['status']) if updates.get('status') else ''}", author=user)
+    return await db.follow_ups.find_one({"id": fid}, {"_id": 0})
+
+
+class FollowUpStatusBody(BaseModel):
+    status: str
+
+
+@router.post("/{lead_id}/followups/{fid}/status")
+async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, user: dict = Depends(get_current_user)):
+    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
+    if not fu:
+        raise HTTPException(status_code=404, detail="Follow-up not found")
+    status = (body.status or "").strip() or None
+    await db.follow_ups.update_one({"id": fid}, {"$set": {"status": status}})
+    await log_message(lead_id, f"Follow-up marked <b>{status or 'cleared'}</b>", author=user)
     return await db.follow_ups.find_one({"id": fid}, {"_id": 0})
 
 
@@ -598,3 +623,94 @@ async def delete_followup(lead_id: int, fid: int, user: dict = Depends(get_curre
     await _sync_lead_followup(lead_id)
     await log_message(lead_id, "Follow-up entry deleted", author=user)
     return {"ok": True}
+
+
+
+# ---------------- Caller Activities (Case 2 — call feedback / communication log) ----------------
+class CallerActivityBody(BaseModel):
+    feedback: str
+
+
+@router.get("/{lead_id}/caller-activities")
+async def list_caller_activities(lead_id: int, user: dict = Depends(get_current_user)):
+    return await db.caller_activities.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).to_list(500)
+
+
+@router.post("/{lead_id}/caller-activities")
+async def add_caller_activity(lead_id: int, body: CallerActivityBody, user: dict = Depends(get_current_user)):
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    fb = (body.feedback or "").strip()
+    if not fb:
+        raise HTTPException(status_code=400, detail="Feedback note is required")
+    aid = await next_id("caller_activity")
+    doc = {"id": aid, "lead_id": lead_id, "feedback": fb,
+           "created_by": user["id"], "created_by_name": user["name"], "created_at": now_utc_str()}
+    await db.caller_activities.insert_one(doc)
+    await log_message(lead_id, f"🗣️ Caller activity — {fb}", author=user)
+    doc.pop("_id", None)
+    return doc
+
+
+# ---------------- Follow-up analytics + reminders (Case 5 + Case 4) ----------------
+@router.get("/followups/analytics")
+async def followups_analytics(date: Optional[str] = None, user: dict = Depends(get_current_user)):
+    day = date or today_ist()
+    pipeline = [{"$match": {"follow_up_date": day}}]
+    if user.get("role") == "caller":
+        pipeline += [
+            {"$lookup": {"from": "leads", "localField": "lead_id", "foreignField": "id", "as": "_lead"}},
+            {"$match": {"_lead.user_id": user["id"]}},
+        ]
+    pipeline += [{"$group": {"_id": "$status", "n": {"$sum": 1}}}]
+    rows = await db.follow_ups.aggregate(pipeline).to_list(50)
+    by, total = {}, 0
+    for r in rows:
+        by[r["_id"] or "__none__"] = r["n"]
+        total += r["n"]
+    pending = by.get("__none__", 0)
+    is_past = day < today_ist()
+    return {
+        "date": day, "total": total,
+        "completed": by.get("Completed", 0),
+        "not_done": by.get("Not Done", 0) + (pending if is_past else 0),
+        "rescheduled": by.get("Rescheduled", 0),
+        "cancelled": by.get("Cancelled", 0),
+        "pending": 0 if is_past else pending,
+    }
+
+
+@router.get("/followups/reminders")
+async def followups_reminders(user: dict = Depends(get_current_user)):
+    now = datetime.now(IST)
+    day = now.strftime("%Y-%m-%d")
+    now_min = now.hour * 60 + now.minute
+    items = await db.follow_ups.find(
+        {"follow_up_date": day, "follow_up_time": {"$nin": [None, ""]},
+         "status": {"$nin": ["Completed", "Cancelled"]}}, {"_id": 0}).to_list(1000)
+    lead_ids = list({it["lead_id"] for it in items})
+    leads = {l["id"]: l for l in await db.leads.find(
+        {"id": {"$in": lead_ids}},
+        {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1, "user_id": 1}).to_list(2000)}
+    out = []
+    for it in items:
+        lead = leads.get(it["lead_id"])
+        if not lead:
+            continue
+        if user.get("role") == "caller" and lead.get("user_id") != user["id"]:
+            continue
+        try:
+            h, m = it["follow_up_time"].split(":")[:2]
+            sched = int(h) * 60 + int(m)
+        except (ValueError, AttributeError):
+            continue
+        if now_min >= sched - 5:  # reminder window opens 5 min before the scheduled time
+            out.append({
+                "follow_up_id": it["id"], "lead_id": it["lead_id"],
+                "lead_name": lead.get("contact_name") or lead.get("name") or f"Lead {it['lead_id']}",
+                "phone": lead.get("phone"), "follow_up_time": it["follow_up_time"],
+                "follow_up_date": it["follow_up_date"], "note": it.get("note"), "status": it.get("status"),
+            })
+    return {"now": now.strftime("%H:%M"), "reminders": out}
+
