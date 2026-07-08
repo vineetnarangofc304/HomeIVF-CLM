@@ -1,6 +1,14 @@
 # HomeIVF CRM — PRD
 
-## Feature (2026-07) — Case 3: Marketing Campaigns overhaul (WhatsApp + Email) — iteration_34 (frontend 100%, backend curl-verified)
+## Feature (2026-07) — Lead view & Follow-ups (Cases 1–6) — iteration_35 (backend 15/15, frontend 100%)
+- **Case 1 — Note mandatory:** a follow-up cannot be saved without a note (backend 400 + frontend block) in Assignment & Follow-up (`add_followup`/`update_followup`).
+- **Case 2 — Caller Activities:** new lead-view section (`CallerActivities`) with a feedback input + "Add More Note"; each entry stored separately in `caller_activities` and shown as history (note · agent · timestamp). Endpoints `GET/POST /api/leads/{id}/caller-activities`.
+- **Case 3 — Default Country India:** `create_lead` defaults `country="India"`; New Lead modal Country select defaults to India (changeable).
+- **Case 4 — Follow-up reminder popup:** global `FollowUpReminder` (mounted in Layout) polls `GET /api/leads/followups/reminders` every 60s and shows a card ~5 min before a scheduled follow-up time (caller = own leads, admin = all), with Mark-done/Open/Dismiss. Stays until dismissed.
+- **Case 5 — Status + analytics:** dynamic `followup_status` catalog (Completed/Not Done/Rescheduled/Cancelled, admin-editable in Admin → Dropdowns). Status dropdown under the Note + inline per-entry status setter (`POST /followups/{fid}/status`). Analytics bar in Follow-ups tab via `GET /api/leads/followups/analytics?date=` (Total/Completed/Not Done/Rescheduled/Cancelled/Pending; past-due unmarked count as Not Done).
+- **Case 6 — Lead export:** Admin-only "Export" button beside New Lead (Lead-in-Pipeline tab) → date-range modal → downloads ALL lead fields + serialized Q&A/custom column as Excel (`GET /api/export/leads.xlsx`, requires `export` permission; caller = 403).
+
+## Feature (2026-07) — Case 3 Marketing Campaigns overhaul (WhatsApp + Email) — iteration_34 (frontend 100%, backend curl-verified)
 - **Template preview on create/edit:** selecting a WhatsApp/Email template in the campaign modal now renders a live preview (`template-preview` / `template-preview-body`) with {{1}}→sample name; email shows Subject + rendered HTML.
 - **Rich campaign box:** each card now shows channel chip (WhatsApp/Email), template name, trigger/logic (`trigger_desc` from audience filters), status badge (Draft/In Progress/Paused/Completed/Failed/Queued), a progress bar + %, and metrics Total/Sent/Delivered/Read/Replies/Queued/Failed. WA delivered/read/replied are computed live from `wa_tracking` aggregation by `campaign_id` (added `campaign_id` to `record_wa_outbound`).
 - **Actions:** Send, **Pause** (in-progress), **Resume** (paused, continues via `/send` skipping already-processed leads), **Edit** (PATCH, blocked while running), Delete, and **View failures & reasons** modal (`/campaigns/{cid}/failures`).
