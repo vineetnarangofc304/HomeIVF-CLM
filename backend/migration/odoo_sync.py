@@ -136,6 +136,72 @@ def sync_templates(run):
     run.record("templates", new, 0)
 
 
+def _next_id_sync(name):
+    doc = db.counters.find_one_and_update(
+        {"_id": name}, {"$inc": {"seq": 1}}, upsert=True, return_document=True)
+    return doc["seq"]
+
+
+def _ensure_followups(lead_docs):
+    """Case 2 — mirror each lead's Odoo follow-up date into a real follow_ups entry
+    so it shows in the Follow-ups list + reminders. Idempotent: keeps exactly ONE
+    odoo-sourced entry per lead, updating its date if Odoo's follow-up date changes.
+    Never touches manually-created (non-odoo) follow-ups."""
+    created = updated = 0
+    for t in lead_docs:
+        raw = t.get("follow_up_date")
+        if not raw:
+            continue
+        date = str(raw)[:10]
+        lead_id = t["id"]
+        tag = t.get("follow_up_tag")
+        existing = db.follow_ups.find_one({"lead_id": lead_id, "source": "odoo"})
+        if existing:
+            if existing.get("follow_up_date") != date or existing.get("follow_up_tag") != tag:
+                db.follow_ups.update_one({"id": existing["id"]},
+                    {"$set": {"follow_up_date": date, "follow_up_tag": tag}})
+                updated += 1
+        else:
+            db.follow_ups.insert_one({
+                "id": _next_id_sync("follow_up"), "lead_id": lead_id, "follow_up_date": date,
+                "follow_up_time": None, "follow_up_tag": tag,
+                "note": "Imported from Odoo follow-up date", "status": None, "source": "odoo",
+                "created_by": None, "created_by_name": "Odoo Sync", "created_at": now_str()})
+            created += 1
+    return created, updated
+
+
+def _backfill_followups(run):
+    """One-time backfill: create follow_ups entries for ALL already-synced leads that
+    have an Odoo follow-up date but no odoo follow_ups entry yet. Uses a reserved id
+    block + insert_many for speed."""
+    have = set(db.follow_ups.distinct("lead_id", {"source": "odoo"}))
+    to_insert = [l for l in db.leads.find(
+        {"migrated": True, "follow_up_date": {"$nin": [None, ""]}},
+        {"id": 1, "follow_up_date": 1, "follow_up_tag": 1}) if l["id"] not in have]
+    if not to_insert:
+        run.record("followups_backfill", 0, 0)
+        return
+    n = len(to_insert)
+    blk = db.counters.find_one_and_update(
+        {"_id": "follow_up"}, {"$inc": {"seq": n}}, upsert=True, return_document=True)
+    start = blk["seq"] - n + 1
+    now = now_str()
+    docs = [{
+        "id": start + i, "lead_id": l["id"], "follow_up_date": str(l["follow_up_date"])[:10],
+        "follow_up_time": None, "follow_up_tag": l.get("follow_up_tag"),
+        "note": "Imported from Odoo follow-up date", "status": None, "source": "odoo",
+        "created_by": None, "created_by_name": "Odoo Sync", "created_at": now}
+        for i, l in enumerate(to_insert)]
+    done = 0
+    for j in range(0, len(docs), 2000):
+        chunk = docs[j:j + 2000]
+        db.follow_ups.insert_many(chunk, ordered=False)
+        done += len(chunk)
+        run.record("followups_backfill", done, 0)
+    run.record("followups_backfill", n, 0)
+
+
 def sync_leads(run, since):
     fields, x_fields = get_lead_fields()
     domain = [["active", "in", [True, False]], ["write_date", ">=", since]]
@@ -148,10 +214,12 @@ def sync_leads(run, since):
                     fields=fields, limit=500, order="id asc")
         if not recs:
             break
-        ops = [UpdateOne({"id": r["id"]}, {"$set": transform_lead(r, x_fields)}, upsert=True) for r in recs]
+        transformed = [transform_lead(r, x_fields) for r in recs]
+        ops = [UpdateOne({"id": t["id"]}, {"$set": t}, upsert=True) for t in transformed]
         n, u = bulk(db.leads, ops)
         new += n
         upd += u
+        _ensure_followups([t for t in transformed if t.get("follow_up_date")])
         last_id = recs[-1]["id"]
         run.record("leads", new, upd)
     cp = get_checkpoint("leads")
@@ -281,6 +349,10 @@ def run_sync(run_id, since, until=None):
         sync_wa(run, since)
         sync_contacts(run)
         sync_activities(run)
+        if not db.settings.find_one({"key": "followups_backfilled"}):
+            _backfill_followups(run)
+            db.settings.update_one({"key": "followups_backfilled"},
+                {"$set": {"key": "followups_backfilled", "done_at": now_str()}}, upsert=True)
         totals = {
             "leads": db.leads.estimated_document_count(),
             "lead_messages": db.messages.estimated_document_count(),

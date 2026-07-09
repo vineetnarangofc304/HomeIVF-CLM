@@ -1464,6 +1464,11 @@ function MigrationTab() {
   const [confirmSync, setConfirmSync] = useState(false);
   const [activeRun, setActiveRun] = useState(null);
   const [lastDone, setLastDone] = useState(null);
+  const [dupFrom, setDupFrom] = useState("2026-07-01");
+  const [dupTo, setDupTo] = useState("2026-07-09");
+  const [dupScan, setDupScan] = useState(null);
+  const [dupBusy, setDupBusy] = useState(false);
+  const [dupConfirm, setDupConfirm] = useState(false);
 
   const load = () => API.get("/admin/migration/status").then(({ data }) => setStatus(data));
   const loadSync = () => API.get("/admin/sync/status").then(({ data }) => {
@@ -1542,6 +1547,37 @@ function MigrationTab() {
       toast.error(apiErr(e));
     }
   };
+
+  const runDupScan = async () => {
+    setDupBusy(true); setDupScan(null);
+    try {
+      const { data } = await API.post("/admin/duplicates/scan", { date_from: dupFrom, date_to: dupTo });
+      const sid = data.scan_id;
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries += 1;
+        try {
+          const { data: d } = await API.get("/admin/duplicates/scan/status");
+          if (d && d.status && d.status !== "running" && d.scan_id === sid) {
+            clearInterval(poll); setDupBusy(false);
+            if (d.status === "error") { toast.error("Scan failed: " + (d.error || "").slice(0, 150)); return; }
+            setDupScan(d);
+            toast.success(`Found ${d.total_delete} duplicate lead(s) across ${d.group_count} phone number(s)`);
+          } else if (tries > 60) { clearInterval(poll); setDupBusy(false); toast.error("Scan timed out — please try again."); }
+        } catch (e) { clearInterval(poll); setDupBusy(false); toast.error(apiErr(e)); }
+      }, 3000);
+    } catch (e) { setDupBusy(false); toast.error(apiErr(e)); }
+  };
+
+  const doDupDelete = async () => {
+    setDupConfirm(false);
+    try {
+      const { data } = await API.post("/admin/duplicates/delete", { scan_id: dupScan.scan_id });
+      toast.success(`Deleted ${data.deleted} duplicate lead(s) (archived for recovery)`);
+      setDupScan(null);
+    } catch (e) { toast.error(apiErr(e)); }
+  };
+
 
   if (!status) return <Spinner />;
   const fmtUtc = (s) => (s ? new Date(s.replace(" ", "T") + "Z").toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " IST" : "—");
@@ -1673,6 +1709,89 @@ function MigrationTab() {
           </>
         )}
       </div>
+
+      {/* Duplicate cleanup */}
+      <div className="hivf-card p-4" data-testid="dup-cleanup-card">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h3 className="font-display text-sm font-extrabold text-slate-800">Duplicate Lead Cleanup</h3>
+            <p className="text-xs text-slate-500">Finds leads that share a phone number, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Deleted leads are archived (recoverable).</p>
+          </div>
+          <div className="flex items-end gap-2">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Created from</label>
+              <input type="date" value={dupFrom} onChange={(e) => setDupFrom(e.target.value)} data-testid="dup-from-input"
+                className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">to</label>
+              <input type="date" value={dupTo} onChange={(e) => setDupTo(e.target.value)} data-testid="dup-to-input"
+                className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+            </div>
+            <button data-testid="dup-scan-button" onClick={runDupScan} disabled={dupBusy} className="hivf-btn-primary !py-1.5 text-xs">
+              {dupBusy ? "Scanning…" : "Find Duplicates"}
+            </button>
+          </div>
+        </div>
+
+        {dupScan && dupScan.status === "done" && (
+          <div className="mt-4" data-testid="dup-scan-result">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm text-slate-600">
+                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> phone number(s) · created {dupScan.date_from} → {dupScan.date_to}
+              </p>
+              {dupScan.total_delete > 0 && (
+                <button data-testid="dup-delete-button" onClick={() => setDupConfirm(true)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">
+                  Delete {dupScan.total_delete} duplicate(s)
+                </button>
+              )}
+            </div>
+            {dupScan.total_delete === 0 ? (
+              <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">No duplicates found in this range. ✓</p>
+            ) : (
+              <div className="mt-3 max-h-96 overflow-auto rounded-xl border border-slate-100">
+                <table className="w-full text-sm" data-testid="dup-table">
+                  <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                    <tr><th className="p-2">Phone</th><th className="p-2">Keep (oldest)</th><th className="p-2">Delete (newer duplicates)</th></tr>
+                  </thead>
+                  <tbody>
+                    {(dupScan.groups || []).map((g) => (
+                      <tr key={g.phone} className="border-t border-slate-50 align-top">
+                        <td className="p-2 font-semibold text-slate-700">{g.phone}</td>
+                        <td className="p-2 text-emerald-700">
+                          #{g.keeper.id} · {g.keeper.name || "—"}<br />
+                          <span className="text-[11px] text-slate-400">{g.keeper.create_date}</span>
+                        </td>
+                        <td className="p-2 text-rose-600">
+                          {g.candidates.map((c) => (
+                            <div key={c.id}>#{c.id} · {c.name || "—"} <span className="text-[11px] text-slate-400">({c.create_date})</span></div>
+                          ))}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {dupConfirm && dupScan && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setDupConfirm(false)}>
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="dup-confirm-modal">
+            <h3 className="font-display text-lg font-extrabold text-slate-900">Delete {dupScan.total_delete} duplicate lead(s)?</h3>
+            <div className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-slate-700">
+              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}), keeping the oldest lead for each phone number. Deleted leads are <b>archived</b> and can be recovered if needed.
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button onClick={() => setDupConfirm(false)} className="hivf-btn-secondary" data-testid="dup-cancel-button">Cancel</button>
+              <button onClick={doDupDelete} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700" data-testid="dup-confirm-delete-button">Yes, delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
 
       <div className="hivf-card p-4" data-testid="migration-status">
       <div className="flex items-center justify-between">

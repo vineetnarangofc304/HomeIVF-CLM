@@ -406,3 +406,100 @@ async def migration_audit(user: dict = Depends(require_roles("admin", "manager")
 async def migration_audit_status(user: dict = Depends(require_roles("admin", "manager"))):
     doc = await db.settings.find_one({"key": "last_audit"}, {"_id": 0})
     return doc or {"status": "none"}
+
+
+
+# ---------- Case 1: Duplicate lead cleanup (scan preview + confirm delete) ----------
+def _dup_scan_worker(date_from, date_to, scan_id):
+    """Find leads that share a phone number, keeping the OLDEST per phone and flagging
+    the newer duplicates CREATED within [date_from, date_to] for deletion. Runs on a
+    background thread; result stored in settings.dup_scan (avoids gateway timeout)."""
+    from pymongo import MongoClient
+    sdb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    try:
+        lo, hi = f"{date_from} 00:00:00", f"{date_to} 23:59:59"
+        pipeline = [
+            {"$match": {"phone_digits": {"$nin": [None, ""]}}},
+            {"$group": {"_id": "$phone_digits", "count": {"$sum": 1},
+                        "leads": {"$push": {"id": "$id", "name": "$name", "phone": "$phone",
+                                            "create_date": "$create_date", "user_id": "$user_id",
+                                            "stage_id": "$stage_id", "active": "$active"}}}},
+            {"$match": {"count": {"$gte": 2}}},
+        ]
+        groups_out, cand_ids = [], []
+        for g in sdb.leads.aggregate(pipeline, allowDiskUse=True):
+            leads = g["leads"]
+            keeper = min(leads, key=lambda l: l.get("create_date") or "9999")
+            cands = [l for l in leads if l["id"] != keeper["id"]
+                     and l.get("create_date") and lo <= l["create_date"] <= hi]
+            if not cands:
+                continue
+            groups_out.append({"phone": g["_id"], "keeper": keeper, "candidates": cands})
+            cand_ids += [l["id"] for l in cands]
+        sdb.settings.update_one({"key": "dup_scan"}, {"$set": {
+            "key": "dup_scan", "status": "done", "scan_id": scan_id,
+            "date_from": date_from, "date_to": date_to,
+            "groups": groups_out[:1000], "group_count": len(groups_out),
+            "candidate_ids": cand_ids, "total_delete": len(cand_ids),
+            "scanned_at": now_utc_str()}}, upsert=True)
+    except Exception:
+        err = traceback.format_exc()
+        try:
+            sdb.settings.update_one({"key": "dup_scan"}, {"$set": {
+                "key": "dup_scan", "status": "error", "error": err[-500:], "scan_id": scan_id}}, upsert=True)
+        except Exception:
+            pass
+
+
+class DupScanBody(BaseModel):
+    date_from: str
+    date_to: str
+
+
+@router.post("/duplicates/scan")
+async def dup_scan(body: DupScanBody, user: dict = Depends(require_roles("admin"))):
+    scan_id = int(datetime.now(timezone.utc).timestamp())
+    await db.settings.update_one({"key": "dup_scan"}, {"$set": {
+        "key": "dup_scan", "status": "running", "scan_id": scan_id,
+        "date_from": body.date_from, "date_to": body.date_to,
+        "started_at": now_utc_str(), "started_by": user["name"]}}, upsert=True)
+    threading.Thread(target=_dup_scan_worker, args=(body.date_from, body.date_to, scan_id),
+                     name="dup-scan", daemon=True).start()
+    return {"status": "running", "scan_id": scan_id}
+
+
+@router.get("/duplicates/scan/status")
+async def dup_scan_status(user: dict = Depends(require_roles("admin"))):
+    doc = await db.settings.find_one({"key": "dup_scan"}, {"_id": 0})
+    return doc or {"status": "none"}
+
+
+class DupDeleteBody(BaseModel):
+    scan_id: int
+
+
+@router.post("/duplicates/delete")
+async def dup_delete(body: DupDeleteBody, user: dict = Depends(require_roles("admin"))):
+    scan = await db.settings.find_one({"key": "dup_scan"}, {"_id": 0})
+    if not scan or scan.get("status") != "done":
+        raise HTTPException(status_code=400, detail="Run a duplicate scan first")
+    if scan.get("scan_id") != body.scan_id:
+        raise HTTPException(status_code=409, detail="Scan changed — please re-scan before deleting")
+    ids = scan.get("candidate_ids") or []
+    if not ids:
+        return {"deleted": 0}
+    # archive to deleted_leads (reversible) before hard-deleting
+    docs = await db.leads.find({"id": {"$in": ids}}).to_list(None)
+    now = now_utc_str()
+    for d in docs:
+        d.pop("_id", None)
+        d["deleted_at"] = now
+        d["deleted_by"] = user["name"]
+        d["deleted_reason"] = f"duplicate cleanup {scan.get('date_from')}..{scan.get('date_to')}"
+    if docs:
+        await db.deleted_leads.insert_many(docs)
+    res = await db.leads.delete_many({"id": {"$in": ids}})
+    await db.follow_ups.delete_many({"lead_id": {"$in": ids}})
+    await db.settings.update_one({"key": "dup_scan"}, {"$set": {
+        "status": "deleted", "deleted": res.deleted_count, "deleted_at": now, "deleted_by": user["name"]}})
+    return {"deleted": res.deleted_count, "archived": len(docs)}
