@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Bugfix 2026-06 — "Sync Now" dead in production
+- Root cause: a sync thread dying mid-run (redeploy/crash) left a sync_runs doc stuck at status "running"; frontend permanently disabled the button, and stale-cleanup only ran inside sync/start (never reached) — deadlock. Modal was also gated on sync-status loading.
+- Fix: GET /admin/sync/status now self-heals dead runs via threading.enumerate() liveness check (marks error, returns running=null). POST /admin/sync/start uses same check before 409. Frontend confirm modal decoupled from sync-status; loadSync surfaces errors via toast. Verified (iteration_38, 100%).
+
 ### Cutover plan (user-confirmed 2026-06-12)
 - NO scheduled auto-sync needed. One final incremental "Sync Now" just before switching off Odoo, then run standalone.
 ### P2
