@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Bugfix 2026-06 — "Sync Now" 500 in production (root cause of "nothing happens")
+- Real root cause: sync_status() ran uncapped $max aggregations + count_documents over large prod collections (no index → COLLSCAN → timeout → HTTP 500). Pre-fix the modal was gated on sync-status loading so the 500 left sync=null → "nothing happens". After decoupling the modal, sync_start (which called sync_status internally) surfaced the same 500 on confirm.
+- Fix: new cheap _next_since() helper computes the delta window from the tiny last_sync settings doc; sync_status wraps every heavy op in try/except with maxTimeMS=8000 (returns None/0 on failure); sync_start no longer calls sync_status; stuck-run self-heal hardened. Verified iteration_39 (100%, both endpoints 200).
+
 ### Bugfix 2026-06 — "Sync Now" dead in production
 - Root cause: a sync thread dying mid-run (redeploy/crash) left a sync_runs doc stuck at status "running"; frontend permanently disabled the button, and stale-cleanup only ran inside sync/start (never reached) — deadlock. Modal was also gated on sync-status loading.
 - Fix: GET /admin/sync/status now self-heals dead runs via threading.enumerate() liveness check (marks error, returns running=null). POST /admin/sync/start uses same check before 409. Frontend confirm modal decoupled from sync-status; loadSync surfaces errors via toast. Verified (iteration_38, 100%).
