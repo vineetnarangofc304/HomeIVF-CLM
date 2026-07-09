@@ -1562,7 +1562,7 @@ function MigrationTab() {
             clearInterval(poll); setDupBusy(false);
             if (d.status === "error") { toast.error("Scan failed: " + (d.error || "").slice(0, 150)); return; }
             setDupScan(d);
-            toast.success(`Found ${d.total_delete} duplicate lead(s) across ${d.group_count} phone number(s)`);
+            toast.success(`Found ${d.total_delete} duplicate lead(s) across ${d.group_count} name + mobile combo(s)`);
           } else if (tries > 60) { clearInterval(poll); setDupBusy(false); toast.error("Scan timed out — please try again."); }
         } catch (e) { clearInterval(poll); setDupBusy(false); toast.error(apiErr(e)); }
       }, 3000);
@@ -1738,7 +1738,7 @@ function MigrationTab() {
           <div className="mt-4" data-testid="dup-scan-result">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-slate-600">
-                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> phone number(s) · created {dupScan.date_from} → {dupScan.date_to}
+                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> name + mobile combo(s) · created {dupScan.date_from} → {dupScan.date_to}
               </p>
               {dupScan.total_delete > 0 && (
                 <button data-testid="dup-delete-button" onClick={() => setDupConfirm(true)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">
