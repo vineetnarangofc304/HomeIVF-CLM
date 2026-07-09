@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Feature 2026-06 — Duplicate Lead Cleanup + Odoo follow-up → Follow-up entry
+- CASE 1 (Duplicate cleanup, Admin > Migration): scan groups leads by phone_digits, keeps the OLDEST, flags newer duplicates CREATED in a date range (default 1–9 Jul) for deletion. Background scan (POST /admin/duplicates/scan → poll /status), preview table, confirm-modal delete (POST /admin/duplicates/delete) archives to deleted_leads (recoverable) then removes + cleans their follow_ups. UI: dup-cleanup-card in Admin.jsx.
+- CASE 2 (Odoo follow-up dates): sync now mirrors each lead's Odoo follow_up_date into a real follow_ups entry (source='odoo', one per lead, idempotent) so it shows in the Follow-ups list/reminders. Covers future syncs (_ensure_followups in sync_leads) + one-time backfill of existing leads (_backfill_followups, guarded by settings.followups_backfilled). Verified iteration_43 (100%): backfill created 73,766 entries, unique ids.
+
 ### Bugfix 2026-06 — "Run Audit vs Odoo" error (gateway timeout)
 - The audit ran ~15 sequential Odoo search_count calls synchronously in the HTTP request (~18-40s over 110k leads / 1M+ messages) → hit the ingress/gateway timeout → button errored in production.
 - Fix: audit is now a BACKGROUND JOB. POST /api/admin/migration/audit starts a thread (using the resilient timeout+retry XML-RPC call()) and returns {status:"running"} in ~0.1s; new GET /api/admin/migration/audit/status returns settings.last_audit; frontend runAudit() polls every 3s until done. Audit table render + mount guarded against missing rows. Verified iteration_42 (100%).
