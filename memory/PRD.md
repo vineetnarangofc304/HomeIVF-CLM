@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Bugfix 2026-06 — Sync worker killed by hung XML-RPC (process restart / xmlrpc __request error)
+- Two prod symptoms: "sync worker no longer running (process restarted or crashed)" and an xmlrpc/client.py __request error. Cause: the Odoo XML-RPC ServerProxy had NO socket timeout, so a hung Odoo request stalled the worker until the platform killed the process.
+- Fix (odoo_migrate.py): timeout-aware transports (_TimeoutTransport/_TimeoutSafeTransport, ODOO_TIMEOUT env, default 120s); _authenticate() 5x retry; call() 6x retry with backoff + re-authenticate on transient failures. Per-batch checkpoints let a re-run resume. Verified iteration_41 (100%). Regression test: /app/backend/tests/test_odoo_sync_regression.py.
+
 ### Bugfix 2026-06 — Sync worker crash (pymongo receive_message / AutoReconnect)
 - Sync started fine but the worker crashed mid-run on a transient MongoDB connection drop during a large lead-chatter bulk_write (pool.py write_command receive_message).
 - Fix: MongoClient now uses retryWrites=True + socketTimeoutMS=180000 (odoo_migrate.py); bulk() retries 4x on AutoReconnect/NetworkTimeout/ConnectionFailure with ordered=False (odoo_sync.py); message batch sizes cut 2000→500. Per-batch checkpoints mean re-running "Sync Now" resumes where it left off. Verified iteration_40 (100%).
