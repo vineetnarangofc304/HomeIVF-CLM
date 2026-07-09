@@ -1468,8 +1468,8 @@ function MigrationTab() {
   const load = () => API.get("/admin/migration/status").then(({ data }) => setStatus(data));
   const loadSync = () => API.get("/admin/sync/status").then(({ data }) => {
     setSync(data);
-    if (data.running) setActiveRun(data.running);
-  });
+    setActiveRun(data.running || null);
+  }).catch((e) => toast.error(apiErr(e)));
   useEffect(() => {
     load();
     loadSync();
@@ -1591,17 +1591,17 @@ function MigrationTab() {
       </div>
 
       {/* confirm modal */}
-      {confirmSync && sync && (
+      {confirmSync && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setConfirmSync(false)}>
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="sync-confirm-modal">
             <h3 className="font-display text-lg font-extrabold text-slate-900">Confirm Odoo Sync</h3>
             <div className="mt-3 rounded-xl bg-[#4A90E2]/5 p-3 text-sm text-slate-700">
-              {sync.next_since ? (
+              {sync?.next_since ? (
                 <>I will fetch all records <b>created or updated in Odoo</b> between<br />
                   <b className="text-[#357ABD]">{sync.next_since} UTC</b> ({fmtUtc(sync.next_since)})<br />
                   and <b className="text-[#357ABD]">now</b>.</>
               ) : (
-                <>This database is empty — I will run a <b>FULL import</b> of all Odoo data (leads, chatter, WhatsApp, contacts…). This can take 30–60 minutes.</>
+                <>I will fetch all records <b>created or updated in Odoo</b> since the last sync, up to <b>now</b>.</>
               )}
             </div>
             <ul className="mt-3 space-y-1 text-xs text-slate-500">

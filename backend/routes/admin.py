@@ -191,6 +191,18 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
 
     last_sync = await db.settings.find_one({"key": "last_sync"}, {"_id": 0})
     running = await db.sync_runs.find_one({"status": "running"}, {"_id": 0})
+    # Self-heal dead runs: a sync executes on an in-process thread. If that thread
+    # is no longer alive (crashed, or the backend process was restarted/redeployed
+    # mid-sync) the DB doc stays "running" forever and permanently disables the
+    # Sync button. Detect it and clear it so the button re-enables immediately.
+    if running:
+        alive = any(t.name == f"odoo-sync-{running['run_id']}" and t.is_alive()
+                    for t in threading.enumerate())
+        if not alive:
+            await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {
+                "status": "error", "error": "sync worker no longer running (process restarted or crashed)",
+                "finished_at": now_utc_str()}})
+            running = None
 
     # window a new sync would cover
     if last_sync:
@@ -211,12 +223,14 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
 async def sync_start(user: dict = Depends(require_roles("admin"))):
     running = await db.sync_runs.find_one({"status": "running"})
     if running:
-        started = running.get("started_at", "")
-        # consider stale if running > 3h
-        stale = started < (datetime.now(timezone.utc) - timedelta(hours=3)).strftime("%Y-%m-%d %H:%M:%S")
-        if not stale:
+        alive = any(t.name == f"odoo-sync-{running['run_id']}" and t.is_alive()
+                    for t in threading.enumerate())
+        if alive:
             raise HTTPException(status_code=409, detail="A sync is already running")
-        await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {"status": "error", "error": "stale - superseded"}})
+        # dead run (thread gone) — supersede it so this fresh sync can proceed
+        await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {
+            "status": "error", "error": "superseded - worker no longer running",
+            "finished_at": now_utc_str()}})
 
     status = await sync_status(user)
     since = status["next_since"] or "1970-01-01 00:00:00"
