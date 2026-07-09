@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Bugfix 2026-06 — Sync worker crash (pymongo receive_message / AutoReconnect)
+- Sync started fine but the worker crashed mid-run on a transient MongoDB connection drop during a large lead-chatter bulk_write (pool.py write_command receive_message).
+- Fix: MongoClient now uses retryWrites=True + socketTimeoutMS=180000 (odoo_migrate.py); bulk() retries 4x on AutoReconnect/NetworkTimeout/ConnectionFailure with ordered=False (odoo_sync.py); message batch sizes cut 2000→500. Per-batch checkpoints mean re-running "Sync Now" resumes where it left off. Verified iteration_40 (100%).
+
 ### Bugfix 2026-06 — "Sync Now" 500 in production (root cause of "nothing happens")
 - Real root cause: sync_status() ran uncapped $max aggregations + count_documents over large prod collections (no index → COLLSCAN → timeout → HTTP 500). Pre-fix the modal was gated on sync-status loading so the 500 left sync=null → "nothing happens". After decoupling the modal, sync_start (which called sync_status internally) surfaced the same 500 on confirm.
 - Fix: new cheap _next_since() helper computes the delta window from the tiny last_sync settings doc; sync_status wraps every heavy op in try/except with maxTimeMS=8000 (returns None/0 on failure); sync_start no longer calls sync_status; stuck-run self-heal hardened. Verified iteration_39 (100%, both endpoints 200).
