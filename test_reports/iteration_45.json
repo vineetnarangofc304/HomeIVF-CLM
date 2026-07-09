@@ -1,0 +1,21 @@
+{
+  "summary": "Verified Duplicate Lead Cleanup label/logic change (name+mobile combo) on Admin > Migration tab. All required checks passed: card description mentions 'same name + mobile number'; scan completed (~2s, no error toast), rendered dup-scan-result with dup-total=133 and dup-table; first header text 'Name + Mobile' (styled UPPERCASE via CSS text-transform; DOM text is correct); first row shows name 'Himanshu Jaiswal' and phone '6267581148'; success toast shown with count; delete button opens dup-confirm-modal whose text contains 'name + mobile combination'; Cancel closed the modal without deleting. Regression: Sync Now and Run Audit vs Odoo cards render.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Admin > Migration > Duplicate Lead Cleanup", "issues": ["Minor label inconsistency (non-blocking): success toast reads 'Found 133 duplicate lead(s) across 130 phone number(s)' and the result count line reads '133 duplicate lead(s) to delete across 130 phone number(s)'. Since dedup criterion is now name+mobile combos, consider updating this wording to 'name + mobile combo(s)' to match the card/table/modal copy."]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": ["(Optional/minor) Align toast + result-count phrasing from 'phone number(s)' to 'name + mobile combo(s)' for consistency with new dedup logic."],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Small delta on iteration_44 dedupe feature. Scan returned 133 duplicates across 130 phone#s in 2026-07-01→09 window. Delete was NOT confirmed as instructed."
+}

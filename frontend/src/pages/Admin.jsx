@@ -1715,7 +1715,7 @@ function MigrationTab() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="font-display text-sm font-extrabold text-slate-800">Duplicate Lead Cleanup</h3>
-            <p className="text-xs text-slate-500">Finds leads that share a phone number, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Deleted leads are archived (recoverable).</p>
+            <p className="text-xs text-slate-500">Finds leads that share the <b>same name + mobile number</b>, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Deleted leads are archived (recoverable).</p>
           </div>
           <div className="flex items-end gap-2">
             <div>
@@ -1752,12 +1752,12 @@ function MigrationTab() {
               <div className="mt-3 max-h-96 overflow-auto rounded-xl border border-slate-100">
                 <table className="w-full text-sm" data-testid="dup-table">
                   <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
-                    <tr><th className="p-2">Phone</th><th className="p-2">Keep (oldest)</th><th className="p-2">Delete (newer duplicates)</th></tr>
+                    <tr><th className="p-2">Name + Mobile</th><th className="p-2">Keep (oldest)</th><th className="p-2">Delete (newer duplicates)</th></tr>
                   </thead>
                   <tbody>
                     {(dupScan.groups || []).map((g) => (
-                      <tr key={g.phone} className="border-t border-slate-50 align-top">
-                        <td className="p-2 font-semibold text-slate-700">{g.phone}</td>
+                      <tr key={`${g.name}|${g.phone}`} className="border-t border-slate-50 align-top">
+                        <td className="p-2 font-semibold text-slate-700">{g.name || "—"}<br /><span className="text-[11px] text-slate-400">{g.phone}</span></td>
                         <td className="p-2 text-emerald-700">
                           #{g.keeper.id} · {g.keeper.name || "—"}<br />
                           <span className="text-[11px] text-slate-400">{g.keeper.create_date}</span>
@@ -1782,7 +1782,7 @@ function MigrationTab() {
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="dup-confirm-modal">
             <h3 className="font-display text-lg font-extrabold text-slate-900">Delete {dupScan.total_delete} duplicate lead(s)?</h3>
             <div className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-slate-700">
-              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}), keeping the oldest lead for each phone number. Deleted leads are <b>archived</b> and can be recovered if needed.
+              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}), keeping the oldest lead for each <b>name + mobile</b> combination. Deleted leads are <b>archived</b> and can be recovered if needed.
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setDupConfirm(false)} className="hivf-btn-secondary" data-testid="dup-cancel-button">Cancel</button>

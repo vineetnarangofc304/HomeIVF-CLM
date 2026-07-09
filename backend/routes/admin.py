@@ -435,10 +435,11 @@ def _dup_scan_worker(date_from, date_to, scan_id):
         for i in range(0, len(window_phones), 400):
             chunk = window_phones[i:i + 400]
             proj = {"_id": 0, "phone_digits": 1, **{f: 1 for f in fields}}
-            by_phone = {}
+            by_combo = {}
             for l in sdb.leads.find({"phone_digits": {"$in": chunk}}, proj):
-                by_phone.setdefault(l.get("phone_digits"), []).append(l)
-            for phone, grp in by_phone.items():
+                key = ((l.get("name") or "").strip().lower(), l.get("phone_digits"))
+                by_combo.setdefault(key, []).append(l)
+            for (nm, ph), grp in by_combo.items():
                 if len(grp) < 2:
                     continue
                 keeper = min(grp, key=lambda l: l.get("create_date") or "9999")
@@ -447,8 +448,8 @@ def _dup_scan_worker(date_from, date_to, scan_id):
                 if not cands:
                     continue
                 slim = lambda l: {f: l.get(f) for f in fields}
-                groups_out.append({"phone": phone, "keeper": slim(keeper),
-                                   "candidates": [slim(c) for c in cands]})
+                groups_out.append({"phone": ph, "name": keeper.get("name") or "—",
+                                   "keeper": slim(keeper), "candidates": [slim(c) for c in cands]})
                 cand_ids += [c["id"] for c in cands]
         sdb.settings.update_one({"key": "dup_scan"}, {"$set": {
             "key": "dup_scan", "status": "done", "scan_id": scan_id,
