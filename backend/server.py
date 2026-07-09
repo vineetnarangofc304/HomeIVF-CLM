@@ -22,6 +22,7 @@ from routes import catalogs as catalog_routes
 from routes import attachments as attachment_routes
 from routes import export as export_routes
 from routes import marketing as marketing_routes
+from routes import ai as ai_routes
 from routes import gmail as gmail_routes
 from routes import chatter as chatter_routes
 from routes import filters as filter_routes
@@ -67,6 +68,7 @@ api.include_router(agent_routes.router)
 api.include_router(attachment_routes.router)
 api.include_router(export_routes.router)
 api.include_router(marketing_routes.router)
+api.include_router(ai_routes.router)
 api.include_router(gmail_routes.router)
 api.include_router(wa_tracking_routes.router)
 

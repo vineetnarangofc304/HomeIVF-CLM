@@ -1,0 +1,30 @@
+{
+  "summary": "Phase 2 AI Insights (analytics dashboards + AI Brain NL chat) — full backend + frontend verification against preview. Backend: 5/5 pytest cases passed on /api/ai/analytics, /api/ai/brain (number question 'how many total leads', bar question 'top callers by conversion rate'), /api/ai/brain/history, and caller-role RBAC on /api/ai/analytics (returns 403). analytics call ~1.5s, brain calls ~3–6s. Frontend: admin login → sidebar shows 'AI Insights' (data-testid=nav-ai-insights) → /ai-insights loads (data-testid=ai-insights-page). KPI cards render real numbers (Total 1,10,962; Converted 9,872; Rate 8.9%). All 6 advanced charts render SVGs — Conversion Funnel, Leads Trend (30d), Source Performance, Caller Performance, Ad Platform Pie, Top States. AI Brain: typed 'How many total leads do we have?' → user msg + thinking indicator + AI answer 'Total Leads: 110962 leads.' (chart hidden as expected for number). Typed 'Top callers by conversion rate' → answer with bar chart SVG rendered (top: Azhar 12.3%). Suggestion chip click → 'How many leads converted by source?' → answer with bar chart. No 500s. One unrelated console 401 (likely a background auth ping — not from ai routes).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Sidebar footer", "issues": ["Stale 'AI Brain — Coming in Phase 2 — conversational insights on all your data.' promo card still shown, but AI Brain IS shipped (this iteration). Remove or replace."]},
+      {"screen": "AI answer for 'Converted Leads by Source'", "issues": ["Top group renders as em-dash '—' (empty/null source_lead) — data-quality artifact from _labelled fallback; consider excluding null buckets from AI Brain answers so the 'top' isn't a placeholder."]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/test_ai_insights.py", "/app/test_reports/pytest/iter47_ai.xml"],
+  "action_items": [
+    "Remove/replace the sidebar 'AI Brain — Coming in Phase 2' placeholder card in Layout.jsx now that AI Insights is live.",
+    "Optional: in ai.py _run_spec/_labelled, filter out null/empty group buckets so AI Brain doesn't surface '—' as the top group."
+  ],
+  "critical_code_review_comments": [
+    "routes/ai.py _extract_json uses greedy '\\{.*\\}' — fine for GPT-5.5 outputs but will fail on multiple JSON blocks; consider json parsing with fallback strip of code fences.",
+    "SYSTEM_PROMPT dimensions include 'create_date:day' and 'create_date:month' — DIMS must contain those exact keys; verified via _run_spec dim-not-in-DIMS fallback to null, so safe.",
+    "brain endpoint could add a light timeout on the LLM call to bound tail latency (currently only frontend timeout applies)."
+  ],
+  "updated_files": ["/app/backend/tests/test_ai_insights.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "AI Insights page at /ai-insights (permission 'reports'). Reusable pytest suite: /app/backend/tests/test_ai_insights.py (5 tests, ~7.5s). Key testids: nav-ai-insights, ai-insights-page, kpi-total/converted/rate, chart-funnel/trend/source/caller/platform/geo, ai-brain-panel, ai-input, ai-send-button, ai-user-msg, ai-thinking, ai-answer, ai-suggestion. AI Brain answers arrive in 3–8s; wait up to 25s. Suggestion chips only render when chat log is empty (reload page to see them again).",
+  "rca of the issue": "N/A — feature verification, no bugs."
+}

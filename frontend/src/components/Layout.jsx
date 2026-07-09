@@ -18,6 +18,7 @@ const NAV = [
   { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp", perm: "whatsapp" },
   { to: "/marketing", label: "Marketing", icon: Megaphone, testid: "nav-marketing", perm: "marketing" },
   { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports", perm: "reports" },
+  { to: "/ai-insights", label: "AI Insights", icon: Sparkle, testid: "nav-ai-insights", perm: "reports" },
   { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates", perm: "templates" },
 ];
 
