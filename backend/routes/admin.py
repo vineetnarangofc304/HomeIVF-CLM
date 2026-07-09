@@ -165,15 +165,42 @@ async def outbound_queue(user: dict = Depends(require_roles("admin", "manager"))
     return items
 
 
+async def _next_since():
+    """Cheap, never-raising computation of the delta-sync window start.
+    Prefers the recorded last_sync 'until' (a tiny settings lookup); only if that
+    is missing does it fall back to a single $max on migrated leads. On any DB
+    slowness/error it returns None (=> the caller treats it as a FULL import)."""
+    last_sync = await db.settings.find_one({"key": "last_sync"}, {"_id": 0})
+    base = last_sync.get("until") if last_sync else None
+    if not base:
+        try:
+            agg = await db.leads.aggregate([
+                {"$match": {"migrated": True}},
+                {"$group": {"_id": None, "m": {"$max": "$write_date"}}},
+            ], maxTimeMS=8000).to_list(1)
+            base = agg[0]["m"] if agg and agg[0].get("m") else None
+        except Exception:
+            base = None
+    if base:
+        try:
+            base = (datetime.strptime(base, "%Y-%m-%d %H:%M:%S") - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            pass
+    return base
+
+
 @router.get("/sync/status")
 async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
     """Reconciliation snapshot: last record per entity, last sync, counts, and the window a new sync would cover."""
     async def max_field(coll, field, match=None):
-        agg = await db[coll].aggregate([
-            {"$match": match or {}},
-            {"$group": {"_id": None, "m": {"$max": f"${field}"}}},
-        ]).to_list(1)
-        return agg[0]["m"] if agg and agg[0].get("m") else None
+        try:
+            agg = await db[coll].aggregate([
+                {"$match": match or {}},
+                {"$group": {"_id": None, "m": {"$max": f"${field}"}}},
+            ], maxTimeMS=8000).to_list(1)
+            return agg[0]["m"] if agg and agg[0].get("m") else None
+        except Exception:
+            return None
 
     last_record = {
         "leads_write_date": await max_field("leads", "write_date", {"migrated": True}),
@@ -185,9 +212,15 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
     counts = {}
     for coll in ["leads", "messages", "wa_channels", "wa_messages", "contacts", "users",
                  "templates_email", "templates_whatsapp", "activities"]:
-        counts[coll] = await db[coll].estimated_document_count()
-    counts["leads_migrated"] = await db.leads.count_documents({"migrated": True})
-    counts["leads_created_in_crm"] = counts["leads"] - counts["leads_migrated"]
+        try:
+            counts[coll] = await db[coll].estimated_document_count()
+        except Exception:
+            counts[coll] = 0
+    try:
+        counts["leads_migrated"] = await db.leads.count_documents({"migrated": True}, maxTimeMS=8000)
+    except Exception:
+        counts["leads_migrated"] = 0
+    counts["leads_created_in_crm"] = max(counts.get("leads", 0) - counts["leads_migrated"], 0)
 
     last_sync = await db.settings.find_one({"key": "last_sync"}, {"_id": 0})
     running = await db.sync_runs.find_one({"status": "running"}, {"_id": 0})
@@ -196,24 +229,17 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
     # mid-sync) the DB doc stays "running" forever and permanently disables the
     # Sync button. Detect it and clear it so the button re-enables immediately.
     if running:
-        alive = any(t.name == f"odoo-sync-{running['run_id']}" and t.is_alive()
-                    for t in threading.enumerate())
+        rid_r = running.get("run_id")
+        alive = rid_r is not None and any(
+            t.name == f"odoo-sync-{rid_r}" and t.is_alive() for t in threading.enumerate())
         if not alive:
-            await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {
+            await db.sync_runs.update_one({"_id": running["_id"]} if running.get("_id") else {"run_id": rid_r}, {"$set": {
                 "status": "error", "error": "sync worker no longer running (process restarted or crashed)",
                 "finished_at": now_utc_str()}})
             running = None
 
-    # window a new sync would cover
-    if last_sync:
-        next_since = last_sync["until"]
-    else:
-        next_since = last_record["leads_write_date"]
-    if next_since:
-        try:
-            next_since = (datetime.strptime(next_since, "%Y-%m-%d %H:%M:%S") - timedelta(minutes=15)).strftime("%Y-%m-%d %H:%M:%S")
-        except ValueError:
-            pass
+    # window a new sync would cover (cheap, never raises)
+    next_since = await _next_since()
     return {"last_record": last_record, "counts": counts, "last_sync": last_sync,
             "running": running, "next_since": next_since, "now": now_utc_str(),
             "mode": "delta" if next_since else "full"}
@@ -223,20 +249,22 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
 async def sync_start(user: dict = Depends(require_roles("admin"))):
     running = await db.sync_runs.find_one({"status": "running"})
     if running:
-        alive = any(t.name == f"odoo-sync-{running['run_id']}" and t.is_alive()
-                    for t in threading.enumerate())
+        rid_r = running.get("run_id")
+        alive = rid_r is not None and any(
+            t.name == f"odoo-sync-{rid_r}" and t.is_alive() for t in threading.enumerate())
         if alive:
             raise HTTPException(status_code=409, detail="A sync is already running")
         # dead run (thread gone) — supersede it so this fresh sync can proceed
-        await db.sync_runs.update_one({"run_id": running["run_id"]}, {"$set": {
+        await db.sync_runs.update_one({"_id": running["_id"]}, {"$set": {
             "status": "error", "error": "superseded - worker no longer running",
             "finished_at": now_utc_str()}})
 
-    status = await sync_status(user)
-    since = status["next_since"] or "1970-01-01 00:00:00"
+    next_since = await _next_since()
+    mode = "delta" if next_since else "full"
+    since = next_since or "1970-01-01 00:00:00"
     until = now_utc_str()
     rid = await next_id("sync_run")
-    await db.sync_runs.insert_one({"run_id": rid, "status": "running", "mode": status["mode"],
+    await db.sync_runs.insert_one({"run_id": rid, "status": "running", "mode": mode,
                                    "since": since, "until": until, "started_at": now_utc_str(),
                                    "started_by": user["name"], "progress": {}})
 
@@ -264,7 +292,7 @@ async def sync_start(user: dict = Depends(require_roles("admin"))):
                 pass
 
     threading.Thread(target=_worker, name=f"odoo-sync-{rid}", daemon=True).start()
-    return {"run_id": rid, "since": since, "until": until, "mode": status["mode"]}
+    return {"run_id": rid, "since": since, "until": until, "mode": mode}
 
 
 @router.get("/sync/runs/{run_id}")

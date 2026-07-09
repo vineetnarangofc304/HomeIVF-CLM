@@ -1,0 +1,22 @@
+{
+  "summary": "Verified the Odoo Sync 500 regression fix. Both GET /api/admin/sync/status and POST /api/admin/sync/start now return HTTP 200 in preview. Confirm modal opens, 'Yes, Sync Now' fires POST /api/admin/sync/start (200), modal closes, 'Sync started' toast appears, button switches to 'Sync in progress…', and sync-progress panel renders. Cancel closes modal without starting. All flows pass.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Admin > Migration > Odoo Sync card", "issue": "data-testid=\"sync-info\" not found on any element, though the info fields (Last lead activity / Last sync run / Next sync covers) render correctly in the UI. Likely the testid is on child cells but not on the wrapper the review request expects.", "selector": "[data-testid=sync-info]", "priority": "LOW"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": ["Optional: add data-testid=\"sync-info\" on the wrapper containing the Last lead activity / Last sync run / Next sync covers cells for testability. Not a functional regression."],
+  "critical_code_review_comments": ["_next_since() + maxTimeMS=8000 guarding aggregations is a solid fix; sync/start no longer inherits sync_status heavy queries. Backend logs clean on start."],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Sync regression fully resolved. Only nit: data-testid=sync-info is missing on the container in Admin.jsx; visible fields render fine.",
+  "rca of the issue": "Pre-fix, sync_status ran uncapped $max aggregations + count_documents on very large prod collections (COLLSCAN -> timeout -> 500). sync_start called sync_status internally so it inherited the 500. Fix: cheap _next_since() reads last_sync settings doc for delta window; sync_status wraps every heavy op in try/except with maxTimeMS=8000 returning None/0 on failure; sync_start no longer calls sync_status. Verified via curl and UI: both endpoints 200; sync run 11 was created."
+}
