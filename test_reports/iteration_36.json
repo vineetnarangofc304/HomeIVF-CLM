@@ -1,0 +1,20 @@
+{
+  "summary": "Case 3 re-verification (Country defaults to India). All three sub-cases PASS: (a) New Lead popup select data-testid=create-lead-country defaults to 'India' and can be changed. (b) Existing lead with NO country in DB (TEST_country_default) shows 'India' in Contact card display AND field-input-country dropdown is pre-selected to 'India' in edit mode. (c) Lead with explicit non-India country (TEST_country_us => 'United States') is NOT overridden — shows real value. (d) Changing country to 'Nepal' on TEST_country_default and saving persists after reload (display + edit both show 'Nepal').",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [],
+  "action_items": [
+    "Optional: re-seed TEST_country_default lead back to empty country (currently set to 'Nepal' after persistence test)."
+  ],
+  "critical_code_review_comments": [
+    "FieldCard.save compares draft[k] against lead[k] only, so if the user opens Edit on an empty-country lead and clicks Save without touching Country, nothing is written and the field remains empty in DB — which is correct (display default is UI-only). This is the intended behavior of the current fix; flagging for awareness only."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only)", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "TEST_country_default lead country was updated from empty to 'Nepal' during persistence test — main agent may re-seed if needed.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Case 3 (Country default India) fully verified via TEST_country_default and TEST_country_us seed leads on Leads list. Uses data-testid: create-lead-country (new lead popup), field-value-country (display), edit-contact (open editor), field-input-country (edit dropdown), save-contact (persist).",
+  "rca of the issue": "N/A — fix already applied by main agent (FieldCard defaults prop + display/edit fallback to defaults[k])."
+}

@@ -240,6 +240,7 @@ export default function LeadDetail() {
               ["street", "Address"], ["city", "City"],
               ["state_name", "State", "select"], ["country", "Country", "select"],
             ]}
+            defaults={{ country: "India" }}
             selects={{
               state_name: (catalogs?.state || []).map((s) => s.name),
               country: (catalogs?.country || []).map((c) => c.name),
@@ -656,12 +657,12 @@ function CustomFieldsCard({ lead, onSave, catalogs }) {
 }
 
 /* ---------- field card with select support (Cases 1 & 7) ---------- */
-function FieldCard({ title, lead, onSave, fields, selects = {} }) {
+function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {} }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
 
   const startEdit = () => {
-    setDraft(Object.fromEntries(fields.map(([k]) => [k, lead[k] || ""])));
+    setDraft(Object.fromEntries(fields.map(([k]) => [k, lead[k] || defaults[k] || ""])));
     setEditing(true);
   };
   const save = () => {
@@ -690,7 +691,7 @@ function FieldCard({ title, lead, onSave, fields, selects = {} }) {
             <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
             {editing ? (
               type === "select" && selects[k] ? (
-                <select className="hivf-select w-full !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`}>
+                <select className="hivf-select w-full !py-1" value={draft[k] || defaults[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`}>
                   <option value="">—</option>
                   {draft[k] && !selects[k].includes(draft[k]) && <option value={draft[k]}>{draft[k]}</option>}
                   {selects[k].map((o) => <option key={o} value={o}>{o}</option>)}
@@ -699,7 +700,7 @@ function FieldCard({ title, lead, onSave, fields, selects = {} }) {
                 <input className="hivf-input !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`} />
               )
             ) : (
-              <span className="truncate text-slate-700" data-testid={`field-value-${k}`}>{lead[k] || <span className="text-slate-300">—</span>}</span>
+              <span className="truncate text-slate-700" data-testid={`field-value-${k}`}>{lead[k] || defaults[k] || <span className="text-slate-300">—</span>}</span>
             )}
           </div>
         ))}

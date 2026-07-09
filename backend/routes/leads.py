@@ -1,3 +1,4 @@
+import asyncio
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -145,9 +146,11 @@ async def list_leads(
     if sort not in ALLOWED_SORT:
         sort = "create_date"
     sort_dir = -1 if order == "desc" else 1
-    total = await db.leads.count_documents(q)
-    cursor = db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)]).skip((page - 1) * limit).limit(limit)
-    items = await cursor.to_list(limit)
+    total, items = await asyncio.gather(
+        db.leads.count_documents(q),
+        db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
+        .skip((page - 1) * limit).limit(limit).to_list(limit),
+    )
     return {"items": items, "total": total, "page": page, "limit": limit}
 
 

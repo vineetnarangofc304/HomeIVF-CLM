@@ -104,6 +104,11 @@ async def startup():
     await db.leads.create_index("phone_digits")
     await db.leads.create_index("follow_up_date")
     await db.leads.create_index("active")
+    # Compound indexes for reports/list: active is near-useless alone (boolean);
+    # these cover the active+date-range scans and the default list sort.
+    await db.leads.create_index([("active", 1), ("create_date", -1)])
+    await db.leads.create_index([("active", 1), ("create_date_ist", -1)])
+    await db.leads.create_index([("active", 1), ("lead_stage", 1)])
     await db.messages.create_index([("lead_id", 1), ("date", -1)])
     await db.messages.create_index("id")
     await db.wa_messages.create_index([("channel_id", 1), ("date", -1)])

@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -223,61 +224,75 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
         base["user_id"] = user["id"]
     today = today_ist()
     month = today[:7]
-    leads_today = await db.leads.count_documents({**base, "create_date_ist": {"$gte": today}})
-    leads_mtd = await db.leads.count_documents({**base, "create_date_ist": {"$gte": month + "-01"}})
-    total_leads = await db.leads.count_documents(base)
-    converted_mtd = await db.leads.count_documents({**base, "lead_stage": "Converted", "create_date_ist": {"$gte": month + "-01"}})
-    followups_today = await db.leads.count_documents({**base, "follow_up_date": today})
-    followups_overdue = await db.leads.count_documents({**base, "follow_up_date": {"$lt": today, "$gt": ""}})
 
-    # Case 18 — optional date-range that scopes the funnel/leaderboard/tags/chart.
+    # Case 18 - optional date-range that scopes the funnel/leaderboard/tags/chart.
     has_range = bool(date_from or date_to)
     range_start = date_from or (month + "-01")
     range_end = date_to or today
     rng = {"create_date_ist": {"$gte": range_start, "$lte": range_end + " 23:59:59"}}
     range_match = {**base, **rng}
-    leads_range = await db.leads.count_documents(range_match)
-    converted_range = await db.leads.count_documents({**range_match, "lead_stage": "Converted"})
 
     # Default (no range) preserves all-time funnel; a chosen range scopes everything.
     stage_match = range_match if has_range else base
     board_match = rng if has_range else {"create_date_ist": {"$gte": month + "-01"}}
     tag_match = range_match if has_range else {**base, "create_date_ist": {"$gte": month + "-01"}}
+    # by_day default view only renders the last 14 buckets, so bound the scan to a recent
+    # window instead of grouping the entire (100k+) active collection every load.
+    if has_range:
+        by_day_match, by_day_limit = range_match, 60
+    else:
+        recent = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=30)).strftime("%Y-%m-%d")
+        by_day_match, by_day_limit = {**base, "create_date_ist": {"$gte": recent}}, 14
 
-    by_stage = await db.leads.aggregate([
-        {"$match": stage_match},
-        {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}},
-    ]).to_list(20)
+    # These reads are all independent. Run them concurrently instead of awaiting ~14
+    # sequential round-trips to Atlas one at a time (the root cause of the 8-18s load).
+    (leads_today, leads_mtd, total_leads, converted_mtd, followups_today, followups_overdue,
+     leads_range, converted_range, by_stage, by_day, leaderboard, top_tags,
+     users_list, tag_list) = await asyncio.gather(
+        db.leads.count_documents({**base, "create_date_ist": {"$gte": today}}),
+        db.leads.count_documents({**base, "create_date_ist": {"$gte": month + "-01"}}),
+        db.leads.count_documents(base),
+        db.leads.count_documents({**base, "lead_stage": "Converted", "create_date_ist": {"$gte": month + "-01"}}),
+        db.leads.count_documents({**base, "follow_up_date": today}),
+        db.leads.count_documents({**base, "follow_up_date": {"$lt": today, "$gt": ""}}),
+        db.leads.count_documents(range_match),
+        db.leads.count_documents({**range_match, "lead_stage": "Converted"}),
+        db.leads.aggregate([
+            {"$match": stage_match},
+            {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]).to_list(20),
+        db.leads.aggregate([
+            {"$match": by_day_match},
+            {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
+            {"$sort": {"_id": -1}}, {"$limit": by_day_limit},
+        ]).to_list(60),
+        db.leads.aggregate([
+            {"$match": {"active": True, **board_match}},
+            {"$group": {"_id": "$user_id", "count": {"$sum": 1},
+                        "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
+            {"$sort": {"count": -1}}, {"$limit": 10},
+        ]).to_list(10),
+        db.leads.aggregate([
+            {"$match": tag_match},
+            {"$unwind": "$tags"},
+            {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}}, {"$limit": 10},
+        ]).to_list(10),
+        db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
+        db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
+    )
+
     for s in by_stage:
         if s["_id"] in (None, False, ""):
             s["_id"] = "New / Unassigned"
-
-    by_day_match = range_match if has_range else base
-    by_day = await db.leads.aggregate([
-        {"$match": by_day_match},
-        {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
-        {"$sort": {"_id": -1}}, {"$limit": 60 if has_range else 14},
-    ]).to_list(60)
     by_day.reverse()
 
-    leaderboard = await db.leads.aggregate([
-        {"$match": {"active": True, **board_match}},
-        {"$group": {"_id": "$user_id", "count": {"$sum": 1},
-                    "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
-        {"$sort": {"count": -1}}, {"$limit": 10},
-    ]).to_list(10)
-    users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+    users = {u["id"]: u["name"] for u in users_list}
     for l in leaderboard:
         l["name"] = users.get(l["_id"], "Unassigned")
 
-    top_tags = await db.leads.aggregate([
-        {"$match": tag_match},
-        {"$unwind": "$tags"},
-        {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
-        {"$sort": {"count": -1}}, {"$limit": 10},
-    ]).to_list(10)
-    tag_names = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+    tag_names = {t["id"]: t["name"] for t in tag_list}
     for t in top_tags:
         t["name"] = tag_names.get(t["_id"], str(t["_id"]))
 
