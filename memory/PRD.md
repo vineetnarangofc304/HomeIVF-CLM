@@ -1,6 +1,12 @@
 # HomeIVF CRM — PRD
 
-## Feature (2026-07) — Lead view & Follow-ups (Cases 1–6) — iteration_35 (backend 15/15, frontend 100%)
+## Fix (2026-07) — "Sync Now not working" → Odoo delta sync now runs IN-PROCESS — iteration_37 (backend 4/4, frontend 100%)
+- **Root cause:** `POST /api/admin/sync/start` spawned a *detached subprocess* that wrote to `/var/log/odoo_sync.log`. In the managed/container production deploy this is fragile (read-only FS / detached-process limits) → the button appeared to do nothing.
+- **Fix:** sync now runs in-process on a background `threading.Thread` → `odoo_sync.run_sync(run_id, since, until)` (extracted from the script's `__main__`). Progress is written to `sync_runs`; `settings.last_sync` is set on completion; import/connect failures are recorded via a fallback sync pymongo client. No subprocess, no log-file dependency.
+- **Verified in preview against LIVE Odoo:** full delta ingested +11,032 leads, +118,625 chatter, +957 WA channels, +3,694 WA messages, +10,733 contacts, activities → status done; a second in-process run completed through all 9 entities and updated last_sync. Live Audit shows all modules match (lead_chatter ~0.01% behind is expected — sync skips empty-body system messages + Odoo grows live). Non-admins get 403.
+- **Go-live note:** REDEPLOY to push this to production; on production's own DB the first "Sync Now" auto-runs FULL import if empty, else delta.
+
+## Feature (2026-07) — Lead view & Follow-ups (Cases 1–6) — iteration_35/36
 - **Case 1 — Note mandatory:** a follow-up cannot be saved without a note (backend 400 + frontend block) in Assignment & Follow-up (`add_followup`/`update_followup`).
 - **Case 2 — Caller Activities:** new lead-view section (`CallerActivities`) with a feedback input + "Add More Note"; each entry stored separately in `caller_activities` and shown as history (note · agent · timestamp). Endpoints `GET/POST /api/leads/{id}/caller-activities`.
 - **Case 3 — Default Country India:** `create_lead` defaults `country="India"`; New Lead modal Country select defaults to India (changeable).
