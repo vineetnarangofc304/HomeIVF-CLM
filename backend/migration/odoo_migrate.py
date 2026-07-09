@@ -8,6 +8,7 @@ import re
 import sys
 import time
 import traceback
+import http.client
 import xmlrpc.client
 from datetime import datetime, timedelta
 
@@ -34,23 +35,70 @@ mongo = MongoClient(
 )
 db = mongo[os.environ["DB_NAME"]]
 
-common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")
-UID = common.authenticate(ODOO_DB, ODOO_LOGIN, ODOO_PASSWORD, {})
-models = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/object")
+ODOO_TIMEOUT = int(os.environ.get("ODOO_TIMEOUT", "120"))
+
+
+class _TimeoutTransport(xmlrpc.client.Transport):
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = ODOO_TIMEOUT
+        return conn
+
+
+class _TimeoutSafeTransport(xmlrpc.client.SafeTransport):
+    def make_connection(self, host):
+        conn = super().make_connection(host)
+        conn.timeout = ODOO_TIMEOUT
+        return conn
+
+
+def _make_proxy(path):
+    """xmlrpc ServerProxy with a socket timeout so a hung Odoo request fails fast
+    (and is retried) instead of hanging until the process is killed."""
+    transport = _TimeoutSafeTransport() if ODOO_URL.lower().startswith("https") else _TimeoutTransport()
+    return xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/{path}", transport=transport, allow_none=True)
+
+
+def _authenticate():
+    last = None
+    for attempt in range(5):
+        try:
+            uid = common.authenticate(ODOO_DB, ODOO_LOGIN, ODOO_PASSWORD, {})
+            if uid:
+                return uid
+        except Exception as e:
+            last = e
+        time.sleep(3 * (attempt + 1))
+    if last:
+        raise last
+    raise RuntimeError("Odoo authentication returned no UID")
+
+
+common = _make_proxy("common")
+UID = _authenticate()
+models = _make_proxy("object")
 
 IST = timedelta(hours=5, minutes=30)
 
 
-def call(model, method, *args, retries=5, **kwargs):
+def call(model, method, *args, retries=6, **kwargs):
+    global UID
+    last = None
     for attempt in range(retries):
         try:
             return models.execute_kw(ODOO_DB, UID, ODOO_PASSWORD, model, method, list(args), kwargs)
         except Exception as e:
+            last = e
             if attempt == retries - 1:
                 raise
-            wait = 5 * (attempt + 1)
-            log(f"  retry {attempt+1} after error: {str(e)[:150]} (waiting {wait}s)")
+            wait = min(5 * (attempt + 1), 30)
+            log(f"  retry {attempt+1}/{retries} after error: {str(e)[:150]} (waiting {wait}s)")
             time.sleep(wait)
+            # session/UID may have gone stale — refresh auth before the next try
+            try:
+                UID = common.authenticate(ODOO_DB, ODOO_LOGIN, ODOO_PASSWORD, {}) or UID
+            except Exception:
+                pass
 
 
 def log(msg):

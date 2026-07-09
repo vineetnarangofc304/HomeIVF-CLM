@@ -1,0 +1,20 @@
+{
+  "summary": "Regression pass for XML-RPC timeout/retry fix in odoo_migrate.py (_TimeoutTransport/_TimeoutSafeTransport 120s, _authenticate 5x retry, call() 6x retry+re-auth). Backend: POST /api/admin/sync/start -> 200 (new run_id), GET /api/admin/sync/runs/{id} polled to status 'done' in ~20s with NO error and progress buckets present (catalogs, users, templates, leads, lead_messages, wa_channels, wa_messages, contacts, open_activities). GET /api/admin/sync/status -> 200 with last_sync populated. Frontend: admin login -> Admin > Migration tab -> sync-now-button opens sync-confirm-modal -> sync-confirm-button starts run; sync-progress panel renders; button label lifecycle 'Sync Now' -> 'Sync in progress…' -> back to 'Sync Now' within ~8s; green '✅ Sync #17 complete — 0 new, 142 updated' summary with per-entity counts visible; 'Sync complete' toast fired. No regression from the XML-RPC hardening.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_odoo_sync_regression.py", "/app/test_reports/pytest/iter41.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_TimeoutTransport uses socket.setdefaulttimeout via a per-request context — the 120s timeout is applied consistently across auth + call; combined with 5x auth retry and 6x call retry with re-auth this correctly guards against indefinite XML-RPC hangs.",
+    "Consider surfacing the effective timeout via env var (e.g. ODOO_XMLRPC_TIMEOUT) so prod can tune without a redeploy; currently hardcoded at 120s.",
+    "Retry backoff on call() should cap total wall time (~<= worker heartbeat budget) to avoid the outer worker still being killed on a persistently degraded Odoo — worth logging cumulative retry time for observability."
+  ],
+  "updated_files": ["/app/backend/tests/test_odoo_sync_regression.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview Odoo is healthy so the production XML-RPC hang / worker-restart cannot be reproduced here; verified NO REGRESSION only. Delta sync completes in ~8s in preview and returns full per-entity progress. Reuse /app/backend/tests/test_odoo_sync_regression.py for future regressions.",
+  "rca of the issue": "Prod ServerProxy was created without a socket timeout; a hung Odoo request stalled the sync worker until the platform killed the process, surfacing to UI as 'sync worker no longer running'. Fix layers a 120s socket timeout on the XML-RPC transport plus retry-with-reauth so transient XML-RPC failures self-heal instead of hanging the worker."
+}
