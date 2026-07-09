@@ -343,6 +343,10 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Bugfix 2026-06 — "Run Audit vs Odoo" error (gateway timeout)
+- The audit ran ~15 sequential Odoo search_count calls synchronously in the HTTP request (~18-40s over 110k leads / 1M+ messages) → hit the ingress/gateway timeout → button errored in production.
+- Fix: audit is now a BACKGROUND JOB. POST /api/admin/migration/audit starts a thread (using the resilient timeout+retry XML-RPC call()) and returns {status:"running"} in ~0.1s; new GET /api/admin/migration/audit/status returns settings.last_audit; frontend runAudit() polls every 3s until done. Audit table render + mount guarded against missing rows. Verified iteration_42 (100%).
+
 ### Bugfix 2026-06 — Sync worker killed by hung XML-RPC (process restart / xmlrpc __request error)
 - Two prod symptoms: "sync worker no longer running (process restarted or crashed)" and an xmlrpc/client.py __request error. Cause: the Odoo XML-RPC ServerProxy had NO socket timeout, so a hung Odoo request stalled the worker until the platform killed the process.
 - Fix (odoo_migrate.py): timeout-aware transports (_TimeoutTransport/_TimeoutSafeTransport, ODOO_TIMEOUT env, default 120s); _authenticate() 5x retry; call() 6x retry with backoff + re-authenticate on transient failures. Per-batch checkpoints let a re-run resume. Verified iteration_41 (100%). Regression test: /app/backend/tests/test_odoo_sync_regression.py.
