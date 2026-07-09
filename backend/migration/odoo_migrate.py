@@ -25,7 +25,13 @@ ODOO_LOGIN = os.environ["ODOO_LOGIN"]
 ODOO_PASSWORD = os.environ["ODOO_PASSWORD"]
 DEFAULT_USER_PASSWORD = os.environ["DEFAULT_USER_PASSWORD"]
 
-mongo = MongoClient(os.environ["MONGO_URL"])
+mongo = MongoClient(
+    os.environ["MONGO_URL"],
+    retryWrites=True,
+    socketTimeoutMS=180000,
+    connectTimeoutMS=30000,
+    serverSelectionTimeoutMS=30000,
+)
 db = mongo[os.environ["DB_NAME"]]
 
 common = xmlrpc.client.ServerProxy(f"{ODOO_URL}/xmlrpc/2/common")

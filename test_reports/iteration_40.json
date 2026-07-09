@@ -1,0 +1,19 @@
+{
+  "summary": "Regression pass for Odoo Sync resiliency fixes (retryWrites/socketTimeoutMS, bulk() 4x retry on AutoReconnect/NetworkTimeout/ConnectionFailure with ordered=False, message batch size 500). Backend: POST /api/admin/sync/start -> 200 (run_id 13), polled GET /api/admin/sync/runs/13 -> status 'done' in ~6s with NO error and full progress/results for catalogs, users, templates, leads, lead_messages, wa_channels, wa_messages, contacts, open_activities. GET /api/admin/sync/status -> 200 with last_record + counts populated after run. Frontend: admin login OK, Admin > Migration tab, sync-now-button click opens sync-confirm-modal, sync-confirm-button fires start (Sync started toast), button label -> 'Sync in progress…', sync-progress panel renders live counts, after ~8s button returns to 'Sync Now' and green 'Sync #14 complete — 2 new, 138 updated' summary is shown with per-entity counts. No regression.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/tmp/sync_test.py"],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "bulk() retry wrapper with ordered=False + backoff is correct; message batch reduced 2000->500 lowers memory/socket pressure per bulk_write.",
+    "MongoClient timeouts (socketTimeoutMS=180000 + retryWrites=True) are reasonable for large chatter bulk_write; consider also setting maxPoolSize appropriately in prod if not already."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Preview dataset small, delta sync completes in ~6-8s; real prod transient AutoReconnect cannot be reproduced here. Regression path clean: start->done->status all 200, UI button lifecycle + progress panel healthy.",
+  "rca of the issue": "Prod-side pymongo AutoReconnect during large lead-chatter bulk_write. Fix: retryWrites=True + 180s socketTimeout on client, explicit 4x retry with ordered=False in bulk() to skip idempotent duplicates on reconnect, and smaller message batches (500) to shrink each write frame."
+}

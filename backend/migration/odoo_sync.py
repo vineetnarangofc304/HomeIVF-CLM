@@ -6,10 +6,12 @@ Run: cd /app/backend && python migration/odoo_sync.py --run-id 1 --since "2026-0
 A since of "1970-01-01 00:00:00" performs a FULL import (used for fresh/production databases).
 """
 import argparse
+import time
 import traceback
 from datetime import datetime
 
 from pymongo import UpdateOne
+from pymongo.errors import AutoReconnect, NetworkTimeout, ConnectionFailure
 
 from odoo_migrate import (  # noqa: E402  (same directory)
     DEFAULT_USER_PASSWORD, MANAGER_LOGINS, call, checkpoint, db, get_checkpoint,
@@ -37,12 +39,23 @@ class SyncRun:
 
 
 def bulk(coll, ops):
-    """Returns (inserted, updated)."""
+    """Returns (inserted, updated). Retries on transient MongoDB network drops
+    (e.g. `write_command ... receive_message` connection resets seen on large
+    writes in managed/production clusters). ordered=False so a single bad op
+    can't abort the whole batch."""
     if not ops:
         return 0, 0
-    res = coll.bulk_write(ops)
-    inserted = res.upserted_count
-    return inserted, len(ops) - inserted
+    for attempt in range(4):
+        try:
+            res = coll.bulk_write(ops, ordered=False)
+            inserted = res.upserted_count
+            return inserted, len(ops) - inserted
+        except (AutoReconnect, NetworkTimeout, ConnectionFailure) as e:
+            if attempt == 3:
+                raise
+            wait = 3 * (attempt + 1)
+            log(f"  bulk_write transient error on {coll.name}: {str(e)[:120]} — retry {attempt+1} in {wait}s")
+            time.sleep(wait)
 
 
 def sync_catalogs(run):
@@ -152,7 +165,7 @@ def sync_lead_messages(run):
     domain = [["model", "=", "crm.lead"], ["body", "!=", ""], ["id", ">", last_id]]
     new = 0
     while True:
-        recs = call("mail.message", "search_read", domain, fields=["res_id", "body", "author_id", "date", "message_type", "subtype_id", "subject"], limit=2000, order="id asc")
+        recs = call("mail.message", "search_read", domain, fields=["res_id", "body", "author_id", "date", "message_type", "subtype_id", "subject"], limit=500, order="id asc")
         if not recs:
             break
         ops = []
@@ -196,7 +209,7 @@ def sync_wa(run, since):
     while True:
         recs = call("mail.message", "search_read",
                     [["model", "=", "discuss.channel"], ["body", "!=", ""], ["id", ">", last_id]],
-                    fields=["res_id", "body", "author_id", "date", "message_type"], limit=2000, order="id asc")
+                    fields=["res_id", "body", "author_id", "date", "message_type"], limit=500, order="id asc")
         if not recs:
             break
         ops = []
