@@ -413,29 +413,43 @@ async def migration_audit_status(user: dict = Depends(require_roles("admin", "ma
 def _dup_scan_worker(date_from, date_to, scan_id):
     """Find leads that share a phone number, keeping the OLDEST per phone and flagging
     the newer duplicates CREATED within [date_from, date_to] for deletion. Runs on a
-    background thread; result stored in settings.dup_scan (avoids gateway timeout)."""
+    background thread; result stored in settings.dup_scan.
+
+    Indexed two-step approach (avoids a full-collection $group that trips MongoDB's
+    operation time limit on large datasets):
+      1) distinct phone_digits among leads CREATED in the window (uses create_date index)
+      2) fetch only leads sharing those phones (uses phone_digits index) and group in-memory."""
     from pymongo import MongoClient
     sdb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+    fields = ["id", "name", "phone", "create_date", "user_id", "stage_id", "active"]
     try:
+        try:
+            sdb.leads.create_index("phone_digits")
+            sdb.leads.create_index("create_date")
+        except Exception:
+            pass
         lo, hi = f"{date_from} 00:00:00", f"{date_to} 23:59:59"
-        pipeline = [
-            {"$match": {"phone_digits": {"$nin": [None, ""]}}},
-            {"$group": {"_id": "$phone_digits", "count": {"$sum": 1},
-                        "leads": {"$push": {"id": "$id", "name": "$name", "phone": "$phone",
-                                            "create_date": "$create_date", "user_id": "$user_id",
-                                            "stage_id": "$stage_id", "active": "$active"}}}},
-            {"$match": {"count": {"$gte": 2}}},
-        ]
+        window_phones = [p for p in sdb.leads.distinct("phone_digits", {
+            "create_date": {"$gte": lo, "$lte": hi}, "phone_digits": {"$nin": [None, ""]}}) if p]
         groups_out, cand_ids = [], []
-        for g in sdb.leads.aggregate(pipeline, allowDiskUse=True):
-            leads = g["leads"]
-            keeper = min(leads, key=lambda l: l.get("create_date") or "9999")
-            cands = [l for l in leads if l["id"] != keeper["id"]
-                     and l.get("create_date") and lo <= l["create_date"] <= hi]
-            if not cands:
-                continue
-            groups_out.append({"phone": g["_id"], "keeper": keeper, "candidates": cands})
-            cand_ids += [l["id"] for l in cands]
+        for i in range(0, len(window_phones), 400):
+            chunk = window_phones[i:i + 400]
+            proj = {"_id": 0, "phone_digits": 1, **{f: 1 for f in fields}}
+            by_phone = {}
+            for l in sdb.leads.find({"phone_digits": {"$in": chunk}}, proj):
+                by_phone.setdefault(l.get("phone_digits"), []).append(l)
+            for phone, grp in by_phone.items():
+                if len(grp) < 2:
+                    continue
+                keeper = min(grp, key=lambda l: l.get("create_date") or "9999")
+                cands = [l for l in grp if l["id"] != keeper["id"]
+                         and l.get("create_date") and lo <= l["create_date"] <= hi]
+                if not cands:
+                    continue
+                slim = lambda l: {f: l.get(f) for f in fields}
+                groups_out.append({"phone": phone, "keeper": slim(keeper),
+                                   "candidates": [slim(c) for c in cands]})
+                cand_ids += [c["id"] for c in cands]
         sdb.settings.update_one({"key": "dup_scan"}, {"$set": {
             "key": "dup_scan", "status": "done", "scan_id": scan_id,
             "date_from": date_from, "date_to": date_to,
