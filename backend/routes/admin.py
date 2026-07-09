@@ -308,32 +308,30 @@ async def sync_runs(user: dict = Depends(require_roles("admin", "manager"))):
     return await db.sync_runs.find({}, {"_id": 0}).sort("run_id", -1).limit(10).to_list(10)
 
 
-@router.post("/migration/audit")
-async def migration_audit(user: dict = Depends(require_roles("admin", "manager"))):
-    """Live comparison: counts in Odoo vs counts in this CRM, entity by entity."""
-    import asyncio
-    import os
-    import xmlrpc.client
+AUDIT_NOTES = {
+    "whatsapp_messages": "Odoo count includes messages in non-WhatsApp internal channels; CRM migrates WhatsApp-channel messages only.",
+    "open_activities": "Odoo deletes activities once marked done — only OPEN activities exist to migrate. Completed activity history lives in lead chatter.",
+    "lead_chatter_messages": "Odoo count grows live as your team keeps using Odoo; rerun migration script to sync deltas.",
+}
 
-    def odoo_counts():
-        try:
-            url, dbname = os.environ["ODOO_URL"], os.environ["ODOO_DB"]
-            login, pwd = os.environ["ODOO_LOGIN"], os.environ["ODOO_PASSWORD"]
-        except KeyError as e:
-            raise HTTPException(status_code=503, detail=f"Odoo credentials missing in environment: {e}")
-        common = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/common")
-        uid = common.authenticate(dbname, login, pwd, {})
-        if not uid:
-            raise HTTPException(status_code=503, detail="Odoo authentication failed")
-        models = xmlrpc.client.ServerProxy(f"{url}/xmlrpc/2/object")
+
+def _audit_worker(started_by):
+    """Runs the live Odoo-vs-CRM audit on a background thread and stores the result
+    in settings.last_audit. Decoupled from the HTTP request so the ~20-40s of Odoo
+    round-trips can never hit an ingress/gateway timeout."""
+    mig_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "migration")
+    if mig_dir not in sys.path:
+        sys.path.insert(0, mig_dir)
+    try:
+        from odoo_migrate import call as odoo_call, db as sdb  # resilient (timeout+retry+reauth) client
 
         def c(model, domain):
             try:
-                return models.execute_kw(dbname, uid, pwd, model, "search_count", [domain])
+                return odoo_call(model, "search_count", domain)
             except Exception:
                 return -1
 
-        return {
+        odoo = {
             "leads": c("crm.lead", [["active", "in", [True, False]]]),
             "lead_chatter_messages": c("mail.message", [["model", "=", "crm.lead"], ["body", "!=", ""]]),
             "whatsapp_conversations": c("discuss.channel", [["channel_type", "=", "whatsapp"]]),
@@ -350,36 +348,61 @@ async def migration_audit(user: dict = Depends(require_roles("admin", "manager")
             "utm_mediums": c("utm.medium", []),
             "utm_campaigns": c("utm.campaign", []),
         }
+        crm = {
+            "leads": sdb.leads.count_documents({"migrated": True}),
+            "lead_chatter_messages": sdb.messages.count_documents({"migrated": True}),
+            "whatsapp_conversations": sdb.wa_channels.count_documents({"migrated": True}),
+            "whatsapp_messages": sdb.wa_messages.count_documents({"migrated": True}),
+            "contacts": sdb.contacts.count_documents({"migrated": True}),
+            "users": sdb.users.count_documents({"odoo_user": True}),
+            "tags": sdb.catalogs.count_documents({"type": "tag"}),
+            "pipeline_stages": sdb.catalogs.count_documents({"type": "stage"}),
+            "lost_reasons": sdb.catalogs.count_documents({"type": "lost_reason"}),
+            "open_activities": sdb.activities.count_documents({"migrated": True}),
+            "email_templates": sdb.templates_email.count_documents({"migrated": True}),
+            "whatsapp_templates": sdb.templates_whatsapp.count_documents({"migrated": True}),
+            "utm_sources": sdb.catalogs.count_documents({"type": "utm_source"}),
+            "utm_mediums": sdb.catalogs.count_documents({"type": "utm_medium"}),
+            "utm_campaigns": sdb.catalogs.count_documents({"type": "utm_campaign"}),
+        }
+        rows = []
+        for k, ov in odoo.items():
+            cv = crm.get(k, 0)
+            ok = (cv >= ov) if k != "whatsapp_messages" else (cv > 0 and abs(cv - ov) / max(ov, 1) < 0.1)
+            rows.append({"entity": k, "odoo": ov, "crm": cv, "match": bool(ok), "note": AUDIT_NOTES.get(k)})
+        sdb.settings.update_one({"key": "last_audit"}, {"$set": {
+            "key": "last_audit", "status": "done", "rows": rows, "ran_at": now_utc_str(),
+            "started_by": started_by, "error": None,
+            "all_match": all(r["match"] for r in rows if r["odoo"] >= 0)}}, upsert=True)
+    except Exception:
+        err = traceback.format_exc()
+        try:
+            from pymongo import MongoClient
+            edb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+            edb.settings.update_one({"key": "last_audit"}, {"$set": {
+                "key": "last_audit", "status": "error", "error": err[-500:],
+                "ran_at": now_utc_str(), "started_by": started_by}}, upsert=True)
+        except Exception:
+            pass
 
-    odoo = await asyncio.to_thread(odoo_counts)
-    crm = {
-        "leads": await db.leads.count_documents({"migrated": True}),
-        "lead_chatter_messages": await db.messages.count_documents({"migrated": True}),
-        "whatsapp_conversations": await db.wa_channels.count_documents({"migrated": True}),
-        "whatsapp_messages": await db.wa_messages.count_documents({"migrated": True}),
-        "contacts": await db.contacts.count_documents({"migrated": True}),
-        "users": await db.users.count_documents({"odoo_user": True}),
-        "tags": await db.catalogs.count_documents({"type": "tag"}),
-        "pipeline_stages": await db.catalogs.count_documents({"type": "stage"}),
-        "lost_reasons": await db.catalogs.count_documents({"type": "lost_reason"}),
-        "open_activities": await db.activities.count_documents({"migrated": True}),
-        "email_templates": await db.templates_email.count_documents({"migrated": True}),
-        "whatsapp_templates": await db.templates_whatsapp.count_documents({"migrated": True}),
-        "utm_sources": await db.catalogs.count_documents({"type": "utm_source"}),
-        "utm_mediums": await db.catalogs.count_documents({"type": "utm_medium"}),
-        "utm_campaigns": await db.catalogs.count_documents({"type": "utm_campaign"}),
-    }
-    notes = {
-        "whatsapp_messages": "Odoo count includes messages in non-WhatsApp internal channels; CRM migrates WhatsApp-channel messages only.",
-        "open_activities": "Odoo deletes activities once marked done — only OPEN activities exist to migrate. Completed activity history lives in lead chatter.",
-        "lead_chatter_messages": "Odoo count grows live as your team keeps using Odoo; rerun migration script to sync deltas.",
-    }
-    rows = []
-    for k, ov in odoo.items():
-        cv = crm.get(k, 0)
-        ok = (cv >= ov) if k != "whatsapp_messages" else (cv > 0 and abs(cv - ov) / max(ov, 1) < 0.1)
-        rows.append({"entity": k, "odoo": ov, "crm": cv, "match": bool(ok), "note": notes.get(k)})
-    result = {"rows": rows, "ran_at": now_utc_str(),
-              "all_match": all(r["match"] for r in rows if r["odoo"] >= 0)}
-    await db.settings.update_one({"key": "last_audit"}, {"$set": {"key": "last_audit", **result}}, upsert=True)
-    return result
+
+@router.post("/migration/audit")
+async def migration_audit(user: dict = Depends(require_roles("admin", "manager"))):
+    """Start a background Odoo-vs-CRM audit. Poll GET /migration/audit/status for the result."""
+    current = await db.settings.find_one({"key": "last_audit"}, {"_id": 0})
+    if current and current.get("status") == "running":
+        started = current.get("started_at", "")
+        stale = started < (datetime.now(timezone.utc) - timedelta(minutes=10)).strftime("%Y-%m-%d %H:%M:%S")
+        if not stale:
+            return {"status": "running"}
+    await db.settings.update_one({"key": "last_audit"}, {"$set": {
+        "key": "last_audit", "status": "running", "started_at": now_utc_str(),
+        "started_by": user["name"]}}, upsert=True)
+    threading.Thread(target=_audit_worker, args=(user["name"],), name="odoo-audit", daemon=True).start()
+    return {"status": "running"}
+
+
+@router.get("/migration/audit/status")
+async def migration_audit_status(user: dict = Depends(require_roles("admin", "manager"))):
+    doc = await db.settings.find_one({"key": "last_audit"}, {"_id": 0})
+    return doc or {"status": "none"}

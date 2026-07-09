@@ -1473,7 +1473,7 @@ function MigrationTab() {
   useEffect(() => {
     load();
     loadSync();
-    API.get("/admin/settings").then(({ data }) => data.last_audit && setAudit(data.last_audit));
+    API.get("/admin/settings").then(({ data }) => data.last_audit && data.last_audit.rows && setAudit(data.last_audit));
   }, []);
 
   // poll active run
@@ -1511,12 +1511,36 @@ function MigrationTab() {
   const runAudit = async () => {
     setAuditing(true);
     try {
-      const { data } = await API.post("/admin/migration/audit");
-      setAudit(data);
-      toast.success(data.all_match ? "Audit passed — everything matches Odoo ✓" : "Audit complete — review differences below");
+      await API.post("/admin/migration/audit");
+      let tries = 0;
+      const poll = setInterval(async () => {
+        tries += 1;
+        try {
+          const { data } = await API.get("/admin/migration/audit/status");
+          if (data && data.status && data.status !== "running") {
+            clearInterval(poll);
+            setAuditing(false);
+            if (data.status === "error") {
+              toast.error("Audit failed: " + (data.error || "").slice(0, 160));
+              return;
+            }
+            setAudit(data);
+            toast.success(data.all_match ? "Audit passed — everything matches Odoo ✓" : "Audit complete — review differences below");
+          } else if (tries > 60) {
+            clearInterval(poll);
+            setAuditing(false);
+            toast.error("Audit is taking longer than expected — please try again.");
+          }
+        } catch (e) {
+          clearInterval(poll);
+          setAuditing(false);
+          toast.error(apiErr(e));
+        }
+      }, 3000);
     } catch (e) {
+      setAuditing(false);
       toast.error(apiErr(e));
-    } finally { setAuditing(false); }
+    }
   };
 
   if (!status) return <Spinner />;
@@ -1628,7 +1652,7 @@ function MigrationTab() {
             {auditing ? "Auditing… (~20s)" : "Run Audit vs Odoo"}
           </button>
         </div>
-        {audit && (
+        {audit && audit.rows && (
           <>
             <p className="mt-3 text-xs text-slate-400">Last run: {audit.ran_at} UTC · {audit.all_match ? <span className="font-bold text-emerald-600">ALL ENTITIES MATCH ✓</span> : <span className="font-bold text-amber-600">differences found (see notes)</span>}</p>
             <table className="mt-2 w-full text-sm" data-testid="audit-table">
