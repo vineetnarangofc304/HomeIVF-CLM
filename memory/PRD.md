@@ -343,6 +343,11 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Perf 2026-06 — Go-live optimization (indexes)
+- Root cause of slowness on large prod data (110k leads / 1M msgs / 73k follow_ups): follow_ups & caller_activities had NO index (COLLSCAN on every lead-detail open); several report/dashboard match patterns lacked compound indexes.
+- Fix (server.py startup, additive/no logic change): added follow_ups [(lead_id,follow_up_date)], follow_up_date, [(source,lead_id)]; caller_activities [(lead_id,created_at)]; wa_tracking lead_id/campaign_id/wamid; leads [(active,follow_up_date)], [(active,user_id)], source_lead, stage_id. All lists already paginated; dashboard bounds by_day window.
+- Verified iteration_46 (100%, regression suite /app/backend/tests/test_perf_sections.py): dashboard 0.26s, leads 0.53s, pivots 0.22s, followups 0.13s. No regressions.
+
 ### Feature 2026-06 — Duplicate Lead Cleanup + Odoo follow-up → Follow-up entry
 - CASE 1 (Duplicate cleanup, Admin > Migration): scan groups leads by phone_digits, keeps the OLDEST, flags newer duplicates CREATED in a date range (default 1–9 Jul) for deletion. Background scan (POST /admin/duplicates/scan → poll /status), preview table, confirm-modal delete (POST /admin/duplicates/delete) archives to deleted_leads (recoverable) then removes + cleans their follow_ups. UI: dup-cleanup-card in Admin.jsx. NOTE: scan uses an indexed two-step approach (distinct on create_date-index window → chunked $in on phone_digits-index) to avoid MongoDB ExecutionTimeout on the ~110k-lead prod dataset (verified iteration_44, ~4s).
 - CASE 2 (Odoo follow-up dates): sync now mirrors each lead's Odoo follow_up_date into a real follow_ups entry (source='odoo', one per lead, idempotent) so it shows in the Follow-ups list/reminders. Covers future syncs (_ensure_followups in sync_leads) + one-time backfill of existing leads (_backfill_followups, guarded by settings.followups_backfilled). Verified iteration_43 (100%): backfill created 73,766 entries, unique ids.
