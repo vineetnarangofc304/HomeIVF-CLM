@@ -71,13 +71,13 @@ export default function Layout({ children }) {
             </NavLink>
           )}
         </nav>
-        <div className="mx-3 mb-3 rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#4A90E2]/10 p-3">
+        <NavLink to="/ai-insights" data-testid="nav-ai-brain-card" className="mx-3 mb-3 block rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#4A90E2]/10 p-3 transition hover:from-[#8B5CF6]/20 hover:to-[#4A90E2]/20">
           <div className="flex items-center gap-2 text-[#8B5CF6]">
             <Sparkle size={16} weight="fill" />
             <span className="text-xs font-bold">AI Brain</span>
           </div>
-          <p className="mt-1 text-[11px] text-slate-500">Coming in Phase 2 — conversational insights on all your data.</p>
-        </div>
+          <p className="mt-1 text-[11px] text-slate-500">Ask questions & explore live insights on all your data →</p>
+        </NavLink>
         <div className="border-t border-slate-100 px-5 py-3">
           <p className="text-[10px] uppercase tracking-[0.2em] text-slate-400">Powered by TifTech</p>
         </div>

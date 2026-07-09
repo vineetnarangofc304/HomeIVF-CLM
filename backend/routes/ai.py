@@ -132,6 +132,7 @@ async def _run_spec(spec, user):
     rows = await _grouped(match, dim, limit=25, unwind=(dim == "tags"))
     if dim:
         data = await _labelled(rows, dim)
+        data = [d for d in data if d["label"] not in ("—", "", "None")]
         for d in data:
             d["value"] = d["rate"] if metric == "conversion_rate" else (d["converted"] if metric == "conversions" else d["total"])
         data = sorted(data, key=lambda x: x["value"], reverse=True)

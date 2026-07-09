@@ -343,6 +343,12 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Phase 2 2026-06 — AI Insights dashboards + AI Brain (LIVE)
+- New "AI Insights" page (nav + route /ai-insights, perm 'reports'). Advanced charts via recharts: Conversion Funnel, Leads Trend (30d), Source Performance (leads vs converted), Caller Performance (conversion %), Ad Platform pie, Top States. All from GET /api/ai/analytics (concurrent, index-backed, ~1s). KPIs: total/converted/conversion_rate.
+- AI Brain chat: POST /api/ai/brain — GPT-5.5 (openai) via Emergent Universal Key (emergentintegrations LlmChat) translates a plain-English question → JSON query spec → safe indexed aggregation → answer + dynamic chart (bar/line/pie/number). Session-scoped history in db.ai_chats; GET /api/ai/brain/history. Null buckets excluded from answers.
+- Files: routes/ai.py (reuses reports DIMS/build_match/resolve_labels), pages/AiInsights.jsx, Layout.jsx nav + AI Brain card, App.js route. Backend key EMERGENT_LLM_KEY in backend/.env.
+- Verified iteration_47 (100%, suite /app/backend/tests/test_ai_insights.py): analytics ~1.5s, brain 3–8s, RBAC 403 for caller role, all charts render.
+
 ### Perf 2026-06 — Go-live optimization (indexes)
 - Root cause of slowness on large prod data (110k leads / 1M msgs / 73k follow_ups): follow_ups & caller_activities had NO index (COLLSCAN on every lead-detail open); several report/dashboard match patterns lacked compound indexes.
 - Fix (server.py startup, additive/no logic change): added follow_ups [(lead_id,follow_up_date)], follow_up_date, [(source,lead_id)]; caller_activities [(lead_id,created_at)]; wa_tracking lead_id/campaign_id/wamid; leads [(active,follow_up_date)], [(active,user_id)], source_lead, stage_id. All lists already paginated; dashboard bounds by_day window.
