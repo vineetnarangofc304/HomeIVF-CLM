@@ -253,23 +253,19 @@ def sync_activities(run):
     run.record("open_activities", n, u)
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--run-id", type=int, required=True)
-    parser.add_argument("--since", required=True)
-    parser.add_argument("--until", default=None)
-    args = parser.parse_args()
-    run = SyncRun(args.run_id)
-    until = args.until or now_str()
-    run.update(status="running", since=args.since, until=until, started_at=now_str())
-    log(f"SYNC run {args.run_id}: since={args.since} until={until}")
+def run_sync(run_id, since, until=None):
+    """Run a full delta sync in-process (callable from the API in a background thread)."""
+    run = SyncRun(run_id)
+    until = until or now_str()
+    run.update(status="running", since=since, until=until, started_at=now_str())
+    log(f"SYNC run {run_id}: since={since} until={until}")
     try:
         sync_catalogs(run)
         sync_users(run)
         sync_templates(run)
-        sync_leads(run, args.since)
+        sync_leads(run, since)
         sync_lead_messages(run)
-        sync_wa(run, args.since)
+        sync_wa(run, since)
         sync_contacts(run)
         sync_activities(run)
         totals = {
@@ -283,9 +279,21 @@ if __name__ == "__main__":
         finished = now_str()
         run.update(status="done", finished_at=finished, results=run.results, totals=totals)
         db.settings.update_one({"key": "last_sync"}, {"$set": {
-            "key": "last_sync", "since": args.since, "until": until, "finished_at": finished,
-            "results": run.results, "totals": totals, "run_id": args.run_id}}, upsert=True)
+            "key": "last_sync", "since": since, "until": until, "finished_at": finished,
+            "results": run.results, "totals": totals, "run_id": run_id}}, upsert=True)
         log("SYNC complete.")
+        return {"status": "done", "totals": totals}
     except Exception:
-        log(f"SYNC ERROR:\n{traceback.format_exc()}")
-        run.update(status="error", error=traceback.format_exc()[-800:], finished_at=now_str())
+        err = traceback.format_exc()
+        log(f"SYNC ERROR:\n{err}")
+        run.update(status="error", error=err[-800:], finished_at=now_str())
+        return {"status": "error", "error": err[-800:]}
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--run-id", type=int, required=True)
+    parser.add_argument("--since", required=True)
+    parser.add_argument("--until", default=None)
+    args = parser.parse_args()
+    run_sync(args.run_id, args.since, args.until)

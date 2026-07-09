@@ -1,7 +1,9 @@
+import asyncio
 import os
 import re
-import subprocess
 import sys
+import threading
+import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -223,12 +225,31 @@ async def sync_start(user: dict = Depends(require_roles("admin"))):
     await db.sync_runs.insert_one({"run_id": rid, "status": "running", "mode": status["mode"],
                                    "since": since, "until": until, "started_at": now_utc_str(),
                                    "started_by": user["name"], "progress": {}})
+
+    # Run the sync in-process on a background thread. This is far more robust in a
+    # managed/container deployment than spawning a detached subprocess + writing a
+    # log file (which can fail on a read-only FS). Progress is tracked in `sync_runs`.
     backend_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    logf = open("/var/log/odoo_sync.log", "a")
-    subprocess.Popen(
-        [sys.executable, "migration/odoo_sync.py", "--run-id", str(rid), "--since", since, "--until", until],
-        cwd=backend_dir, stdout=logf, stderr=logf, start_new_session=True,
-    )
+    mig_dir = os.path.join(backend_dir, "migration")
+
+    def _worker():
+        if mig_dir not in sys.path:
+            sys.path.insert(0, mig_dir)
+        try:
+            import odoo_sync
+            odoo_sync.run_sync(rid, since, until)
+        except Exception:  # import/connect failure — record it on the run via a sync client
+            err = traceback.format_exc()
+            try:
+                from pymongo import MongoClient
+                sdb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
+                sdb.sync_runs.update_one({"run_id": rid}, {"$set": {
+                    "status": "error", "error": err[-800:],
+                    "finished_at": datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")}})
+            except Exception:
+                pass
+
+    threading.Thread(target=_worker, name=f"odoo-sync-{rid}", daemon=True).start()
     return {"run_id": rid, "since": since, "until": until, "mode": status["mode"]}
 
 
