@@ -21,7 +21,7 @@ LIST_PROJECTION = {
     "create_date": 1, "create_date_ist": 1, "follow_up_date": 1, "follow_up_time": 1, "follow_up_tag": 1,
     "source_lead": 1, "campaign_name": 1, "ads_platform": 1, "priority": 1, "active": 1,
     "probability": 1, "appointment_date": 1, "lost_reason_id": 1, "is_duplicate": 1, "duplicate_of": 1,
-    "ozonetel_lead": 1, "in_pipeline": 1,
+    "ozonetel_lead": 1, "in_pipeline": 1, "conversion_page": 1,
 }
 
 EDITABLE_FIELDS = {
@@ -31,7 +31,7 @@ EDITABLE_FIELDS = {
     "appointment_date", "appointment_time", "source_lead", "campaign_name", "ads_platform", "ads_campaign_name",
     "ads_name", "description", "priority", "gender", "age", "male_age", "female_age",
     "spouse_name", "spouse_age", "spouse_alternate_no", "query", "remark", "pre_conditions",
-    "doctor_name", "lost_reason_id", "custom",
+    "doctor_name", "lost_reason_id", "custom", "conversion_page",
     "source_id", "medium_id", "campaign_id",
 }
 
@@ -47,23 +47,39 @@ def build_query(
 ):
     q = {}
     if bucket == "ozonetel":
-        q["ozonetel_lead"] = True
-        q["in_pipeline"] = {"$ne": True}
+        # Raw (un-promoted) Ozonetel leads carry pipeline=False — uses the same indexed
+        # {active,pipeline,create_date,id} plan as the pipeline tab (was an unindexed scan).
+        q["pipeline"] = False
     elif bucket == "pipeline":
-        q["$and"] = [{"$or": [{"ozonetel_lead": {"$ne": True}}, {"in_pipeline": True}]}]
+        # Indexed & sort-friendly: everything EXCEPT raw (un-promoted) Ozonetel leads,
+        # which carry pipeline=False. Leads without the field (pre-backfill) still match
+        # via $ne, so nothing vanishes during the one-time backfill window. This replaces
+        # the old $or/$ne filter that couldn't use the sort-covering index → blocking
+        # in-memory SORT over ~100k docs → slow / 500 ("Sort exceeded memory limit").
+        q["pipeline"] = {"$ne": False}
     if active == "true":
         q["active"] = True
     elif active == "false":
         q["active"] = False
     if search:
-        rx = {"$regex": re.escape(search.strip()), "$options": "i"}
-        digits = re.sub(r"\D", "", search)
-        ors = [{"name": rx}, {"contact_name": rx}, {"email_from": rx}]
-        if digits and len(digits) >= 4:
-            ors.append({"phone_digits": {"$regex": digits}})
+        s = search.strip()
+        digits = re.sub(r"\D", "", s)
+        non_phone = re.sub(r"[\d\s+\-()]", "", s)
+        if digits and len(digits) >= 4 and non_phone == "":
+            # Pure phone query → hit ONLY the indexed phone_digits (exact for a full
+            # 10-digit number, else prefix). No name-regex branches, so it stays instant.
+            d10 = digits[-10:]
+            q["phone_digits"] = d10 if len(digits) >= 10 else {"$regex": "^" + re.escape(d10)}
         else:
-            ors.append({"phone": rx})
-        q["$or"] = ors
+            # Text query: prefix ('starts with') match on the indexed name/email fields.
+            # Replaces the old unindexed 'contains' regex that scanned every lead and then
+            # blocking-sorted the whole result set (the "search is slow" report).
+            pfx = {"$regex": "^" + re.escape(s), "$options": "i"}
+            ors = [{"name": pfx}, {"contact_name": pfx}, {"email_from": pfx}]
+            if digits and len(digits) >= 4:
+                d10 = digits[-10:]
+                ors.append({"phone_digits": d10} if len(digits) >= 10 else {"phone_digits": {"$regex": "^" + re.escape(d10)}})
+            q["$or"] = ors
     if stage_id:
         q["stage_id"] = int(stage_id)
     if lead_stage == "__none__":
@@ -368,7 +384,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
         await log_message(lead_id, f"Merged into pipeline lead #{existing['id']} (duplicate phone)", author=user)
         return {"ok": True, "merged_into": existing["id"]}
 
-    updates = {"in_pipeline": True, "write_date": now_utc_str(), "write_uid": user["id"]}
+    updates = {"in_pipeline": True, "pipeline": True, "write_date": now_utc_str(), "write_uid": user["id"]}
     if name:
         updates["contact_name"] = name
         updates["name"] = name

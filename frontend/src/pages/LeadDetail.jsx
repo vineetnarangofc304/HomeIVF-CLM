@@ -302,6 +302,7 @@ export default function LeadDetail() {
             fields={[
               ["source_lead", "Source"], ["ads_platform", "Ads Platform"], ["campaign_name", "Campaign"],
               ["ads_campaign_name", "Ads Campaign"], ["ads_name", "Ad Name"],
+              ["conversion_page", "Conversion Page"],
               ["source_id", "UTM Source", "select"], ["medium_id", "UTM Medium", "select"],
               ["campaign_id", "UTM Campaign", "select"],
             ]}

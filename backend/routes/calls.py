@@ -91,7 +91,7 @@ async def _create_call_lead(phone: str, source_name: str, missed: bool = False, 
         "source_lead": src["name"], "lead_stage": None,
         "user_id": agent["id"] if agent else None,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
-        "custom": {}, "ozonetel_lead": True,
+        "custom": {}, "ozonetel_lead": True, "pipeline": False,
     }
     doc.update(ist_date_parts(doc["create_date_ist"]))
     await db.leads.insert_one(doc)

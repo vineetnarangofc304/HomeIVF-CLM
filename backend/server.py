@@ -113,6 +113,14 @@ INDEX_SPECS = [
     # "Request failed". These cover the default (create_date) list for admin & callers.
     ("leads", [("active", 1), ("create_date", -1), ("id", -1)], {}),
     ("leads", [("active", 1), ("user_id", 1), ("create_date", -1), ("id", -1)], {}),
+    # "Lead in Pipeline" tab (default) filters pipeline!=False. This index covers that
+    # filter + the [create_date,id] sort so the tab never blocking-sorts / 500s at scale.
+    ("leads", [("active", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
+    # Prefix ('starts with') search on name fields uses these single-field indexes
+    # instead of a full collection scan (the "search is slow" fix).
+    ("leads", "name", {}),
+    ("leads", "contact_name", {}),
+    ("leads", "email_from", {}),
     # Covering indexes so the report aggregations run index-only (docs=0) instead of
     # paging the whole ~240MB collection off disk: trends (period+stage), dashboard
     # date-range panels, and the dow/hour heatmap.
@@ -170,6 +178,19 @@ async def _ensure_indexes():
             logger.info(f"Backfilled date-parts on {res.modified_count} leads")
     except Exception as e:
         logger.warning(f"date-parts backfill skipped: {str(e)[:160]}")
+    # One-time (idempotent) backfill: mark raw (un-promoted) Ozonetel leads pipeline=False
+    # so the "Lead in Pipeline" tab ({pipeline:{$ne:False}}) can use its indexed, sort-
+    # covering plan. Touches only the SMALL raw-Ozonetel subset, so it's fast & low-risk;
+    # everything else is left field-less (still matches $ne:False → no vanish window).
+    try:
+        res = await db.leads.update_many(
+            {"ozonetel_lead": True, "in_pipeline": {"$ne": True}, "pipeline": {"$exists": False}},
+            {"$set": {"pipeline": False}},
+        )
+        if res.modified_count:
+            logger.info(f"Backfilled pipeline=False on {res.modified_count} raw Ozonetel leads")
+    except Exception as e:
+        logger.warning(f"pipeline backfill skipped: {str(e)[:160]}")
     logger.info("Index ensure pass complete")
 
 

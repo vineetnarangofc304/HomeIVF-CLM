@@ -1,0 +1,40 @@
+{
+  "summary": "Validated pipeline/ozonetel buckets, index-friendly search (phone vs name prefix), pagination, caller scoping, no-regression filters, and new Conversion Page capture via website webhook + LeadDetail Attribution UI. 22/22 pytest cases pass in ~7.6s over 120k+ leads. Frontend confirmed: Attribution card renders 'Conversion Page' with the URL from webhook.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [
+    {"screen": "LeadDetail", "issues": ["Console warning: 'Encountered two children with the same key' — non-blocking React key duplication on LeadDetail render"]}
+  ]},
+  "test_report_links": [
+    "/app/backend/tests/test_iter50_pipeline_search_conversion.py",
+    "/app/backend/tests/test_leads_perf.py",
+    "/app/test_reports/pytest/iter50.xml"
+  ],
+  "action_items": [
+    "Optional: dedupe React children keys in LeadDetail.jsx (warning only, no functional impact)",
+    "CLEANUP: delete synthetic leads created by webhook tests — ids 500170, 500171, 500172, 500173, 500174, 500175 (safe to delete; not part of the 120k seed nor the 200 Ozonetel fixtures)"
+  ],
+  "critical_code_review_comments": [
+    "leads.py search branch: when the query has BOTH letters and >=4 digits (e.g. 'Lead 6500'), the $or also includes a phone_digits prefix, so results may be a phone match, not a name-prefix match. This is technically 'match any of name/contact/email/phone prefix' — acceptable, but the PRD wording 'name prefix' can mislead. Consider documenting behaviour or gating phone-branch only when the token is purely numeric.",
+    "webhooks.py FIELD_ALIASES correctly maps page_url/page_name/form_name -> conversion_page (verified with 3 parametrized posts).",
+    "Compound index {active,pipeline,create_date,id} makes pipeline/ozonetel buckets sub-second on 120k docs (measured ~0.1–0.3s)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter50_pipeline_search_conversion.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "100% (Attribution/Conversion Page renders correctly)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 ; agent@homeivf.com / Agent@2026 ; webhook token CryZ57P9BFonnFw8S87tqw",
+  "seed_data_creation": "Created 6 test leads via /api/webhook/lead (ids ~500170-500175). None of the 120k seed or 200 Ozonetel fixtures were touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Perf+bucket+search+conversion regression suite is /app/backend/tests/test_iter50_pipeline_search_conversion.py. Run with pytest -v. Uses REACT_APP_BACKEND_URL from frontend/.env. Lead id 650057 has phone_digits 9998887766 (fixed seed). Webhook conversion_page aliases: page_url, page_name, form_name (all confirmed).",
+  "measurements": {
+    "bucket=pipeline (total≈120000)": "~0.15s",
+    "bucket=ozonetel (total=200)": "~0.12s",
+    "search=9998887766 (phone exact, total=1)": "~0.10s",
+    "search=99988 (phone prefix)": "~0.20s",
+    "search=Lead 6500 (name+phone prefix)": "~0.30s",
+    "search=ead 65 (midword, no match by design)": "~0.7s",
+    "pipeline page 2 / 3": "~0.15s / 0.15s",
+    "caller scoped": "~0.10s",
+    "?source_lead=Website / ?lead_stage=Contacted": "~0.10-0.15s each",
+    "webhook POST + admin GET verify": "~0.5s"
+  }
+}

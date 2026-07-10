@@ -26,6 +26,9 @@ FIELD_ALIASES = {
     "ads_platform": ["ads_platform", "platform", "utm_source"],
     "ads_name": ["ads_name", "ad_name"],
     "ads_campaign_name": ["ads_campaign_name", "adset_name"],
+    "conversion_page": ["conversion_page", "page_url", "pageurl", "page", "page_name", "pagename",
+                        "form_name", "formname", "form", "landing_page", "landing_page_url",
+                        "source_url", "sourceurl", "referrer", "referer", "current_url", "url"],
 }
 
 
