@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+## Investigation+Tool (2026-07) — "Migrated leads show blank Lead Stage/Tags" — iteration_51 (backend 5/5, frontend 100%)
+- **Not a mapping bug (PROVEN vs LIVE Odoo):** `transform_lead` on real Odoo lead #132938 ("Kamlesh Yadav") yields lead_stage='Contact Attempt', tags=[26]('Ringing'), follow_up_tag='Follow UP 1'. Applying the exact sync `$set` to a blank CRM copy correctly populates all of them. So the delta sync WILL move stage/tags when it runs — the fields are blank because a sync hadn't re-run since the callers' recent Odoo edits (they went live but kept editing in Odoo).
+- **New tool — force re-pull:** `POST /api/admin/sync/start` now accepts an optional `{since:"YYYY-MM-DD"}` override; Admin → Migration has a "Re-sync from date (backfill)" date input + button (`resync-since-input` / `resync-from-date-button`) to pull all Odoo changes since a chosen date and update matching leads by Odoo id.
+- **⚠️ OPEN (needs user):** if the blank CRM leads have CRM-webhook ids (500000+) rather than Odoo ids, they are duplicates of the Odoo copies and a re-sync won't fill them (it creates/updates the Odoo-id copy instead). Asked user to check a blank lead's CRM ID to decide re-sync vs dedupe.
+- **⚠️ Needs REDEPLOY** for the override + UI to reach production.
+
+
 ## Fix+Feat (2026-07) — Lead in Pipeline slow/500 + Search slow + Conversion Page — iteration_50 (backend 22/22, frontend 100%)
 - **Pipeline tab 500/slow (root cause):** the default "Lead in Pipeline" bucket used `$and:[{$or:[{ozonetel_lead:{$ne:true}},{in_pipeline:true}]}]` which can't use the sort-covering index → blocking in-memory SORT over ~100k docs → slow / 500. **Fix:** added an indexed `pipeline` boolean; pipeline bucket = `{pipeline:{$ne:False}}`, ozonetel bucket = `{pipeline:False}`, both covered by new index `{active,pipeline,create_date,id}`. Raw Ozonetel leads set `pipeline:False` (calls.py); promote sets `pipeline:True`; startup backfills `pipeline:False` on existing raw-Ozonetel only (small, fast, no vanish window). Measured ~0.15s over 120k.
 - **Search slow (root cause):** unindexed 'contains' regex `$or` over 4 fields → full collection scan + blocking sort. **Fix:** pure-numeric query → indexed `phone_digits` only (exact/prefix, ~0.1s); text query → 'starts-with' prefix regex on indexed name/contact_name/email_from. NOTE: search is now **prefix (starts-with)**, not substring. Added single-field indexes on name/contact_name/email_from.
