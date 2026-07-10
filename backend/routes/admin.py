@@ -246,7 +246,7 @@ async def sync_status(user: dict = Depends(require_roles("admin", "manager"))):
 
 
 @router.post("/sync/start")
-async def sync_start(user: dict = Depends(require_roles("admin"))):
+async def sync_start(body: Optional[dict] = None, user: dict = Depends(require_roles("admin"))):
     running = await db.sync_runs.find_one({"status": "running"})
     if running:
         rid_r = running.get("run_id")
@@ -259,7 +259,17 @@ async def sync_start(user: dict = Depends(require_roles("admin"))):
             "status": "error", "error": "superseded - worker no longer running",
             "finished_at": now_utc_str()}})
 
-    next_since = await _next_since()
+    # Optional explicit "since" override: lets an admin force a re-pull from a chosen
+    # date (e.g. to backfill lead_stage/tags/follow-ups the team updated in Odoo after
+    # the last auto-sync window). Accepts "YYYY-MM-DD" or "YYYY-MM-DD HH:MM:SS".
+    override_since = (body or {}).get("since") if isinstance(body, dict) else None
+    if override_since:
+        os_ = str(override_since).strip()
+        if len(os_) == 10:
+            os_ += " 00:00:00"
+        next_since = os_
+    else:
+        next_since = await _next_since()
     mode = "delta" if next_since else "full"
     since = next_since or "1970-01-01 00:00:00"
     until = now_utc_str()

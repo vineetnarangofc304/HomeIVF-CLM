@@ -1,0 +1,24 @@
+{
+  "summary": "Iteration 51 — Odoo sync backfill (blank Lead Stage/Tags fix): validated mapping correctness against LIVE Odoo, the new POST /api/admin/sync/start since-override, backend regression on leads perf endpoints, and the frontend Admin -> Migration UI (Sync Now + Re-sync from date). All 5 pytest cases pass. UI renders without compile errors and all required data-testids are present with correct disabled state.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter51_sync_backfill.py",
+    "/app/test_reports/pytest/iter51.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Console warning on some admin/list view: 'Encountered two children with the same key' — duplicate React keys somewhere (not blocking, but should be fixed to avoid render glitches).",
+    "sync_start() worker imports odoo_sync via sys.path hack — consider a proper package import to avoid sys.path pollution across concurrent requests."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter51_sync_backfill.py"
+  ],
+  "success_rate": {"backend": "100% (5/5)", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "None. Used existing preview data + Odoo live read-only lookup for 'kamlesh yadav'.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified: (1) transform_lead() on the freshest 'kamlesh yadav' lead in Odoo yields lead_stage='Contact Attempt', tags=[26], follow_up_tag='Follow UP 1' — mapping is correct; the earlier user complaint of blank fields was purely a stale-sync issue. (2) POST /api/admin/sync/start {\"since\":\"2099-01-01\"} returns since='2099-01-01 00:00:00', mode='delta', and completes with leads new=0/updated=0. (3) POST /api/admin/sync/start {} returns an auto-computed since. (4) Pipeline (limit=50) fast <8s, and search=9998887766 returns exactly Lead 650057. (5) Admin -> Migration renders with data-testids: sync-card, sync-now-button, resync-since-input, resync-from-date-button. The re-sync button is disabled until a date is picked (verified toggle). Note: a background full-sync may have been triggered by the second SinceOverride test (no-override auto since). If tests are re-run soon, first wait for /api/admin/sync/runs top item to leave 'running'.",
+  "rca of the issue": "User report of blank Lead Stage/Tags on migrated leads was NOT a mapping/code bug. odoo_migrate.transform_lead + COALESCE_MAP correctly reads x_studio_lead_stage* into lead_stage and tag_ids into tags. Reproduced by pulling the newest 'kamlesh yadav' from Odoo — the transformed doc matched Odoo exactly. Root cause: a delta sync had not re-run after the callers updated those fields in Odoo, so the CRM copy stayed at its earlier (blank) state. Mitigation delivered by main agent: the new since-override on POST /api/admin/sync/start plus the Admin UI 'Re-sync from date (backfill)' control, which lets an admin force a re-pull from any chosen date to backfill the stale fields. Verified end-to-end."
+}

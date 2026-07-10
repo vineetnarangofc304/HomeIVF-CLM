@@ -1462,6 +1462,7 @@ function MigrationTab() {
   const [auditing, setAuditing] = useState(false);
   const [sync, setSync] = useState(null);
   const [confirmSync, setConfirmSync] = useState(false);
+  const [resyncSince, setResyncSince] = useState("");
   const [activeRun, setActiveRun] = useState(null);
   const [lastDone, setLastDone] = useState(null);
   const [dupFrom, setDupFrom] = useState("2026-07-01");
@@ -1502,10 +1503,10 @@ function MigrationTab() {
     return () => clearInterval(t);
   }, [activeRun?.run_id, activeRun?.status]);
 
-  const startSync = async () => {
+  const startSync = async (sinceOverride) => {
     setConfirmSync(false);
     try {
-      const { data } = await API.post("/admin/sync/start");
+      const { data } = await API.post("/admin/sync/start", sinceOverride ? { since: sinceOverride } : {});
       setActiveRun({ run_id: data.run_id, status: "running", since: data.since, until: data.until, progress: {} });
       toast.info(`Sync started — fetching changes since ${data.since} UTC`);
     } catch (e) {
@@ -1620,6 +1621,23 @@ function MigrationTab() {
             </div>
           </div>
         )}
+
+        {/* Force re-pull from a chosen date — backfills lead_stage/tags/follow-ups the
+            team updated in Odoo after the last auto-sync window. */}
+        <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid="resync-range">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-sync from date (backfill)</p>
+            <input type="date" value={resyncSince} onChange={(e) => setResyncSince(e.target.value)}
+              data-testid="resync-since-input" className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
+          </div>
+          <button type="button" data-testid="resync-from-date-button"
+            disabled={!resyncSince || activeRun?.status === "running"}
+            onClick={() => startSync(resyncSince)}
+            className="hivf-btn-secondary !py-2 text-xs disabled:opacity-50">
+            Re-pull Odoo changes since this date
+          </button>
+          <p className="basis-full text-[11px] text-slate-500">Use this if the team updated Lead Stage / Tags / Follow-ups in Odoo — pick a date just before those edits to pull them into the CRM.</p>
+        </div>
 
         {/* live progress */}
         {activeRun && (
