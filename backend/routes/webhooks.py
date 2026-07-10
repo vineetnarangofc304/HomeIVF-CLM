@@ -68,6 +68,14 @@ async def webhook_lead(token: str, request: Request):
         ptr = settings.get("pointer", 0) % len(ids)
         user_id = ids[ptr]
         await db.settings.update_one({"key": "assignment"}, {"$set": {"pointer": (ptr + 1) % len(ids)}})
+    if user_id is None and hook.get("assign_round_robin"):
+        # Fallback so web leads are never orphaned/invisible: callers only see leads
+        # assigned to them, so round-robin unassigned web leads across active callers.
+        callers = await db.users.find({"active": True, "role": "caller"}, {"_id": 0, "id": 1}).sort("id", 1).to_list(500)
+        if callers:
+            cids = [c["id"] for c in callers]
+            ptr = await next_id("web_assign_pointer")
+            user_id = cids[(ptr - 1) % len(cids)]
 
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
