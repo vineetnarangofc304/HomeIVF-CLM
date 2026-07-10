@@ -343,6 +343,11 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 ### P1 (Phase 2 — AI, user-approved Emergent LLM key)
 - AI insights/recommendations panels per section (lead scoring, next-best-action, caller coaching)
 - AI Brain: conversational analytics chat over CRM data (sessions, multi-turn)
+### Hotfix 2026-06 — Production stall (team locked out after redeploy)
+- Symptom: after redeploy, Leads list + Reports/AI Insights spun forever; whole team blocked.
+- Root cause: startup ran ~30+ create_index() SERIALLY with await — on large prod collections (leads 110k, follow_ups 73k) this blocked FastAPI startup/readiness (crash-loop → nothing served); AI /analytics also ran 7 aggregations sequentially.
+- Fix: server.py moves ALL index creation into a non-blocking background task (asyncio.create_task(_ensure_indexes())) with per-index try/except (log shows 'Startup complete' before 'Index ensure pass complete'). routes/ai.py /analytics runs aggregations concurrently via asyncio.gather(return_exceptions=True) + maxTimeMS=15000 (fails fast, partial-safe). Verified iteration_48 (100%, suite /app/backend/tests/test_prod_stall_fix.py).
+
 ### Phase 2 2026-06 — AI Insights dashboards + AI Brain (LIVE)
 - New "AI Insights" page (nav + route /ai-insights, perm 'reports'). Advanced charts via recharts: Conversion Funnel, Leads Trend (30d), Source Performance (leads vs converted), Caller Performance (conversion %), Ad Platform pie, Top States. All from GET /api/ai/analytics (concurrent, index-backed, ~1s). KPIs: total/converted/conversion_rate.
 - AI Brain chat: POST /api/ai/brain — GPT-5.5 (openai) via Emergent Universal Key (emergentintegrations LlmChat) translates a plain-English question → JSON query spec → safe indexed aggregation → answer + dynamic chart (bar/line/pie/number). Session-scoped history in db.ai_chats; GET /api/ai/brain/history. Null buckets excluded from answers.

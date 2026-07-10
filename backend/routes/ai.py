@@ -70,9 +70,10 @@ async def analytics(date_from: str = None, date_to: str = None,
                                   "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", CONVERTED]}, 1, 0]}}}},
                       {"$sort": {"_id": -1}}, {"$limit": 30}]
 
-    # run every aggregation concurrently — sequential awaits were the "Loading…" slowness
-    (stage_rows, source_rows, caller_rows, platform_rows,
-     campaign_rows, geo_rows, trend_raw) = await asyncio.gather(
+    # run every aggregation concurrently — sequential awaits were the "Loading…" slowness.
+    # return_exceptions so one slow/failed aggregation (e.g. an index still building) can't
+    # blank the whole page — that chart just comes back empty.
+    results = await asyncio.gather(
         _grouped(match, "lead_stage", 50),
         _grouped(match, "source_lead", 12),
         _grouped(match, "user_id", 15),
@@ -80,7 +81,10 @@ async def analytics(date_from: str = None, date_to: str = None,
         _grouped(match, "campaign_name", 10),
         _grouped(match, "state_name", 40),
         db.leads.aggregate(trend_pipeline, maxTimeMS=15000).to_list(30),
+        return_exceptions=True,
     )
+    (stage_rows, source_rows, caller_rows, platform_rows,
+     campaign_rows, geo_rows, trend_raw) = [r if not isinstance(r, Exception) else [] for r in results]
 
     STAGE_ORDER = ["New", "Contact Attempt", "Contacted", "Qualified", "Proposition", "Converted", "Closed"]
     funnel = sorted(
