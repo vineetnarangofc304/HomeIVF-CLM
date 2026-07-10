@@ -93,7 +93,7 @@ async def pivot(body: PivotBody, user: dict = Depends(require_permission("report
         group_id["c"] = DIMS[col]
     pipeline.append({"$group": {"_id": group_id, "count": {"$sum": 1}}})
     pipeline.append({"$limit": 5000})
-    data = await db.leads.aggregate(pipeline).to_list(5000)
+    data = await db.leads.aggregate(pipeline, maxTimeMS=20000, allowDiskUse=True).to_list(5000)
 
     label_maps = {}
     for i, d in enumerate(rows):
@@ -169,7 +169,7 @@ async def trends(granularity: str = "day", date_from: Optional[str] = None,
     data = await db.leads.aggregate([
         {"$match": match},
         {"$group": {"_id": {"p": period, "s": "$lead_stage"}, "count": {"$sum": 1}}},
-    ]).to_list(20000)
+    ], maxTimeMS=20000, allowDiskUse=True).to_list(20000)
 
     periods = {}
     for r in data:
@@ -192,13 +192,18 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
         if not date_from:
             date_from = (datetime.now(timezone.utc) - timedelta(days=90)).strftime("%Y-%m-%d")
         match = build_match({"date_from": date_from, "date_to": date_to, "active": "all"}, user)
+        # Group on precomputed create_dow / create_hour so this runs index-COVERED (no
+        # per-document fetch, no per-document $dateFromString parse). $ifNull falls back
+        # to parsing create_date_ist for any lead not yet backfilled, so results stay
+        # correct (and still covered) while the one-time startup backfill is in flight.
         d = {"$dateFromString": {"dateString": "$create_date_ist", "format": "%Y-%m-%d %H:%M:%S", "onError": None}}
+        dow = {"$ifNull": ["$create_dow", {"$dayOfWeek": d}]}
+        hour = {"$ifNull": ["$create_hour", {"$hour": d}]}
         data = await db.leads.aggregate([
             {"$match": match},
-            {"$project": {"dow": {"$dayOfWeek": d}, "hour": {"$hour": d}}},
-            {"$match": {"dow": {"$ne": None}}},
-            {"$group": {"_id": {"dow": "$dow", "hour": "$hour"}, "count": {"$sum": 1}}},
-        ]).to_list(200)
+            {"$group": {"_id": {"dow": dow, "hour": hour}, "count": {"$sum": 1}}},
+            {"$match": {"_id.dow": {"$ne": None}}},
+        ], maxTimeMS=20000, allowDiskUse=True).to_list(200)
         return {"type": "dow_hour", "date_from": date_from,
                 "cells": [{"dow": r["_id"]["dow"], "hour": r["_id"]["hour"], "count": r["count"]} for r in data]}
 
@@ -209,7 +214,7 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
         data = await db.leads.aggregate([
             {"$match": match},
             {"$group": {"_id": {"u": "$user_id", "d": {"$substrCP": ["$create_date_ist", 0, 10]}}, "count": {"$sum": 1}}},
-        ]).to_list(5000)
+        ], maxTimeMS=20000, allowDiskUse=True).to_list(5000)
         users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
         return {"type": "caller_day", "date_from": date_from,
                 "cells": [{"user_id": r["_id"].get("u"), "user": users.get(r["_id"].get("u"), "Unassigned"),

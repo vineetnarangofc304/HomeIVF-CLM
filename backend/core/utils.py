@@ -16,6 +16,19 @@ def to_ist_str(utc_str: str) -> str:
     except Exception:
         return utc_str
 
+
+def ist_date_parts(ist_str: str) -> dict:
+    """Precomputed date parts so heatmap / trends aggregations run index-COVERED
+    (no per-document fetch or per-document $dateFromString parse). create_dow uses
+    Mongo's $dayOfWeek convention (Sun=1..Sat=7) so new writes match both the
+    server-side backfill and the pre-existing heatmap output exactly."""
+    try:
+        d = datetime.strptime(ist_str, "%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return {}
+    return {"create_dt": d, "create_dow": (d.isoweekday() % 7) + 1, "create_hour": d.hour}
+
+
 async def ensure_catalog(ctype: str, name: str) -> dict:
     """Get-or-create a catalog item (e.g. source_lead 'Meta Lead Ads') so it shows
     in the Source/dropdown filters. Uses max-id+1 (migrated catalogs bypass counters)."""

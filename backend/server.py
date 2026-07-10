@@ -106,6 +106,12 @@ INDEX_SPECS = [
     ("leads", [("active", 1), ("user_id", 1)], {}),
     ("leads", "source_lead", {}),
     ("leads", "stage_id", {}),
+    # Covering indexes so the report aggregations run index-only (docs=0) instead of
+    # paging the whole ~240MB collection off disk: trends (period+stage), dashboard
+    # date-range panels, and the dow/hour heatmap.
+    ("leads", [("create_date_ist", -1), ("lead_stage", 1)], {}),
+    ("leads", [("active", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
+    ("leads", [("create_date_ist", -1), ("create_dow", 1), ("create_hour", 1)], {}),
     ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
     ("follow_ups", [("follow_up_date", 1)], {}),
     ("follow_ups", [("source", 1), ("lead_id", 1)], {}),
@@ -140,6 +146,23 @@ async def _ensure_indexes():
             await db[coll].create_index(keys, **kwargs)
         except Exception as e:
             logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
+    # One-time (idempotent) backfill of precomputed date-parts so the heatmap / trends
+    # aggregations are index-COVERED. Only touches leads still missing the field, so it
+    # is a no-op on every later startup. Runs in this background task (never blocks
+    # readiness); the heatmap has an $ifNull fallback so it stays correct meanwhile.
+    try:
+        res = await db.leads.update_many(
+            {"create_dow": {"$exists": False}},
+            [
+                {"$set": {"create_dt": {"$dateFromString": {
+                    "dateString": "$create_date_ist", "format": "%Y-%m-%d %H:%M:%S", "onError": None}}}},
+                {"$set": {"create_dow": {"$dayOfWeek": "$create_dt"}, "create_hour": {"$hour": "$create_dt"}}},
+            ],
+        )
+        if res.modified_count:
+            logger.info(f"Backfilled date-parts on {res.modified_count} leads")
+    except Exception as e:
+        logger.warning(f"date-parts backfill skipped: {str(e)[:160]}")
     logger.info("Index ensure pass complete")
 
 

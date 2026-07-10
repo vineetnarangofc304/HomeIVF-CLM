@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, check_duplicate
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate
 
 router = APIRouter(tags=["webhooks"])
 
@@ -84,6 +84,7 @@ async def webhook_lead(token: str, request: Request):
     dup = await check_duplicate(doc["phone_digits"])
     doc["is_duplicate"] = dup["is_duplicate"]
     doc["duplicate_of"] = dup["duplicate_of"]
+    doc.update(ist_date_parts(doc["create_date_ist"]))
     await db.leads.insert_one(doc)
     await db.webhooks.update_one({"id": hook["id"]}, {"$inc": {"hits": 1}})
     await log_message(lid, f"Lead captured via webhook '{hook['name']}'")

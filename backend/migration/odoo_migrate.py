@@ -364,6 +364,15 @@ def transform_lead(r, x_fields):
             "x_studio_state_4", "x_studio_state_6"])
     for target, sources in COALESCE_MAP.items():
         doc[target] = coalesce(r, sources)
+    _cdi = doc.get("create_date_ist")
+    if _cdi:
+        try:
+            _d = datetime.strptime(_cdi, "%Y-%m-%d %H:%M:%S")
+            doc["create_dt"] = _d
+            doc["create_dow"] = (_d.isoweekday() % 7) + 1
+            doc["create_hour"] = _d.hour
+        except Exception:
+            pass
     return doc
 
 

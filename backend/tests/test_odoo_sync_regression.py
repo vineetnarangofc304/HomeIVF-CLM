@@ -3,7 +3,7 @@ import os
 import time
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "https://ivf-marketing-hub.preview.emergentagent.com"
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/") or "https://odoo-sync-ready.preview.emergentagent.com"
 ADMIN_EMAIL = "admin@homeivf.com"
 ADMIN_PASS = "HomeIVF@2026"
 

@@ -7,7 +7,7 @@ from urllib.parse import urlparse, parse_qs
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-marketing-hub.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://odoo-sync-ready.preview.emergentagent.com").rstrip("/")
 # Load from frontend .env if not set
 try:
     with open("/app/frontend/.env") as f:

@@ -1,22 +1,23 @@
 <analysis>**original_problem_statement**: 
-The user is building HomeIVF CRM to replace their Odoo CRM. Recent sessions focused heavily on extending Marketing Campaigns (WhatsApp/Email), enhancing the Lead View & Follow-ups (mandatory notes, caller activities, reminders, exports), and preparing for the final Odoo data cutover. 
+The user is building HomeIVF CRM to replace their Odoo CRM. Recent sessions focused heavily on extending Marketing Campaigns (WhatsApp/Email), enhancing the Lead View & Follow-ups, and preparing for the final Odoo data cutover. 
 
 **PRODUCT REQUIREMENTS**:
-- **Phase 1 (Current)**: Ensure all CRM features, templates, WhatsApp flows, marketing tools, and the Odoo Sync are fully functional and pushed to production correctly for go-live cutover.
+- **Phase 1 (Current)**: Ensure all CRM features, templates, WhatsApp flows, marketing tools, and the Odoo Sync are fully functional and pushed to production correctly for go-live cutover. Make sure performance optimization allows fast loading for 110k+ leads.
 - **Phase 2 (Upcoming)**: Introduce AI insights/recommendations and a conversational AI Brain for analytics.
 
 **User's preferred language**: English (INSTRUCT NEXT AGENT: Respond in English only)
 
 **what currently exists?** 
 A highly advanced, custom full-stack CRM (React + FastAPI + MongoDB).
-- Fully featured WhatsApp integration: Chat workspace, template management, webhook tracking, attachments via Object Storage.
-- Marketing Campaigns: WhatsApp and Email campaign builder with template previews, rich status metrics (delivered, read, replied), progress bars, pause/resume, and edit capabilities.
-- Core CRM features: Roles & Access Control, Ozonetel telephony, round-robin lead assignment, dynamic pipelines, follow-up popup reminders, caller activity logs, and date-range Excel exports.
-- Odoo Integration: An in-process background Delta/Full Sync engine via XML-RPC.
+- Fully featured WhatsApp integration & Marketing Campaigns.
+- Core CRM features: Roles & Access Control, Ozonetel telephony, pipelines, follow-up reminders.
+- Odoo Integration: Robust background Delta/Full Sync engine and Audit tool via XML-RPC.
+- AI Analytics: Dedicated AI Insights page with Recharts and an AI Brain conversational interface powered by Emergent Universal Key (GPT-5.5).
+- Highly optimized backend: Critical aggregations and DB queries are indexed and parallelized; heavy tasks run in background threads.
 
 **Last working item**: 
-    - Last item agent was working: The user reported the Odoo Sync Now button was not working in production. The agent discovered the sync was using a detached subprocess writing to , which fails in the managed production container environment. The agent refactored  and  to run the sync in-process via a background thread ().
-    - Status: COMPLETED (Verified by Testing Agent)
+    - Last item agent was working: The user reported that Reports taking time to load and Teams not able to work on the system on production. The agent discovered that a newly added sequence of ~30 MongoDB  calls was blocking the FastAPI startup, and AI analytics aggregations were running sequentially causing timeouts. The agent moved index creation to a background task and parallelized analytics using  with .
+    - Status: COMPLETED
     - Agent Testing Done: Y
     - Which testing method agent to use? NA
     - User Testing Done: N
@@ -34,116 +35,115 @@ A highly advanced, custom full-stack CRM (React + FastAPI + MongoDB).
     - Add canned quick-reply snippets in the WhatsApp chat composer for faster agent responses (P2).
     - Bulk-assign 14 older unassigned Facebook leads (P2).
     - Add a Cutover Checklist screen in the Admin panel (P2).
-    
-    Future Tasks:
-    - Phase 2: Add AI insights and recommendations on every CRM section (P0).
-    - Phase 2: Build the AI Brain conversational chat interface for reports and insights using Emergent LLM Key (P0).
+    - Add a Restore deleted leads view from the archive so a dedupe delete can be undone instantly (P2).
+    - Add an auto AI summary at the top of the main Dashboard (P2).
 
 **Completed work in this session**
-- Marketing Campaigns: Added template preview, extended stats (sent, delivered, read, replied, queued, failed), progress bar, pause/resume, and edit functions (, ). (DONE)
-- Lead Follow-ups: Made the 'Note' field mandatory for follow-ups. (DONE)
-- Lead View: Added a dedicated Caller Activities section to track call feedback separate from standard notes. (DONE)
-- Lead View: Set India as the default country for both New Leads and Existing Leads ( defaults). (DONE)
-- Reminders: Added a global 5-minute popup reminder for scheduled follow-ups (). (DONE)
-- Analytics: Added a Follow-up status dropdown (Completed, Not Done, Rescheduled, Cancelled). (DONE)
-- Export: Added a date-range Excel Export button for Admin users on the Pipeline view (, ). (DONE)
-- Odoo Sync Bugfix: Refactored Odoo Delta Sync to run as an in-process thread instead of a fragile subprocess. (DONE)
+- Fixed Odoo Sync Now UI bug in production (deadlock with running status) (, ). (DONE)
+- Hardened Odoo Sync worker against crashes due to transient MongoDB drops (added retryWrites, socketTimeout, smaller batches) and XML-RPC hangs (added 120s timeout, re-auth logic) (, ). (DONE)
+- Converted Run Audit vs Odoo into a non-blocking background job with UI polling (, ). (DONE)
+- Built a Duplicate Lead Cleanup tool that scans by Name + Mobile combo and archives/deletes newer duplicates (, ). (DONE)
+- Implemented one-time backfill and ongoing sync of Follow-up entries based on Odoo's follow-up dates (, ). (DONE)
+- Created Phase 2 AI Insights dashboard with Recharts and an AI Brain natural language chat using GPT-5.5 (, ). (DONE)
+- Optimized DB performance by adding comprehensive indexes and moving index creation to a non-blocking startup task (). (DONE)
 
 **Earlier issues found/mentioned but not fixed**
 None.
 
 **Known issue recurrence from previous fork**
-  - Issue recurrence in previous fork: The user frequently tests their live PRODUCTION environment without redeploying from the Emerging dashboard, leading to false bug reports (e.g., claiming features are missing when they just aren't deployed yet).
-  - Recurrence count: 4
+  - Issue recurrence in previous fork: The user frequently tests their live PRODUCTION environment without redeploying from the Emergent dashboard, leading to false bug reports (e.g., reporting missing features or 500 errors).
+  - Recurrence count: 5+
   - Status: IN PROGRESS (Educating the user)
-  Note: Always verify bugs in PREVIEW first. If it works in preview, firmly explain to the user that they must redeploy the application via their dashboard.
+  Note: Always clarify if the issue is in PREVIEW or PRODUCTION. If it works in PREVIEW, direct them to redeploy the app.
 
 **Code Architecture**
 /app/
 ├── backend/
-│   ├── core/ 
-│   ├── migration/ (odoo_sync.py)
-│   ├── routes/ (admin.py, marketing.py, leads.py, export.py, catalogs.py)
+│   ├── core/ (db.py)
+│   ├── migration/ (odoo_sync.py, odoo_migrate.py)
+│   ├── routes/ (admin.py, ai.py, reports.py, leads.py)
+│   ├── server.py
 ├── frontend/
 │   ├── src/
-│       ├── components/ (FollowUpReminder.jsx, WaNotifier.jsx, Layout.jsx)
-│       ├── pages/ (Admin.jsx, Marketing.jsx, LeadDetail.jsx, Leads.jsx, FollowUps.jsx)
+│       ├── components/ (Layout.jsx)
+│       ├── pages/ (Admin.jsx, AiInsights.jsx, Dashboard.jsx)
 
 **Key Technical Concepts**
-Frontend: React, Tailwind, Phosphor Icons
-Backend: FastAPI, Motor (MongoDB), Background threading ()
-Integrations: Meta Webhooks, WhatsApp Cloud API, Odoo XML-RPC API
-Storage: Emergent Object Storage
+Frontend: React, Tailwind, Recharts
+Backend: FastAPI, Motor (MongoDB Async), Background threading (),  for parallelization.
+Integrations: Odoo XML-RPC API, Emergent Universal Key (GPT-5.5)
 
 **key DB schema**
-  - catalogs: {id, type, name, sequence, active}
   - follow_ups: {id, lead_id, follow_up_date, follow_up_time, follow_up_tag, note, status}
-  - caller_activities: {id, lead_id, feedback, created_by, created_at}
   - sync_runs: {run_id, since, until, mode, status, progress, totals}
+  - migration_status
+  - activities, caller_activities
 
 **changes in tech stack**
-  - Background processes (like Odoo Sync) are now explicitly handled via in-process threads () instead of detached OS subprocesses, due to container constraints.
+  - Heavy performance focus: Introduced Recharts for the new AI Insights page. Aggressive parallelization in backend analytics via . Non-blocking background initialization tasks.
 
 **All files of reference** 
-  -  &  (Overhauled for advanced campaign tracking)
-  -  &  (Caller activities, Follow-up notes/status, Default Country)
-  -  &  (Lead Excel exports)
-  -  (Created for 5-minute pre-followup notifications)
-  -  &  (Refactored to thread-based execution)
+  -  &  (Sync, Audit, Dedupe flows)
+  -  &  (Worker logic, error handling, XML-RPC timeouts)
+  -  &  (AI analytics logic, LLM integration, and UI)
+  -  (Background index creation task)
+  -  (Sidebar nav updates)
 
 **Areas that need refactoring**: 
-  - None immediately. (Subprocess execution patterns were successfully refactored).
+  - None immediately. Significant refactoring for performance just completed.
 
 **key api endpoints**
-  -  (Triggers Odoo sync via background thread)
-  -  (Excel lead export with date-range)
-  -  (Caller feedback logs)
-  -  (Pause WA/Email campaigns)
+  -  (Background Odoo sync)
+  -  (Background audit job)
+  -  (Deletes mapped duplicates)
+  -  (AI Brain natural language chat)
+  -  (Parallelized chart data fetching)
 
 **Critical Info for New Agent** 
-- **TWO ENVIRONMENTS ISSUE**: The user is testing on PRODUCTION. If they report a missing UI element or broken logic, *always* verify it in PREVIEW first. Do not alter working code just because the user says it's broken on production. Direct them to redeploy the app from the Emergent Dashboard.
-- **Background Tasks**: Any long-running tasks must be executed using Python's  (in-process). Detached  execution or writing to  will silently fail in the production container due to read-only filesystems or process managers. 
-- **Odoo Sync**: Currently fully operational and confirmed to pull Leads, Messages, WA Channels, Contacts, etc. 
+- **TWO ENVIRONMENTS ISSUE**: The user is testing on PRODUCTION. If they report an issue, verify it in PREVIEW first. Do not blindly change working code. Direct them to redeploy if the fix works in preview.
+- **Performance Rules**: Operations handling 100k+ documents (like Dedupe or Sync) MUST use indexed queries and background processes. Never run heavy  pipelines unindexed or without . Never block FastAPI startup. 
+- **LLM Integration**: The AI Brain utilizes the Emergent LLM Key via . GPT-5.5 was chosen for structured reasoning (text-to-chart-spec).
 
 **documents and test reports created in this job** 
   - 
-  - 
-  - 
-  - 
-  - 
+  -  to 
 
 **Last 10 User Messages and any pending HUMAN messages** 
- 1. User: Requested Case 3 for Marketing Campaigns (Preview, advanced stats, pause, edit, progress bar). (COMPLETED)
- 2. User: Requested Cases 1-6 for Lead View & Follow-ups (Mandatory note, caller activities, default country India, 5-min reminders, follow-up analytics, Excel export button). (COMPLETED)
- 3. User: case 3 - not done...pls check (COMPLETED - Explained deployment difference, and expanded country default to existing leads for extra safety).
- 4. User: prodiutuon bosss (COMPLETED)
- 5. User: Sync Now is not working with Odoo, needed for go-live cutover. (COMPLETED - Fixed subprocess bug and rewrote as an in-process thread).
+ 1. User: Strange in preview when I click sync now it works, in production nothing happens (COMPLETED - Fixed stuck sync doc deadlock).
+ 2. User: Finally got pop up but now Request failed 500 (COMPLETED - Fixed heavy unindexed  aggregation).
+ 3. User: Sync failed: sync worker no longer running / xmlrpc error (COMPLETED - Added socket timeouts and retry logic to XML-RPC client).
+ 4. User: Run Audit vs Odoo button giving error (COMPLETED - Refactored audit to background job to prevent gateway timeout).
+ 5. User: Requested deleting duplicates from July 1-9 based on phone number (COMPLETED - Built Find Duplicates preview tool).
+ 6. User: Requested syncing Odoo follow-up dates to CRM follow-ups module (COMPLETED - Implemented backfill).
+ 7. User: For duplicate lets do name and mobile combo and remove (COMPLETED - Refined duplicate logic to name + phone).
+ 8. User: We will now go live and stop odoo. Can you run detailed optimization... Build dashboards and AI brain... Optimization highest priority (COMPLETED - Built AI Insights, AI Brain, added DB indexes).
+ 9. User: Reports taking time to load... Teams not able to work on the system (COMPLETED - Fixed production stall by moving index builds to a background thread and parallelizing analytics aggregations).
 
 **Project Health Check:**
 Broken: None.
 Mocked: None.
 
 **3rd Party Integrations** 
-  - Meta Lead Ads (Requires User API Key)
-  - WhatsApp Cloud API (Requires User API Key)
-  - Gmail API via Google OAuth 2.0 (Requires User Auth Consent)
-  - Ozonetel CCaaS (Requires User API Key)
-  - Odoo XML-RPC API (Requires User credentials)
-  - Emergent Object Storage (Emergent Internal Integration)
-  - Emergent LLM Key (Phase 2 - Upcoming)
+  - OpenAI GPT-5.5 (AI Brain) — uses Emergent LLM Key
+  - Odoo XML-RPC API — requires User credentials
+  - Meta Lead Ads — requires User API Key
+  - WhatsApp Cloud API — requires User API Key
+  - Gmail API via Google OAuth 2.0 — requires User Auth Consent
+  - Ozonetel CCaaS — requires User API Key
+  - Emergent Object Storage — Emergent Internal Integration
 
 **Testing status**
-  - Testing agent used after significant changes: YES (iterations 34, 35, 36, 37)
+  - Testing agent used after significant changes: YES (iterations 38-48)
   - Troubleshoot agent used after agent stuck in loop: NO
   - Test files created: None
-  - Known regressions: None.
+  - Known regressions: None
 
 **Credentials to test flow:**
 Available in . 
 Admin:  / 
 
 **What agent forgot to execute**
-Nothing was overlooked. All features and bug fixes were implemented and verified.
+Nothing was overlooked. All features and performance bug fixes were implemented and verified.
 
 **Debugging checklist for current issue**
-    Issue: No pending issues. Await user's next request or proceed with the 'Upcoming Tasks' (e.g., auto Thanks for your enquiry WA trigger).</analysis>
+    Issue: No pending issues. Await user's next request or proceed with the 'Upcoming Tasks' (e.g., auto Thanks for your enquiry WA trigger, AI dashboard summary, or Cutover Checklist).</analysis>

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts
 
 router = APIRouter(prefix="/calls", tags=["calls"])
 
@@ -93,6 +93,7 @@ async def _create_call_lead(phone: str, source_name: str, missed: bool = False, 
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": {}, "ozonetel_lead": True,
     }
+    doc.update(ist_date_parts(doc["create_date_ist"]))
     await db.leads.insert_one(doc)
     await log_message(lid, f"Lead auto-created from {source_name} (via Ozonetel)")
     await run_automations("on_create", doc)
