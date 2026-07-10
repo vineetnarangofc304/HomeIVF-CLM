@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## Fix+Feat (2026-07) — Lead in Pipeline slow/500 + Search slow + Conversion Page — iteration_50 (backend 22/22, frontend 100%)
+- **Pipeline tab 500/slow (root cause):** the default "Lead in Pipeline" bucket used `$and:[{$or:[{ozonetel_lead:{$ne:true}},{in_pipeline:true}]}]` which can't use the sort-covering index → blocking in-memory SORT over ~100k docs → slow / 500. **Fix:** added an indexed `pipeline` boolean; pipeline bucket = `{pipeline:{$ne:False}}`, ozonetel bucket = `{pipeline:False}`, both covered by new index `{active,pipeline,create_date,id}`. Raw Ozonetel leads set `pipeline:False` (calls.py); promote sets `pipeline:True`; startup backfills `pipeline:False` on existing raw-Ozonetel only (small, fast, no vanish window). Measured ~0.15s over 120k.
+- **Search slow (root cause):** unindexed 'contains' regex `$or` over 4 fields → full collection scan + blocking sort. **Fix:** pure-numeric query → indexed `phone_digits` only (exact/prefix, ~0.1s); text query → 'starts-with' prefix regex on indexed name/contact_name/email_from. NOTE: search is now **prefix (starts-with)**, not substring. Added single-field indexes on name/contact_name/email_from.
+- **Feature — Conversion Page:** website webhook now captures the submission page. `webhooks.py` FIELD_ALIASES maps page_url/page_name/form_name/landing_page/etc → `conversion_page`; stored on the lead, shown & editable in the **Attribution** card (LeadDetail). Website should send `page_url` (preferred).
+- **⚠️ Needs PRODUCTION REDEPLOY** (indexes build in background on startup; pipeline backfill runs once).
+- **OPEN QUESTION (data integrity — NOT yet fixed):** user reports recent Meta leads show empty Lead Stage/Tags in CRM while the SAME leads show stage+tags in Odoo → likely callers are still working leads in Odoo (not CRM) OR dual delivery. Needs user clarification on cutover before any fix.
+
+
 ## Fix (2026-07) — 🔴 URGENT: /leads page slow / times out ("Request failed") on production — iteration_49 (backend 8/8, 100%)
 - **Root cause:** GET /api/leads sorts by `[(sort_field, dir), ("id", -1)]`. The existing index `{active:1, create_date:-1}` did NOT include the `id` tie-break key → MongoDB fell back to a BLOCKING in-memory SORT over all ~100k matching docs → slow, and past the 32MB sort limit it 500'd with "Sort exceeded memory limit" = the user's "Request failed".
 - **Fix:** Added two sort-covering compound indexes to `server.py` INDEX_SPECS: `{active:1, create_date:-1, id:-1}` (admin default) and `{active:1, user_id:1, create_date:-1, id:-1}` (caller-scoped default). Explain plan drops from `SORT` to indexed `LIMIT→FETCH→IXSCAN`.
