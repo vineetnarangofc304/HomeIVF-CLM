@@ -106,6 +106,13 @@ INDEX_SPECS = [
     ("leads", [("active", 1), ("user_id", 1)], {}),
     ("leads", "source_lead", {}),
     ("leads", "stage_id", {}),
+    # Sort-covering compound indexes for the /leads list. The list sorts by
+    # [(sort_field, dir), ("id", -1)]; without "id" in the index Mongo does a BLOCKING
+    # in-memory SORT of every matching doc (~100k for admin) which is slow and, past the
+    # 32MB sort limit, errors with "Sort exceeded memory limit" → the page timed out /
+    # "Request failed". These cover the default (create_date) list for admin & callers.
+    ("leads", [("active", 1), ("create_date", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("user_id", 1), ("create_date", -1), ("id", -1)], {}),
     # Covering indexes so the report aggregations run index-only (docs=0) instead of
     # paging the whole ~240MB collection off disk: trends (period+stage), dashboard
     # date-range panels, and the dow/hour heatmap.

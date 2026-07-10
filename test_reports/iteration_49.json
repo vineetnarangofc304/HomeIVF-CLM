@@ -1,0 +1,26 @@
+{
+  "summary": "Validated MongoDB compound-index perf fix for GET /api/leads against 120,000 seeded leads. All 8 pytest cases pass in ~2.7s total; every request returned HTTP 200 in well under 250ms.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": ["/app/backend/tests/test_leads_perf.py", "/app/test_reports/pytest/leads_perf.xml"],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": ["/app/backend/tests/test_leads_perf.py"],
+  "success_rate": {"backend": "100%", "frontend": "skipped"},
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026, agent@homeivf.com/Agent@2026",
+  "seed_data_creation": "None (used pre-seeded 120,000 leads from backend/seed_perf.py)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Perf test suite lives at /app/backend/tests/test_leads_perf.py; safe regression harness for /api/leads.",
+  "measurements": {
+    "admin_default_page1 (total=120000, 50 items, create_date desc verified)": "0.14s",
+    "admin_pagination p2/p3 (disjoint ids)": "0.13s / 0.16s",
+    "filter source_lead=Website": "0.13s",
+    "filter lead_stage=Contacted": "0.10s",
+    "search=Lead": "0.22s",
+    "sort=name&order=asc (not index-covered by design, still fast)": "0.20s",
+    "sort=create_date&order=desc": "0.13s",
+    "caller scoped (agent@homeivf.com, total=5273)": "0.09s"
+  },
+  "rca of the issue": "Prior sort tuple [(sort_field,dir),('id',-1)] wasn't covered by {active:1,create_date:-1} index, causing MongoDB blocking in-memory SORT over ~100k docs -> slow / >32MB 500. New compound indexes {active:1,create_date:-1,id:-1} and {active:1,user_id:1,create_date:-1,id:-1} now fully cover both admin and caller-scoped default sorts; verified via <250ms response over 120k docs."
+}
