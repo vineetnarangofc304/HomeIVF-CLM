@@ -13,7 +13,7 @@ import requests
 from pymongo import MongoClient
 from dotenv import load_dotenv
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://odoo-sync-ready.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-pipeline.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 

@@ -20,7 +20,7 @@
   ],
   "action_items": [
     "OPTIONAL: In /app/backend/routes/facebook.py `_map_and_create_lead`, consider also populating `contact_name` when target is `name` (or vice-versa) so both fields are set — currently they diverge based on whether admin mapping overrode DEFAULT_MAP. Purely cosmetic.",
-    "Cleanup: `register-webhook` in this test run pointed the app's page webhook to https://odoo-sync-ready.preview.emergentagent.com/api/webhooks/facebook — main agent noted this is expected and will clean up post-run."
+    "Cleanup: `register-webhook` in this test run pointed the app's page webhook to https://ivf-pipeline.preview.emergentagent.com/api/webhooks/facebook — main agent noted this is expected and will clean up post-run."
   ],
   "critical_code_review_comments": [
     "routes/facebook.py fb_register_webhook: correctly validates app_id/app_secret/verify_token exist, requires https:// prefix (returns 400 otherwise), uses app access token `{app_id}|{app_secret}` (correct for /{app_id}/subscriptions), forwards `object=page` + `fields=leadgen` + saved verify_token so Meta verifies via the callback. Handles Meta error payload cleanly. Guarded by require_roles('admin') — admin-only.",

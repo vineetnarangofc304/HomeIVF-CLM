@@ -9,7 +9,7 @@ import requests
 sys.path.insert(0, "/app/backend")
 sys.path.insert(0, "/app/backend/migration")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://odoo-sync-ready.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-pipeline.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "admin@homeivf.com"
 ADMIN_PW = "HomeIVF@2026"
 
