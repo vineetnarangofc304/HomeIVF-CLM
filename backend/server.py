@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import logging
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -84,6 +85,64 @@ DEFAULT_LEAD_STAGES = ["Contact Attempt", "Contacted", "Converted", "Closed"]
 DEFAULT_FOLLOW_UP_TAGS = ["Follow UP 1", "Follow UP 2", "Follow UP 3", "Follow UP 4", "Follow UP 5"]
 
 
+INDEX_SPECS = [
+    ("users", "email", {"unique": True}),
+    ("users", "id", {"unique": True}),
+    ("login_attempts", "identifier", {}),
+    ("leads", "id", {"unique": True}),
+    ("leads", [("create_date", -1)], {}),
+    ("leads", [("create_date_ist", -1)], {}),
+    ("leads", [("write_date", -1)], {}),
+    ("leads", "user_id", {}),
+    ("leads", "tags", {}),
+    ("leads", "lead_stage", {}),
+    ("leads", "phone_digits", {}),
+    ("leads", "follow_up_date", {}),
+    ("leads", "active", {}),
+    ("leads", [("active", 1), ("create_date", -1)], {}),
+    ("leads", [("active", 1), ("create_date_ist", -1)], {}),
+    ("leads", [("active", 1), ("lead_stage", 1)], {}),
+    ("leads", [("active", 1), ("follow_up_date", 1)], {}),
+    ("leads", [("active", 1), ("user_id", 1)], {}),
+    ("leads", "source_lead", {}),
+    ("leads", "stage_id", {}),
+    ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
+    ("follow_ups", [("follow_up_date", 1)], {}),
+    ("follow_ups", [("source", 1), ("lead_id", 1)], {}),
+    ("caller_activities", [("lead_id", 1), ("created_at", -1)], {}),
+    ("wa_tracking", "lead_id", {}),
+    ("wa_tracking", "campaign_id", {}),
+    ("wa_tracking", "wamid", {}),
+    ("messages", [("lead_id", 1), ("date", -1)], {}),
+    ("messages", "id", {}),
+    ("wa_messages", [("channel_id", 1), ("date", -1)], {}),
+    ("wa_channels", "id", {"unique": True}),
+    ("wa_channels", "phone_digits", {}),
+    ("wa_channels", [("last_message_date", -1)], {}),
+    ("activities", [("user_id", 1), ("state", 1), ("date_deadline", 1)], {}),
+    ("catalogs", [("type", 1), ("id", 1)], {"unique": True}),
+    ("contacts", "id", {"unique": True}),
+    ("webhooks", "token", {}),
+    ("call_events", "id", {"unique": True}),
+    ("call_events", [("created_at", -1)], {}),
+    ("call_events", "ucid", {}),
+    ("call_events", "lead_id", {}),
+    ("call_events", "user_id", {}),
+]
+
+
+async def _ensure_indexes():
+    """Build indexes in the background so a slow/large-collection build never blocks
+    startup (which previously stalled the whole app on production). Each build is
+    isolated: one failure (e.g. a duplicate-key on a unique index) won't abort the rest."""
+    for coll, keys, kwargs in INDEX_SPECS:
+        try:
+            await db[coll].create_index(keys, **kwargs)
+        except Exception as e:
+            logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
+    logger.info("Index ensure pass complete")
+
+
 @app.on_event("startup")
 async def startup():
     try:
@@ -92,53 +151,8 @@ async def startup():
         logger.info("Object storage initialized")
     except Exception as e:
         logger.error(f"Storage init failed: {e}")
-    # Indexes
-    await db.users.create_index("email", unique=True)
-    await db.users.create_index("id", unique=True)
-    await db.login_attempts.create_index("identifier")
-    await db.leads.create_index("id", unique=True)
-    await db.leads.create_index([("create_date", -1)])
-    await db.leads.create_index([("create_date_ist", -1)])
-    await db.leads.create_index([("write_date", -1)])
-    await db.leads.create_index("user_id")
-    await db.leads.create_index("tags")
-    await db.leads.create_index("lead_stage")
-    await db.leads.create_index("phone_digits")
-    await db.leads.create_index("follow_up_date")
-    await db.leads.create_index("active")
-    # Compound indexes for reports/list: active is near-useless alone (boolean);
-    # these cover the active+date-range scans and the default list sort.
-    await db.leads.create_index([("active", 1), ("create_date", -1)])
-    await db.leads.create_index([("active", 1), ("create_date_ist", -1)])
-    await db.leads.create_index([("active", 1), ("lead_stage", 1)])
-    await db.leads.create_index([("active", 1), ("follow_up_date", 1)])
-    await db.leads.create_index([("active", 1), ("user_id", 1)])
-    await db.leads.create_index("source_lead")
-    await db.leads.create_index("stage_id")
-    # follow_ups (73k+) was un-indexed — every lead-detail open + Follow-ups page scanned it
-    await db.follow_ups.create_index([("lead_id", 1), ("follow_up_date", -1)])
-    await db.follow_ups.create_index([("follow_up_date", 1)])
-    await db.follow_ups.create_index([("source", 1), ("lead_id", 1)])
-    await db.caller_activities.create_index([("lead_id", 1), ("created_at", -1)])
-    await db.wa_tracking.create_index("lead_id")
-    await db.wa_tracking.create_index("campaign_id")
-    await db.wa_tracking.create_index("wamid")
-    await db.messages.create_index([("lead_id", 1), ("date", -1)])
-    await db.messages.create_index("id")
-    await db.wa_messages.create_index([("channel_id", 1), ("date", -1)])
-    await db.wa_channels.create_index("id", unique=True)
-    await db.wa_channels.create_index("phone_digits")
-    await db.wa_channels.create_index([("last_message_date", -1)])
-    await db.activities.create_index([("user_id", 1), ("state", 1), ("date_deadline", 1)])
-    await db.catalogs.create_index([("type", 1), ("id", 1)], unique=True)
-    await db.contacts.create_index("id", unique=True)
-    await db.webhooks.create_index("token")
-    await db.call_events.create_index("id", unique=True)
-    await db.call_events.create_index([("created_at", -1)])
-    await db.call_events.create_index("ucid")
-    await db.call_events.create_index("lead_id")
-    await db.call_events.create_index("user_id")
-
+    # Build indexes in the background — never block startup / readiness on this.
+    asyncio.create_task(_ensure_indexes())
     # Seed admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]

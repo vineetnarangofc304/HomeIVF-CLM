@@ -1,6 +1,7 @@
 import json
 import os
 import re
+import asyncio
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
@@ -37,7 +38,7 @@ async def _grouped(match, dim_key, limit=50, unwind=False):
         {"$sort": {"total": -1}},
         {"$limit": limit},
     ]
-    return await db.leads.aggregate(pipeline).to_list(limit)
+    return await db.leads.aggregate(pipeline, maxTimeMS=15000).to_list(limit)
 
 
 async def _labelled(rows, dim_key):
@@ -64,27 +65,39 @@ async def analytics(date_from: str = None, date_to: str = None,
         filters["date_to"] = date_to
     match = build_match(filters, user)
 
-    # funnel — built from ACTUAL lead_stage values (ordered by a sensible pipeline sequence)
-    stage_rows = await _grouped(match, "lead_stage", limit=50)
+    trend_pipeline = [{"$match": match},
+                      {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "total": {"$sum": 1},
+                                  "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", CONVERTED]}, 1, 0]}}}},
+                      {"$sort": {"_id": -1}}, {"$limit": 30}]
+
+    # run every aggregation concurrently — sequential awaits were the "Loading…" slowness
+    (stage_rows, source_rows, caller_rows, platform_rows,
+     campaign_rows, geo_rows, trend_raw) = await asyncio.gather(
+        _grouped(match, "lead_stage", 50),
+        _grouped(match, "source_lead", 12),
+        _grouped(match, "user_id", 15),
+        _grouped(match, "ads_platform", 10),
+        _grouped(match, "campaign_name", 10),
+        _grouped(match, "state_name", 40),
+        db.leads.aggregate(trend_pipeline, maxTimeMS=15000).to_list(30),
+    )
+
     STAGE_ORDER = ["New", "Contact Attempt", "Contacted", "Qualified", "Proposition", "Converted", "Closed"]
     funnel = sorted(
         [{"label": r["_id"], "value": r["total"]} for r in stage_rows if r["_id"]],
         key=lambda x: STAGE_ORDER.index(x["label"]) if x["label"] in STAGE_ORDER else 99)
 
-    source = await _labelled(await _grouped(match, "source_lead", 12), "source_lead")
-    caller = await _labelled(await _grouped(match, "user_id", 15), "user_id")
-    platform = await _labelled(await _grouped(match, "ads_platform", 10), "ads_platform")
-    campaign = await _labelled(await _grouped(match, "campaign_name", 10), "campaign_name")
+    source, caller, platform, campaign = await asyncio.gather(
+        _labelled(source_rows, "source_lead"),
+        _labelled(caller_rows, "user_id"),
+        _labelled(platform_rows, "ads_platform"),
+        _labelled(campaign_rows, "campaign_name"),
+    )
 
-    geo_rows = await _grouped(match, "state_name", 40)
     geo = [{"label": str(r["_id"]), "value": r["total"]} for r in geo_rows
            if r["_id"] and re.fullmatch(r"[A-Za-z][A-Za-z .&]{1,39}", str(r["_id"]))][:15]
 
-    trend_pipeline = [{"$match": match},
-                      {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "total": {"$sum": 1},
-                                  "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", CONVERTED]}, 1, 0]}}}},
-                      {"$sort": {"_id": -1}}, {"$limit": 30}]
-    trend_raw = [r for r in await db.leads.aggregate(trend_pipeline).to_list(30) if r["_id"]]
+    trend_raw = [r for r in trend_raw if r["_id"]]
     trend = [{"label": r["_id"], "total": r["total"], "converted": r["converted"]} for r in reversed(trend_raw)]
 
     total = sum(r["total"] for r in stage_rows)
