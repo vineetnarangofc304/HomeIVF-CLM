@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## Fix (2026-07) — 🔴 URGENT: /leads page slow / times out ("Request failed") on production — iteration_49 (backend 8/8, 100%)
+- **Root cause:** GET /api/leads sorts by `[(sort_field, dir), ("id", -1)]`. The existing index `{active:1, create_date:-1}` did NOT include the `id` tie-break key → MongoDB fell back to a BLOCKING in-memory SORT over all ~100k matching docs → slow, and past the 32MB sort limit it 500'd with "Sort exceeded memory limit" = the user's "Request failed".
+- **Fix:** Added two sort-covering compound indexes to `server.py` INDEX_SPECS: `{active:1, create_date:-1, id:-1}` (admin default) and `{active:1, user_id:1, create_date:-1, id:-1}` (caller-scoped default). Explain plan drops from `SORT` to indexed `LIMIT→FETCH→IXSCAN`.
+- **Verified (preview, seeded 120,000 leads via backend/seed_perf.py):** default admin load 0.14s (was 0.47s+ w/ blocking sort and 500-prone at scale), caller-scoped 0.09s, pagination/filters/sort all <250ms, HTTP 200. Regression suite: `backend/tests/test_leads_perf.py`.
+- **Also this session — Website lead integration:** Public webhook `POST /api/webhook/lead/{token}` now round-robins web leads across active callers (fallback, so they're never Unassigned/invisible) — mirrors the FB-lead behavior. Created "HomeIVF Website" webhook + unified source catalog to "Website". User given the API + a prompt for their Emergent-built website project.
+- **⚠️ Needs PRODUCTION REDEPLOY** for the compound indexes (built in background on startup) + the webhook round-robin code to reach production.
+
+
 ## Fix (2026-07) — "Sync Now not working" → Odoo delta sync now runs IN-PROCESS — iteration_37 (backend 4/4, frontend 100%)
 - **Root cause:** `POST /api/admin/sync/start` spawned a *detached subprocess* that wrote to `/var/log/odoo_sync.log`. In the managed/container production deploy this is fragile (read-only FS / detached-process limits) → the button appeared to do nothing.
 - **Fix:** sync now runs in-process on a background `threading.Thread` → `odoo_sync.run_sync(run_id, since, until)` (extracted from the script's `__main__`). Progress is written to `sync_runs`; `settings.last_sync` is set on completion; import/connect failures are recorded via a fallback sync pymongo client. No subprocess, no log-file dependency.
