@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## 🔴 URGENT Fix (2026-07-11) — Login 500s (intermittent) + slow lead search under full-live load — iteration_52 (backend 11/11, frontend 100%)
+- **Context:** Prod went fully live (all 24 callers moved, ~120k leads). User reported frequent login `500` + very slow search.
+- **Root cause:** lead search used a CASE-INSENSITIVE anchored regex (`$options:'i'`) on name/contact_name/email_from → cannot use index bounds → every search FULL-scanned ~120,007 docs (~783ms) + a `count_documents` full scan. Under 24 concurrent callers this exhausted the Mongo connection pool (`maxPoolSize=25`) → other ops (incl. `/auth/login`) timed out → intermittent 500s. (explain proof: keysExamined=120007, docsExamined=120007.)
+- **Fix:** (1) Added lowercased indexed fields `name_lc`/`contact_name_lc`/`email_lc`; search now lowercases the query and uses a CASE-SENSITIVE `^prefix` regex → tight index bounds (explain: keysExamined 120007→**6**, execMillis 783→**1**). Wired `search_norm()` into ALL lead write paths (create/update/promote/webhook/facebook/calls/migration sync). (2) `maxPoolSize` 25→**100** (min 5). (3) Idempotent startup backfill set `_lc` on all 120,007 existing leads. Indexes added in `server.py`.
+- **Also fixed:** dashboard funnel returned multiple "New / Unassigned" rows (null/False/"" lead_stage buckets) → duplicate React key; backend now merges them into one row (`reports.py`).
+- **Files:** `core/utils.py` (search_norm), `core/db.py` (pool), `routes/leads.py` (search branch + create/update/promote), `routes/webhooks.py`, `routes/facebook.py`, `routes/calls.py`, `migration/odoo_migrate.py`, `server.py` (indexes+backfill), `routes/reports.py` (funnel merge).
+- **⚠️ Needs PRODUCTION REDEPLOY** — the search fix, pool bump, index build + `_lc` backfill all run on startup after deploy.
+
 ## Investigation+Tool (2026-07) — "Migrated leads show blank Lead Stage/Tags" — iteration_51 (backend 5/5, frontend 100%)
 - **Not a mapping bug (PROVEN vs LIVE Odoo):** `transform_lead` on real Odoo lead #132938 ("Kamlesh Yadav") yields lead_stage='Contact Attempt', tags=[26]('Ringing'), follow_up_tag='Follow UP 1'. Applying the exact sync `$set` to a blank CRM copy correctly populates all of them. So the delta sync WILL move stage/tags when it runs — the fields are blank because a sync hadn't re-run since the callers' recent Odoo edits (they went live but kept editing in Odoo).
 - **New tool — force re-pull:** `POST /api/admin/sync/start` now accepts an optional `{since:"YYYY-MM-DD"}` override; Admin → Migration has a "Re-sync from date (backfill)" date input + button (`resync-since-input` / `resync-from-date-button`) to pull all Odoo changes since a chosen date and update matching leads by Odoo id.

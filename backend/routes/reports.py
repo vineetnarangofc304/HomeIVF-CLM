@@ -288,9 +288,17 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
         db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
     )
 
+    # Merge the null/False/"" stage buckets into a single "New / Unassigned" row so
+    # the funnel shows one accurate row (and the frontend never gets duplicate React
+    # keys from two identically-labelled rows).
+    merged = {}
     for s in by_stage:
-        if s["_id"] in (None, False, ""):
-            s["_id"] = "New / Unassigned"
+        key = "New / Unassigned" if s["_id"] in (None, False, "") else s["_id"]
+        merged[key] = merged.get(key, 0) + s["count"]
+    by_stage = sorted(
+        [{"_id": k, "count": v} for k, v in merged.items()],
+        key=lambda x: x["count"], reverse=True,
+    )
     by_day.reverse()
 
     users = {u["id"]: u["name"] for u in users_list}
