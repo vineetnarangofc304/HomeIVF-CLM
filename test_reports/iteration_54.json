@@ -1,0 +1,22 @@
+{
+  "summary": "Iteration 54 — Validated user's REAL prod WhatsApp new-lead automation (automation id 1 → template id 4 'New Lead - Message' → Meta 'new_lead_message'). All 8 backend tests PASSED: sync re-links template after unset (Odoo live), creating a new lead triggers a proper template send (source='automation', template_name='New Lead - Message', name substituted for {1}, status='failed' with a Meta AUTH error — NOT 131047 and NOT the 'not linked' actionable error, confirming template branch was taken), and a direct unit-style patch of send_template/send_text proves send_lead_template invokes send_template('new_lead_message', 'en', ['Test Welcome']) exactly once and never calls send_text.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iter54_wa_prod_automation.py",
+    "/app/test_reports/pytest/iter54_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/whatsapp_cloud.send_lead_template: params list is built with `[name] if '{{1}}' in body`. If a template body uses only literal text with no {{1}} placeholder but the Meta template has a body variable, no params would be sent — could still yield a Meta 132000/132001 mismatch. Not blocking for the user's current template (body has {1}).",
+    "core/utils._apply_actions: log_message body concatenates raw res['error'] into HTML — long Meta error JSON leaks verbatim into chatter. Consider truncating / structured display."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter54_wa_prod_automation.py"],
+  "success_rate": { "backend": "100% (8/8)", "frontend": "n/a (skipped as requested)" },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "One TEST_WELCOME_* lead created via POST /api/leads to trigger the on_create automation; archived via POST /api/leads/{id}/lost in module teardown. Template id 4 wa_template_name was temporarily $unset then re-linked via sync-odoo-templates endpoint (verified LINKED to 'new_lead_message' post-suite). Automation id 1 untouched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 54 confirmed the user's exact prod config works: automation id 1 → template id 4 → Meta 'new_lead_message'. New leads now attempt a real TEMPLATE send (not free-text), so the 131047 outside-24h-window bug is fixed for the welcome message. Preview Meta token is invalid → sends fail with an AUTH/token error at Meta (expected). If user wants live delivery in preview, they need a valid Meta access token in WhatsApp Cloud settings. Template 4 and automation 1 left intact and linked.",
+  "rca of the issue": "Original bug: automation on_create → send_whatsapp_template pointed to CRM template id 4, but its wa_template_name was empty in prod, so send_lead_template fell through to send_text (free-text). Meta rejects free-text to new leads with 131047 (re-engagement, outside 24h window). Fix (already applied by main agent in iter 53 + user action): (a) send_lead_template now takes require_template so automations refuse the doomed free-text path; (b) user linked CRM template id 4 to Meta 'new_lead_message' via Admin → WhatsApp → 'Sync approved templates from Odoo'. Verified end-to-end here: sync re-links after unset, and creating a lead attempts a proper Meta template send with the contact name substituted for {1}."
+}
