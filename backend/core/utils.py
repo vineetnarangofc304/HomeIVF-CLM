@@ -185,23 +185,28 @@ async def _apply_actions(rule: dict, lead: dict):
                 tmpl = await db.templates_whatsapp.find_one({"id": int(value)}, {"_id": 0})
                 phone = lead.get("phone") or lead.get("mobile")
                 body_prev = ((tmpl.get("body") or "") if tmpl else "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
-                if await wac.is_configured() and tmpl and phone:
-                    res = await wac.send_lead_template(lead, tmpl)
+                wa_configured = await wac.is_configured()
+                res = {}
+                if wa_configured and tmpl and phone:
+                    res = await wac.send_lead_template(lead, tmpl, require_template=True)
                     sent_live = res.get("ok", False)
+                # A configured-but-failed send (e.g. template not linked to an approved
+                # Meta template → error 131047) is a real FAILURE, not a pending queue item.
+                wa_status = "sent" if sent_live else ("failed" if (wa_configured and res.get("error")) else "in_queue")
                 track = None
                 if tmpl:
                     track = await record_wa_outbound(
                         lead_id=lead["id"], template_id=int(value), template_name=tmpl.get("name") or str(value),
                         sent_to=phone or "", body=body_prev, created_by=f"Automation: {rule['name']}",
-                        status=("sent" if sent_live else "in_queue"), wamid=res.get("wamid") if sent_live else None,
+                        status=wa_status, wamid=res.get("wamid") if sent_live else None,
                         source="automation", error=(res.get("error") if not sent_live else None))
                     await log_message(
                         lead["id"],
                         f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
-                        + ("sent via Cloud API" if sent_live else (f"failed ({res.get('error')})" if res else "queued")),
+                        + ("sent via Cloud API" if sent_live else (f"failed — {res.get('error')}" if wa_status == "failed" else "queued")),
                         extra={"kind": "wa_template", "channel": "whatsapp", "preview": body_prev,
                                "template_name": tmpl.get("name"), "track_id": track["id"],
-                               "status": ("sent" if sent_live else "in_queue")})
+                               "status": wa_status})
             else:
                 from core import gmail_send as gm
                 tmpl = await db.templates_email.find_one({"id": int(value)}, {"_id": 0})

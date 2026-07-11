@@ -121,10 +121,15 @@ async def send_reaction(to: str, wamid: str, emoji: str) -> dict:
     })
 
 
-async def send_lead_template(lead: dict, template: dict) -> dict:
+async def send_lead_template(lead: dict, template: dict, require_template: bool = False) -> dict:
     """Send a templates_whatsapp record to a lead via Cloud API.
-    Uses the approved Cloud template name (wa_template_name) when set, else falls
-    back to a free-form session text using the rendered body."""
+
+    Sends as an APPROVED Meta template (deliverable OUTSIDE Meta's 24-hour window)
+    when the template is linked (wa_template_name set). A free-form session text only
+    works INSIDE the 24h window; for new-lead automations/campaigns it fails with Meta
+    error 131047 ('Re-engagement message'). So when require_template=True (automations,
+    campaigns) we refuse the doomed free-text send and return an actionable error
+    instead. Manual in-conversation sends keep the free-text fallback."""
     phone = lead.get("phone") or lead.get("mobile")
     if not phone:
         return {"ok": False, "error": "lead has no phone"}
@@ -134,6 +139,14 @@ async def send_lead_template(lead: dict, template: dict) -> dict:
     if wa_name:
         params = [name] if "{{1}}" in (template.get("body") or "") else None
         return await send_template(phone, wa_name, template.get("lang") or "en", params)
+    if require_template:
+        return {"ok": False, "error": (
+            f"Template “{template.get('name')}” is not linked to an approved Meta template, "
+            f"so it can only be sent as a free-form message inside the 24-hour customer "
+            f"window (Meta rejects it with error 131047 for new leads). Open this WhatsApp "
+            f"template and set its approved Meta template name + language, or run "
+            f"Admin → WhatsApp → “Sync approved templates from Odoo”."
+        )}
     return await send_text(phone, body)
 
 

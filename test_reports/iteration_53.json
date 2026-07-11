@@ -1,0 +1,21 @@
+{
+  "summary": "Verified WhatsApp 131047 fix (iter 53): automations & marketing sends now refuse free-text for unlinked templates and return an actionable error mentioning 131047; linked templates still attempt a Meta template send; manual per-lead send keeps free-text fallback. All 6 backend tests PASSED against the preview URL.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": { "ui_bugs": [], "integration_issues": [], "design_issues": [] },
+  "test_report_links": [
+    "/app/backend/tests/test_iter53_wa_131047_fix.py",
+    "/app/test_reports/pytest/iter53_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "core/utils.py _apply_actions still unconditionally inserts an outbound_queue 'pending_api_credentials' entry whenever not sent_live — including the failed-but-configured (unlinked/131047) case. This will make failed sends still show up as pending in queue dashboards. Consider only queueing when wa_status == 'in_queue' (i.e. not configured)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter53_wa_131047_fix.py"],
+  "success_rate": { "backend": "100% (6/6)", "frontend": "n/a (skipped as requested)" },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Throwaway test data created inside the test module and cleaned up in teardown: WhatsApp templates (TEST_UNLINKED_*, TEST_LINKED_*), automations (TEST_AUTO_*), and leads (TEST_LEAD_131047_*). Leads archived via POST /api/leads/{id}/lost, templates deleted, automations deleted. No real migrated templates were touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter 53 covered the 131047 automation fix (send_lead_template require_template flag path). Verified (a) unlinked+require_template returns actionable 131047 error and records wa_tracking as 'failed' with source='automation', (b) linked template attempts template send (fails at Meta due to invalid preview token, but NOT with the 'not linked' actionable error and NOT with 131047 marker), (c) manual /leads/{id}/send_whatsapp keeps free-text fallback (require_template=False). Regression sanity on /api/leads list + search still green. Preview WhatsApp Cloud token is invalid but is present in settings so wa_configured=True — this is by design.",
+  "rca of the issue": "Original bug: on_create automations called send_lead_template on a CRM template with no wa_template_name; the code fell through to send_text which Meta rejected with 131047 (re-engagement, outside 24h window) for brand-new leads. Fix (already applied by main agent): send_lead_template now takes require_template. Automations (_apply_actions) and marketing campaigns pass require_template=True — for unlinked templates the function short-circuits with an actionable error mentioning 131047 and how to link the Meta template, so no doomed Meta call is made and wa_tracking is recorded as 'failed' (not 'in_queue'). Manual per-lead send keeps require_template=False so in-conversation free-text still works inside the 24h window."
+}

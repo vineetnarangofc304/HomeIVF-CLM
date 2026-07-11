@@ -235,7 +235,7 @@ async def _run_campaign(cid: int, user: dict):
                 phone = lead.get("phone") or lead.get("mobile") or ""
                 body_prev = (template.get("body") or "").replace("{{1}}", lead.get("contact_name") or lead.get("name") or "")
                 if wa_live:
-                    res = await wac.send_lead_template(lead, template)
+                    res = await wac.send_lead_template(lead, template, require_template=True)
                     if res.get("ok"):
                         sent += 1
                         await record_wa_outbound(lead_id=lead["id"], template_id=template["id"],
