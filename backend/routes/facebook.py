@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm
 
 router = APIRouter(tags=["facebook"])
 
@@ -185,6 +185,7 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
     doc["is_duplicate"] = dup["is_duplicate"]
     doc["duplicate_of"] = dup["duplicate_of"]
     doc.update(ist_date_parts(doc["create_date_ist"]))
+    doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
     await log_message(lid, f"Lead captured via {source_label} (Facebook Page lead form)")
     if dup["is_duplicate"]:

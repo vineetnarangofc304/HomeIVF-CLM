@@ -1,0 +1,30 @@
+{
+  "summary": "Verified prod hotfix for (1) intermittent login 500s and (2) slow lead search. Backend: 11/11 pytest passed covering admin/caller login, /auth/me, 10 sequential logins (no 500), case-insensitive prefix search (dha/Dha/DHA return identical sets), phone search, create-lead-then-search, PATCH name and confirm old prefix no longer matches, plus regression on default list/pipeline/ozonetel buckets and sort. Frontend smoke: admin login 200 → dashboard renders → Leads page → typing 'dha' + Enter fires GET /api/leads?search=dha&bucket=pipeline and returns exactly Dhananjay Rai. Search performance well under 1s in all cases.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Leads", "issues": ["Leads search input does not auto-search on typing; user must press Enter to trigger the API call. Pre-existing behavior, not caused by this fix, but worth confirming with product — the top global-search-input has same behavior."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter52_login_and_search.py",
+    "/app/test_reports/pytest/iter52.xml"
+  ],
+  "action_items": [
+    "React console warning on Leads page: 'Encountered two children with the same key ... New / Unassigned' — duplicate React key when rendering lead stage list, should be de-duplicated."
+  ],
+  "critical_code_review_comments": [
+    "update_lead correctly recomputes name_lc/contact_name_lc/email_lc from EDITABLE_FIELDS; verified by DB inspection after PATCH.",
+    "build_query search branch uses case-sensitive '^'+s.lower() regex on *_lc — good, will use index bounds.",
+    "Note: search matches email_lc as well as name_lc, so a lead whose email prefix equals its old name prefix can still surface under the old name prefix after a name change (data-shape edge case, not a bug)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter52_login_and_search.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 ; agent@homeivf.com / Agent@2026",
+  "seed_data_creation": "Created 1 test lead via POST /api/leads (Yynewname64b0d6a5 Kumar, id 500178) and archived it via /lost. Total leads count 1,19,808 unchanged in UI.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Fix from iter52 (case-sensitive ^prefix regex on *_lc fields + maxPoolSize 100 + backfill) is verified working. If retesting search-related bugs, note that /api/leads search REQUIRES Enter in the leads-search-input (no debounce on typing) — Playwright must inp.press('Enter') to fire the request."
+}

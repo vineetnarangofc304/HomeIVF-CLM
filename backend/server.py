@@ -121,6 +121,12 @@ INDEX_SPECS = [
     ("leads", "name", {}),
     ("leads", "contact_name", {}),
     ("leads", "email_from", {}),
+    # Lowercased search fields — a CASE-SENSITIVE '^prefix' regex on these uses tight
+    # index bounds (case-insensitive regex on the raw fields could not, so every search
+    # scanned all ~120k docs → connection-pool exhaustion → intermittent 500s on login).
+    ("leads", "name_lc", {}),
+    ("leads", "contact_name_lc", {}),
+    ("leads", "email_lc", {}),
     # Covering indexes so the report aggregations run index-only (docs=0) instead of
     # paging the whole ~240MB collection off disk: trends (period+stage), dashboard
     # date-range panels, and the dow/hour heatmap.
@@ -191,6 +197,24 @@ async def _ensure_indexes():
             logger.info(f"Backfilled pipeline=False on {res.modified_count} raw Ozonetel leads")
     except Exception as e:
         logger.warning(f"pipeline backfill skipped: {str(e)[:160]}")
+    # One-time (idempotent) backfill of lowercased search fields (name_lc/contact_name_lc/
+    # email_lc). Case-sensitive '^prefix' search on these uses tight index bounds; the old
+    # case-insensitive regex on the raw fields scanned all ~120k docs per search and
+    # exhausted the connection pool (→ intermittent 500s on login). Only touches docs still
+    # missing name_lc, so it is a no-op on every later startup.
+    try:
+        res = await db.leads.update_many(
+            {"name_lc": {"$exists": False}},
+            [{"$set": {
+                "name_lc": {"$toLower": {"$ifNull": ["$name", ""]}},
+                "contact_name_lc": {"$toLower": {"$ifNull": ["$contact_name", ""]}},
+                "email_lc": {"$toLower": {"$ifNull": ["$email_from", ""]}},
+            }}],
+        )
+        if res.modified_count:
+            logger.info(f"Backfilled search fields on {res.modified_count} leads")
+    except Exception as e:
+        logger.warning(f"search-field backfill skipped: {str(e)[:160]}")
     logger.info("Index ensure pass complete")
 
 

@@ -359,6 +359,11 @@ def transform_lead(r, x_fields):
         "phone_digits": phone_digits(r.get("phone") or r.get("mobile")),
         "migrated": True,
     }
+    # Lowercased search fields → case-sensitive '^prefix' regex uses tight index bounds
+    # (the delta sync brings in leads continuously, so they must be searchable at once).
+    for _src, _dst in (("name", "name_lc"), ("contact_name", "contact_name_lc"), ("email_from", "email_lc")):
+        _v = doc.get(_src)
+        doc[_dst] = _v.lower() if isinstance(_v, str) and _v else None
     doc["state_name"] = coalesce(r, ["x_studio_state_5"]) or m2o_name(r.get("state_id")) or coalesce(
         r, ["x_studio_state", "x_studio_state_1", "x_studio_state_2", "x_studio_state_3",
             "x_studio_state_4", "x_studio_state_6"])

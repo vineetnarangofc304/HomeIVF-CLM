@@ -29,6 +29,19 @@ def ist_date_parts(ist_str: str) -> dict:
     return {"create_dt": d, "create_dow": (d.isoweekday() % 7) + 1, "create_hour": d.hour}
 
 
+def search_norm(doc: dict) -> dict:
+    """Lowercased search fields for a lead (name_lc/contact_name_lc/email_lc).
+    A CASE-SENSITIVE '^prefix' regex on these uses TIGHT index bounds; a
+    case-insensitive ($options:i) regex cannot, so it scanned the whole ~120k
+    collection on every search — the 'search is slow' + connection-pool-exhaustion
+    (login 500) root cause. Recompute whenever name/contact_name/email_from change."""
+    out = {}
+    for src, dst in (("name", "name_lc"), ("contact_name", "contact_name_lc"), ("email_from", "email_lc")):
+        v = doc.get(src)
+        out[dst] = v.lower() if isinstance(v, str) and v else None
+    return out
+
+
 async def ensure_catalog(ctype: str, name: str) -> dict:
     """Get-or-create a catalog item (e.g. source_lead 'Meta Lead Ads') so it shows
     in the Source/dropdown filters. Uses max-id+1 (migrated catalogs bypass counters)."""

@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm
 from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -71,11 +71,13 @@ def build_query(
             d10 = digits[-10:]
             q["phone_digits"] = d10 if len(digits) >= 10 else {"$regex": "^" + re.escape(d10)}
         else:
-            # Text query: prefix ('starts with') match on the indexed name/email fields.
-            # Replaces the old unindexed 'contains' regex that scanned every lead and then
-            # blocking-sorted the whole result set (the "search is slow" report).
-            pfx = {"$regex": "^" + re.escape(s), "$options": "i"}
-            ors = [{"name": pfx}, {"contact_name": pfx}, {"email_from": pfx}]
+            # Text query: prefix ('starts with') match on the LOWERCASED name/email
+            # fields with a CASE-SENSITIVE anchored regex → tight index bounds
+            # (keysExamined≈matches, ~0ms). A case-insensitive ($options:i) regex can NOT
+            # use index bounds, so the old version scanned all ~120k docs per search,
+            # exhausting the DB connection pool → intermittent 500s (incl. on login).
+            pfx = {"$regex": "^" + re.escape(s.lower())}
+            ors = [{"name_lc": pfx}, {"contact_name_lc": pfx}, {"email_lc": pfx}]
             if digits and len(digits) >= 4:
                 d10 = digits[-10:]
                 ors.append({"phone_digits": d10} if len(digits) >= 10 else {"phone_digits": {"$regex": "^" + re.escape(d10)}})
@@ -250,6 +252,7 @@ async def create_lead(body: LeadCreate, user: dict = Depends(get_current_user)):
         **data,
     }
     doc.update(ist_date_parts(doc["create_date_ist"]))
+    doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
     await log_message(lid, f"Lead created by {user['name']}", author=user)
     if dup["is_duplicate"]:
@@ -302,6 +305,10 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
         updates["custom"] = merged
     if "phone" in updates:
         updates["phone_digits"] = re.sub(r"\D", "", updates.get("phone") or "")[-10:]
+    for _src, _dst in (("name", "name_lc"), ("contact_name", "contact_name_lc"), ("email_from", "email_lc")):
+        if _src in updates:
+            _v = updates[_src]
+            updates[_dst] = _v.lower() if isinstance(_v, str) and _v else None
     await _track_changes(lead, updates, user)
     updates["write_date"] = now_utc_str()
     updates["write_uid"] = user["id"]
@@ -397,6 +404,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
         updates["phone_digits"] = pdig
     if not lead.get("user_id"):
         updates["user_id"] = user["id"]
+    updates.update(search_norm({**lead, **updates}))
     await db.leads.update_one({"id": lead_id}, {"$set": updates})
     await log_message(lead_id, f"✅ Moved to <b>Lead in Pipeline</b> (verified) by {user['name']}", author=user, subtype="comment")
     return {"ok": True, "lead_id": lead_id, "in_pipeline": True}
