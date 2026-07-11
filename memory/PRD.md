@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## Fix (2026-07-11) — WhatsApp welcome automation all FAILED (Meta error 131047) — iteration_53 (backend 6/6)
+- **Symptom:** New-lead "Welcome Message" automation fires but every message = Failed, error **131047** ("Re-engagement message / >24h since customer replied").
+- **Root cause:** 131047 only happens for FREE-FORM (session) messages sent outside Meta's 24-hour window. `send_lead_template()` fell back to free-text whenever the CRM template had no `wa_template_name` (not linked to an approved Meta template). New leads have no open 24h window → free-text always 131047. (One "Delivered" in the log = a lead who had messaged within 24h.)
+- **Code fix:** `send_lead_template(..., require_template=True)` for automations (`_apply_actions`) + campaigns (`marketing.py`); when a template isn't linked it now returns an ACTIONABLE error (explains 131047 + how to link) instead of a doomed free-text send, and records the message as **Failed** (not "in_queue"). Manual per-lead sends keep the free-text fallback for in-window chats. Also stopped double-listing failed sends as "pending" in `outbound_queue`.
+- **⚠️ USER CONFIG REQUIRED (the actual unblocker):** the welcome template must be an APPROVED Meta template and the CRM template's `wa_template_name` + `lang` must point to it. Approved Meta templates deliver outside the 24h window; free-text/unapproved cannot. Options: use the already-linked "New Lead - Message" (id 4 → `new_lead_message`) in the automation, or set the approved Meta name+language on their template (Templates → WhatsApp template), or Admin → WhatsApp → "Sync approved templates from Odoo".
+- **⚠️ Needs PRODUCTION REDEPLOY** for the code fix.
+
+
 ## 🔴 URGENT Fix (2026-07-11) — Login 500s (intermittent) + slow lead search under full-live load — iteration_52 (backend 11/11, frontend 100%)
 - **Context:** Prod went fully live (all 24 callers moved, ~120k leads). User reported frequent login `500` + very slow search.
 - **Root cause:** lead search used a CASE-INSENSITIVE anchored regex (`$options:'i'`) on name/contact_name/email_from → cannot use index bounds → every search FULL-scanned ~120,007 docs (~783ms) + a `count_documents` full scan. Under 24 concurrent callers this exhausted the Mongo connection pool (`maxPoolSize=25`) → other ops (incl. `/auth/login`) timed out → intermittent 500s. (explain proof: keysExamined=120007, docsExamined=120007.)

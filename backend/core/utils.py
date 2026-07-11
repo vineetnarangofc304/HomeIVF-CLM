@@ -225,14 +225,22 @@ async def _apply_actions(rule: dict, lead: dict):
                                "template_name": subject, "subject": subject,
                                "status": ("sent" if sent_live else "in_queue")})
             if not sent_live:
-                await db.outbound_queue.insert_one({
-                    "lead_id": lead["id"],
-                    "channel": "whatsapp" if is_wa else "email",
-                    "template_id": value,
-                    "status": "pending_api_credentials",
-                    "automation": rule["name"],
-                    "created_at": now_utc_str(),
-                })
+                if is_wa:
+                    # Only re-queue WhatsApp when it's genuinely pending (API not connected).
+                    # A configured-but-failed send (unlinked template / error 131047) is
+                    # already recorded as 'failed' above — don't also show it as pending.
+                    if wa_status == "in_queue":
+                        await db.outbound_queue.insert_one({
+                            "lead_id": lead["id"], "channel": "whatsapp", "template_id": value,
+                            "status": "pending_api_credentials", "automation": rule["name"],
+                            "created_at": now_utc_str(),
+                        })
+                else:
+                    await db.outbound_queue.insert_one({
+                        "lead_id": lead["id"], "channel": "email", "template_id": value,
+                        "status": "pending_api_credentials", "automation": rule["name"],
+                        "created_at": now_utc_str(),
+                    })
     if updates:
         await db.leads.update_one({"id": lead["id"]}, {"$set": updates})
         lead.update(updates)
