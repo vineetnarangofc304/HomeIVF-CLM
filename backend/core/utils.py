@@ -203,7 +203,7 @@ async def _apply_actions(rule: dict, lead: dict):
                     await log_message(
                         lead["id"],
                         f"Automation '{rule['name']}': WhatsApp template <b>{tmpl['name']}</b> "
-                        + ("sent via Cloud API" if sent_live else (f"failed — {res.get('error')}" if wa_status == "failed" else "queued")),
+                        + ("sent via Cloud API" if sent_live else (f"failed — {str(res.get('error'))[:240]}" if wa_status == "failed" else "queued")),
                         extra={"kind": "wa_template", "channel": "whatsapp", "preview": body_prev,
                                "template_name": tmpl.get("name"), "track_id": track["id"],
                                "status": wa_status})
