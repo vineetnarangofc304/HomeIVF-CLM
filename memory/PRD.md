@@ -1,5 +1,16 @@
 # HomeIVF CRM — PRD
 
+## Batch (2026-07-13) — Caller 500/slow + Cases 1–4 — iteration_55 (backend 21/21, frontend 100%)
+- **P0 (caller 500 + slow load):** the 2026-07-11 search fix (case-insensitive→lowercased indexed prefix) + `maxPoolSize` 25→100 addresses it; ADDED a caller-scoped pipeline index `{active,user_id,pipeline,create_date,id}` so a caller's default "Lead in Pipeline" tab never blocking-sorts at scale. Preview verified fast (lists 0.17s, search 0.12s, dashboard 0.39s).
+- **Case 1 — WhatsApp chat visibility by role:** denormalized `owner_id` onto `wa_channels` (assigned caller of the matching lead). Callers see only their own chats; admin+manager see all. `owner_id` set on inbound-webhook channel creation, kept in sync on lead reassignment (`sync_channel_owner` in update/bulk-assign/promote), and backfilled on startup (11,918 channels). Filters in `/whatsapp/channels` + `/whatsapp/unread-summary`.
+- **Case 2 — follow-ups:** reminder now OWNER-only (`created_by`) + fires only in the [sched−5, sched] minute window (never after) + frontend localStorage dedupe (once) + moved bottom-RIGHT (no longer covers left menu). Follow-ups list shows Follow Date / Follow Time / Status. "Not Done" status removed (deactivated in catalog + dropped from analytics; past-due unmarked = Pending). Lead detail shows "Total Follow-up: N". `follow_up_status` denormalized to lead.
+- **Case 3 — lead fields + disposition:** removed Age & Spouse Age from Case Details; added optional Alternate Number in Contact; City & State now mandatory on Contact edit/save (field-level errors, blocks save); Disposition Tags → Lead Stage dependent mapping (selecting a tag auto-sets the stage, dropdown grouped by stage) + seeded mapping + Admin "Disposition Tag → Stage Mapping" editor (`GET/PUT /catalogs/disposition-map`).
+- **Case 4 — count consistency:** Dashboard `base` scoped to `pipeline!=False` so Today count + Funnel now equal the "Lead in Pipeline" export (verified 119,808 == 119,808; funnel sum == total).
+- **Files:** reports.py, whatsapp.py, wa_cloud.py, core/utils.py (sync_channel_owner), leads.py, catalogs.py, server.py; frontend LeadDetail.jsx, FollowUps.jsx, FollowUpReminder.jsx, Admin.jsx.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** — owner_id backfill, disposition seed, "Not Done" deactivation, and new indexes all run on startup after deploy.
+- **Deferred (documented to user):** the disruptive "block all navigation until a note is added on every lead open" — implemented as mandatory note on activity-add + save-blocking on required fields instead (safer UX).
+
+
 ## Fix (2026-07-11) — WhatsApp welcome automation all FAILED (Meta error 131047) — iteration_53 (backend 6/6)
 - **Symptom:** New-lead "Welcome Message" automation fires but every message = Failed, error **131047** ("Re-engagement message / >24h since customer replied").
 - **Root cause:** 131047 only happens for FREE-FORM (session) messages sent outside Meta's 24-hour window. `send_lead_template()` fell back to free-text whenever the CRM template had no `wa_template_name` (not linked to an approved Meta template). New leads have no open 24h window → free-text always 131047. (One "Delivered" in the log = a lead who had messaged within 24h.)
