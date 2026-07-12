@@ -6,7 +6,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import next_id
+from core.utils import next_id, ensure_catalog
 
 router = APIRouter(prefix="/catalogs", tags=["catalogs"])
 
@@ -26,6 +26,8 @@ async def get_catalogs(user: dict = Depends(get_current_user)):
     labels = await db.settings.find_one({"key": "lead_field_labels"}, {"_id": 0})
     out["field_labels"] = (labels or {}).get("fields", {})
     out["custom_fields"] = await db.custom_fields.find({}, {"_id": 0}).sort([("sequence", 1), ("id", 1)]).to_list(300)
+    dm = await db.settings.find_one({"key": "disposition_map"}, {"_id": 0})
+    out["disposition_map"] = (dm or {}).get("map", {})
     return out
 
 
@@ -127,6 +129,32 @@ async def delete_custom_field(fid: int, hard: bool = False, user: dict = Depends
 
 
 # ---------------- Generic catalog CRUD ----------------
+
+class DispositionMapBody(BaseModel):
+    map: dict  # {lead_stage_name: [disposition_tag_name, ...]}
+
+
+@router.get("/disposition-map")
+async def get_disposition_map(user: dict = Depends(get_current_user)):
+    dm = await db.settings.find_one({"key": "disposition_map"}, {"_id": 0})
+    return {"map": (dm or {}).get("map", {})}
+
+
+@router.put("/disposition-map")
+async def set_disposition_map(body: DispositionMapBody, user: dict = Depends(require_roles("admin", "manager"))):
+    """Case 3 — dynamic Disposition Tag → Lead Stage mapping. A caller may only pick a
+    tag that belongs to the selected stage (enforced in the UI)."""
+    clean = {}
+    for stage, tags in (body.map or {}).items():
+        s = str(stage).strip()
+        if not s:
+            continue
+        clean[s] = [str(t).strip() for t in (tags or []) if str(t).strip()]
+    for tags in clean.values():
+        for t in tags:
+            await ensure_catalog("tag", t)  # make sure each mapped tag exists
+    await db.settings.update_one({"key": "disposition_map"}, {"$set": {"map": clean}}, upsert=True)
+    return {"map": clean}
 
 class CatalogCreate(BaseModel):
     name: str

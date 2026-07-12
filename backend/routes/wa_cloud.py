@@ -117,10 +117,11 @@ async def wa_webhook(request: Request):
                 # if it doesn't exist yet so inbound always shows in the 2-way inbox.
                 ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}}) if len(digits) >= 8 else None
                 if not ch and len(digits) >= 8:
-                    lead_nm = await db.leads.find_one({"phone_digits": digits}, {"_id": 0, "contact_name": 1, "name": 1})
+                    lead_nm = await db.leads.find_one({"phone_digits": digits}, {"_id": 0, "contact_name": 1, "name": 1, "user_id": 1})
                     ch_id = await _next_channel_id()
                     ch = {"id": ch_id, "phone_digits": digits,
                           "name": (lead_nm or {}).get("contact_name") or (lead_nm or {}).get("name") or frm,
+                          "owner_id": (lead_nm or {}).get("user_id"),
                           "whatsapp_number": frm, "last_message_date": now, "created_via": "inbound_webhook"}
                     await db.wa_channels.insert_one(dict(ch))
                 if ch:

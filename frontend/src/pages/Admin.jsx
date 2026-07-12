@@ -266,9 +266,66 @@ function CatalogTab({ ctype, title, withColor }) {
   );
 }
 
+function DispositionMapEditor() {
+  const { refreshCatalogs } = useCatalogs();
+  const [map, setMap] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [newTag, setNewTag] = useState({});
+
+  useEffect(() => { API.get("/catalogs/disposition-map").then(({ data }) => setMap(data.map || {})); }, []);
+
+  const addTag = (stage) => {
+    const t = (newTag[stage] || "").trim();
+    if (!t) return;
+    setMap((m) => ({ ...m, [stage]: [...(m[stage] || []).filter((x) => x !== t), t] }));
+    setNewTag((n) => ({ ...n, [stage]: "" }));
+  };
+  const removeTag = (stage, t) => setMap((m) => ({ ...m, [stage]: (m[stage] || []).filter((x) => x !== t) }));
+  const save = async () => {
+    setSaving(true);
+    try {
+      await API.put("/catalogs/disposition-map", { map });
+      toast.success("Disposition mapping saved");
+      refreshCatalogs();
+    } catch (e) { toast.error(apiErr(e)); } finally { setSaving(false); }
+  };
+
+  if (map === null) return <Spinner />;
+  return (
+    <div className="hivf-card p-4" data-testid="disposition-map-editor">
+      <div className="mb-3 flex items-center justify-between">
+        <div>
+          <h3 className="font-display text-sm font-extrabold text-slate-800">Disposition Tag → Stage Mapping</h3>
+          <p className="text-xs text-slate-500">A caller may only pick a tag that belongs to a stage; selecting a tag auto-sets the lead's stage.</p>
+        </div>
+        <button data-testid="disposition-map-save" onClick={save} disabled={saving} className="hivf-btn-primary !py-1.5 text-xs">{saving ? "Saving…" : "Save mapping"}</button>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {Object.keys(map).map((stage) => (
+          <div key={stage} className="rounded-xl border border-slate-100 p-3" data-testid={`disposition-stage-${stage.replace(/\s/g, "-")}`}>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-[#357ABD]">{stage}</p>
+            <div className="flex flex-wrap gap-1.5">
+              {(map[stage] || []).map((t) => (
+                <span key={t} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                  {t}<button onClick={() => removeTag(stage, t)} className="text-slate-400 hover:text-rose-500"><Trash size={11} /></button>
+                </span>
+              ))}
+            </div>
+            <div className="mt-2 flex gap-2">
+              <input className="hivf-input !py-1 text-xs" placeholder="Add tag…" value={newTag[stage] || ""} onChange={(e) => setNewTag((n) => ({ ...n, [stage]: e.target.value }))} onKeyDown={(e) => e.key === "Enter" && addTag(stage)} data-testid={`disposition-add-input-${stage.replace(/\s/g, "-")}`} />
+              <button onClick={() => addTag(stage)} className="hivf-btn-secondary !py-1 text-xs"><Plus size={12} /> Add</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DropdownsTab() {
   return (
     <div className="space-y-4">
+      <DispositionMapEditor />
       <CatalogTab ctype="lead_stage" title="Lead Stages" />
       <CatalogTab ctype="follow_up_tag" title="Follow-up Tags" />
       <CatalogTab ctype="followup_status" title="Follow-up Statuses" />

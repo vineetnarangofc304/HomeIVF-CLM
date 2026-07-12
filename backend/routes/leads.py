@@ -10,7 +10,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm, sync_channel_owner
 from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -19,13 +19,14 @@ LIST_PROJECTION = {
     "_id": 0, "id": 1, "name": 1, "contact_name": 1, "phone": 1, "email_from": 1,
     "city": 1, "state_name": 1, "lead_stage": 1, "stage_id": 1, "tags": 1, "user_id": 1,
     "create_date": 1, "create_date_ist": 1, "follow_up_date": 1, "follow_up_time": 1, "follow_up_tag": 1,
+    "follow_up_status": 1, "alternate_number": 1,
     "source_lead": 1, "campaign_name": 1, "ads_platform": 1, "priority": 1, "active": 1,
     "probability": 1, "appointment_date": 1, "lost_reason_id": 1, "is_duplicate": 1, "duplicate_of": 1,
     "ozonetel_lead": 1, "in_pipeline": 1, "conversion_page": 1,
 }
 
 EDITABLE_FIELDS = {
-    "name", "contact_name", "phone", "mobile", "email_from", "city", "state_name",
+    "name", "contact_name", "phone", "mobile", "alternate_number", "email_from", "city", "state_name",
     "country", "street",
     "stage_id", "lead_stage", "tags", "user_id", "follow_up_date", "follow_up_time", "follow_up_tag",
     "appointment_date", "appointment_time", "source_lead", "campaign_name", "ads_platform", "ads_campaign_name",
@@ -314,6 +315,8 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     updates["write_uid"] = user["id"]
     await db.leads.update_one({"id": lead_id}, {"$set": updates})
     new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    if "user_id" in updates:
+        await sync_channel_owner(new_lead.get("phone_digits"), updates["user_id"])
     stage_changed = ("stage_id" in updates and updates["stage_id"] != lead.get("stage_id")) or \
                     ("lead_stage" in updates and updates["lead_stage"] != lead.get("lead_stage"))
     if stage_changed:
@@ -534,6 +537,9 @@ async def bulk_action(body: BulkBody, user: dict = Depends(require_roles("admin"
     p = body.payload
     if body.action == "assign":
         await db.leads.update_many(q, {"$set": {"user_id": int(p["user_id"])}})
+        # Case 1 — WhatsApp chat visibility follows lead assignment.
+        for pd in await db.leads.distinct("phone_digits", q):
+            await sync_channel_owner(pd, int(p["user_id"]))
     elif body.action == "add_tags":
         await db.leads.update_many(q, {"$addToSet": {"tags": {"$each": [int(t) for t in p["tags"]]}}})
     elif body.action == "remove_tags":
@@ -570,10 +576,10 @@ async def _sync_lead_followup(lead_id: int):
         f = latest[0]
         await db.leads.update_one({"id": lead_id}, {"$set": {
             "follow_up_date": f.get("follow_up_date"), "follow_up_time": f.get("follow_up_time"),
-            "follow_up_tag": f.get("follow_up_tag")}})
+            "follow_up_tag": f.get("follow_up_tag"), "follow_up_status": f.get("status")}})
     else:
         await db.leads.update_one({"id": lead_id}, {"$set": {
-            "follow_up_date": None, "follow_up_time": None, "follow_up_tag": None}})
+            "follow_up_date": None, "follow_up_time": None, "follow_up_tag": None, "follow_up_status": None}})
 
 
 class FollowUpBody(BaseModel):
@@ -639,6 +645,7 @@ async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, 
         raise HTTPException(status_code=404, detail="Follow-up not found")
     status = (body.status or "").strip() or None
     await db.follow_ups.update_one({"id": fid}, {"$set": {"status": status}})
+    await _sync_lead_followup(lead_id)
     await log_message(lead_id, f"Follow-up marked <b>{status or 'cleared'}</b>", author=user)
     return await db.follow_ups.find_one({"id": fid}, {"_id": 0})
 
@@ -714,26 +721,29 @@ async def followups_reminders(user: dict = Depends(get_current_user)):
     now = datetime.now(IST)
     day = now.strftime("%Y-%m-%d")
     now_min = now.hour * 60 + now.minute
+    # Owner-specific (Case 2): remind ONLY the user who created the follow-up — not the
+    # whole team, and not admins unless they created it.
     items = await db.follow_ups.find(
         {"follow_up_date": day, "follow_up_time": {"$nin": [None, ""]},
+         "created_by": user["id"],
          "status": {"$nin": ["Completed", "Cancelled"]}}, {"_id": 0}).to_list(1000)
     lead_ids = list({it["lead_id"] for it in items})
     leads = {l["id"]: l for l in await db.leads.find(
         {"id": {"$in": lead_ids}},
-        {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1, "user_id": 1}).to_list(2000)}
+        {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1}).to_list(2000)}
     out = []
     for it in items:
         lead = leads.get(it["lead_id"])
         if not lead:
-            continue
-        if user.get("role") == "caller" and lead.get("user_id") != user["id"]:
             continue
         try:
             h, m = it["follow_up_time"].split(":")[:2]
             sched = int(h) * 60 + int(m)
         except (ValueError, AttributeError):
             continue
-        if now_min >= sched - 5:  # reminder window opens 5 min before the scheduled time
+        # Fire ONLY in the 5-minute lead-up window [sched-5, sched] — never after the
+        # scheduled time. The frontend also dedupes so it shows exactly once.
+        if sched - 5 <= now_min <= sched:
             out.append({
                 "follow_up_id": it["id"], "lead_id": it["lead_id"],
                 "lead_name": lead.get("contact_name") or lead.get("name") or f"Lead {it['lead_id']}",

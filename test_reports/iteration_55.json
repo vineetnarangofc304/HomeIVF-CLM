@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 55 — Validated the full P0 batch (Cases 1-4). 21/21 backend pytest tests PASSED and the frontend LeadDetail (/leads/500178), Follow-ups (/followups), and Admin (/admin?tab=Dropdowns) UI pieces are wired correctly.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "/followups", "issues": ["Empty state ('Nothing here') does not render the 'Follow Date/Follow Time/Status' column headers, so testers can't visually confirm the columns until at least one follow-up exists in the bucket. Cards row (Total/Completed/Rescheduled/Cancelled/Pending) is correct and 'Not Done' card is absent as required."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter55_case_batch.py",
+    "/app/test_reports/pytest/iter55_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/leads.py followups_reminders() (Case 2) applies the [sched-5, sched] window on minute-of-day (now_min) but does NOT filter by follow_up_date, so a follow-up scheduled for a *different* date whose HH:MM happens to fall in the current window would still fire. It's currently gated by the `follow_up_date: day` match — good — but the docstring/logic could be misread. Consider a comment or an assert to make that invariant explicit.",
+    "routes/whatsapp.py list_channels caller filter uses only owner_id; if a channel's owner_id is None (legacy WA channels not yet backfilled), a caller will silently never see it even if they've since been assigned the matching lead. Confirmed via test: preview channels for the 120k synthetic leads have owner_id=None and are invisible to callers until an assignment triggers sync_channel_owner. Product-acceptable per spec, but consider a periodic backfill job or a lookup fallback (channel.phone_digits → lead.user_id) on read for safety.",
+    "routes/reports.py dashboard() base is now {active:True, pipeline:{$ne:False}} which now matches ?bucket=pipeline — verified numerically equal (119808 == 119808). Good.",
+    "routes/catalogs.py PUT /disposition-map auto-creates missing 'tag' catalog items — verified end-to-end. Consider case-insensitive dedupe (e.g. 'Ringing' vs 'ringing') before upsert to avoid duplicate tag rows from admin typos."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter55_case_batch.py"],
+  "success_rate": { "backend": "100% (21/21)", "frontend": "100% of testable UI checks" },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026; caller1@homeivf.com / HomeIVF@123; caller2@homeivf.com / HomeIVF@123",
+  "seed_data_creation": "Each test creates a scoped TEST_ lead and archives it via POST /api/leads/{id}/lost {}. All test follow-ups are DELETEd. disposition-map PUT test snapshots the original map and restores it. No permanent data changes.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 4 cases (P0 perf, Case 1 WA visibility, Case 2 reminders+status, Case 3 disposition-map+alternate_number, Case 4 dashboard=pipeline) verified. Backend suite is at /app/backend/tests/test_iter55_case_batch.py; safe to re-run as regression. Reminder window is minute-of-day + follow_up_date=today(IST); testing near a day boundary (23:56-00:05 IST) could be flaky by design. Frontend Follow-ups page empty state hides column headers — noted as minor design feedback. No blocking issues found.",
+  "rca of the issue": "N/A — batch verification, no bugs found."
+}

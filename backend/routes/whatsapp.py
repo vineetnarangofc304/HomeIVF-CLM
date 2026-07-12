@@ -76,6 +76,9 @@ async def list_channels(search: Optional[str] = None, filter: str = Query("all")
                         page: int = Query(1, ge=1), limit: int = Query(30, le=100),
                         user: dict = Depends(get_current_user)):
     q = {}
+    # Case 1 — callers see only chats for leads assigned to them; admin & manager see all.
+    if user.get("role") == "caller":
+        q["owner_id"] = user["id"]
     if search:
         digits = re.sub(r"\D", "", search)
         ors = [{"name": {"$regex": re.escape(search), "$options": "i"}}]
@@ -94,13 +97,17 @@ async def list_channels(search: Optional[str] = None, filter: str = Query("all")
 @router.get("/unread-summary")
 async def unread_summary(user: dict = Depends(get_current_user)):
     """Powers the floating 'new WhatsApp message' notification panel."""
+    # Case 1 — callers only get unread counts for chats they own.
+    scope = {"unread_count": {"$gt": 0}}
+    if user.get("role") == "caller":
+        scope["owner_id"] = user["id"]
     total = await db.wa_channels.aggregate([
-        {"$match": {"unread_count": {"$gt": 0}}},
+        {"$match": scope},
         {"$group": {"_id": None, "n": {"$sum": "$unread_count"}, "chats": {"$sum": 1}}},
     ]).to_list(1)
     total_unread = total[0]["n"] if total else 0
     chats = total[0]["chats"] if total else 0
-    recent = await db.wa_channels.find({"unread_count": {"$gt": 0}}, {"_id": 0, "id": 1, "name": 1, "last_message_date": 1, "unread_count": 1}).sort("last_message_date", -1).limit(8).to_list(8)
+    recent = await db.wa_channels.find(scope, {"_id": 0, "id": 1, "name": 1, "last_message_date": 1, "unread_count": 1}).sort("last_message_date", -1).limit(8).to_list(8)
     return {"total_unread": total_unread, "unread_chats": chats, "recent": recent}
 
 

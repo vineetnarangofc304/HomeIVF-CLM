@@ -1,5 +1,7 @@
 from datetime import datetime, timezone, timedelta
 
+import re
+
 from core.db import db
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
@@ -40,6 +42,18 @@ def search_norm(doc: dict) -> dict:
         v = doc.get(src)
         out[dst] = v.lower() if isinstance(v, str) and v else None
     return out
+
+
+async def sync_channel_owner(phone_digits, user_id):
+    """Point WhatsApp channel(s) for this number at the lead's assigned caller so
+    Case 1 chat-visibility (caller sees only own chats) follows lead reassignment."""
+    if not phone_digits:
+        return
+    d = re.sub(r"\D", "", str(phone_digits))[-10:]
+    if len(d) < 8:
+        return
+    await db.wa_channels.update_many({"phone_digits": {"$regex": re.escape(d) + "$"}},
+                                     {"$set": {"owner_id": user_id}})
 
 
 async def ensure_catalog(ctype: str, name: str) -> dict:

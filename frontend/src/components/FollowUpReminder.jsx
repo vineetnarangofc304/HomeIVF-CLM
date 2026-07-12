@@ -4,12 +4,19 @@ import { toast } from "sonner";
 import { BellRinging, X, CheckCircle } from "@phosphor-icons/react";
 import { API, fmtDay } from "../lib/api";
 
-// Case 4 — global popup that fires ~5 min before a scheduled follow-up time.
-// Polls every 60s; shows a card per due follow-up until the user dismisses or marks it done.
+// Case 2 — owner-only follow-up reminder. Backend returns a reminder ONLY to the
+// follow-up's creator, and ONLY in the 5-minute window before the scheduled time
+// (never after). Shows once per follow-up (dismissals persist for the day). Anchored
+// bottom-RIGHT so it never covers the left side menu.
 export default function FollowUpReminder() {
   const navigate = useNavigate();
   const [reminders, setReminders] = useState([]);
-  const dismissed = useRef(new Set());
+  const lsKey = `fu_dismissed_${new Date().toISOString().slice(0, 10)}`;
+  const dismissed = useRef(new Set(JSON.parse(localStorage.getItem(lsKey) || "[]")));
+
+  const persist = () => {
+    try { localStorage.setItem(lsKey, JSON.stringify([...dismissed.current])); } catch { /* ignore */ }
+  };
 
   const load = async () => {
     try {
@@ -27,6 +34,7 @@ export default function FollowUpReminder() {
 
   const dismiss = (id) => {
     dismissed.current.add(id);
+    persist();
     setReminders((rs) => rs.filter((r) => r.follow_up_id !== id));
   };
 
@@ -41,10 +49,10 @@ export default function FollowUpReminder() {
   if (reminders.length === 0) return null;
 
   return (
-    <div className="fixed bottom-4 left-4 z-[60] w-80 space-y-2" data-testid="followup-reminder-stack">
+    <div className="fixed bottom-4 right-4 z-[60] w-80 space-y-2" data-testid="followup-reminder-stack">
       {reminders.map((r) => (
         <div key={r.follow_up_id} data-testid={`followup-reminder-${r.follow_up_id}`}
-          className="animate-in slide-in-from-left-2 rounded-2xl border border-amber-200 bg-white p-4 shadow-xl ring-1 ring-amber-100">
+          className="animate-in slide-in-from-right-2 rounded-2xl border border-amber-200 bg-white p-4 shadow-xl ring-1 ring-amber-100">
           <div className="flex items-start gap-2">
             <span className="mt-0.5 rounded-full bg-amber-100 p-1.5 text-amber-600"><BellRinging size={16} weight="fill" /></span>
             <div className="min-w-0 flex-1">

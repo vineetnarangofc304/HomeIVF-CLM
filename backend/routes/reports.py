@@ -224,7 +224,10 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
 
 @router.get("/dashboard")
 async def dashboard(date_from: str = None, date_to: str = None, user: dict = Depends(get_current_user)):
-    base = {"active": True}
+    # Scope to the "Lead in Pipeline" working set (exclude raw, un-promoted Ozonetel
+    # call-leads which carry pipeline=False) so the dashboard Today count + Funnel
+    # match the "Lead in Pipeline" export for the same date range (Case 4 mismatch fix).
+    base = {"active": True, "pipeline": {"$ne": False}}
     if user["role"] == "caller":
         base["user_id"] = user["id"]
     today = today_ist()
@@ -273,7 +276,7 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
             {"$sort": {"_id": -1}}, {"$limit": by_day_limit},
         ]).to_list(60),
         db.leads.aggregate([
-            {"$match": {"active": True, **board_match}},
+            {"$match": {**base, **board_match}},
             {"$group": {"_id": "$user_id", "count": {"$sum": 1},
                         "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
             {"$sort": {"count": -1}}, {"$limit": 10},

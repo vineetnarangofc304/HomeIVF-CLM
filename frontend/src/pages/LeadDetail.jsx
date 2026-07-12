@@ -35,6 +35,7 @@ export default function LeadDetail() {
   const [showNewTag, setShowNewTag] = useState(false);
   const [viewAtt, setViewAtt] = useState(null);
   const [waTrackById, setWaTrackById] = useState({});
+  const [fuCount, setFuCount] = useState(null);
 
   const load = useCallback(async () => {
     try {
@@ -173,6 +174,10 @@ export default function LeadDetail() {
   const leadStages = (catalogs?.lead_stage || []).map((s) => s.name);
   const fieldLabels = catalogs?.field_labels || {};
   const labelOf = (k) => fieldLabels[k]?.label || k.replace("x_studio_", "").replace(/_/g, " ");
+  // Case 3 — Disposition Tag → Lead Stage dependent mapping (reverse lookup: tag → stage).
+  const dispMap = catalogs?.disposition_map || {};
+  const dispReverse = {};
+  Object.entries(dispMap).forEach(([stage, tags]) => (tags || []).forEach((t) => { dispReverse[t] = stage; }));
 
   return (
     <div className="flex h-full flex-col overflow-hidden" data-testid="lead-detail-page">
@@ -236,10 +241,11 @@ export default function LeadDetail() {
 
           <FieldCard title="Contact" lead={lead} onSave={update}
             fields={[
-              ["contact_name", "Name"], ["phone", "Phone"], ["email_from", "Email"],
-              ["street", "Address"], ["city", "City"],
+              ["contact_name", "Name"], ["phone", "Phone"], ["alternate_number", "Alternate Number"],
+              ["email_from", "Email"], ["street", "Address"], ["city", "City"],
               ["state_name", "State", "select"], ["country", "Country", "select"],
             ]}
+            required={["city", "state_name"]}
             defaults={{ country: "India" }}
             selects={{
               state_name: (catalogs?.state || []).map((s) => s.name),
@@ -250,8 +256,8 @@ export default function LeadDetail() {
           <QACard lead={lead} onSave={update} catalogs={catalogs} labelOf={labelOf} />
 
           <FieldCard title="Case Details" lead={lead} onSave={update} fields={[
-            ["gender", "Gender"], ["age", "Age"], ["male_age", "Male Age"], ["female_age", "Female Age"],
-            ["spouse_name", "Spouse Name"], ["spouse_age", "Spouse Age"], ["pre_conditions", "Pre-conditions"],
+            ["gender", "Gender"], ["male_age", "Male Age"], ["female_age", "Female Age"],
+            ["spouse_name", "Spouse Name"], ["pre_conditions", "Pre-conditions"],
             ["doctor_name", "Doctor"], ["query", "Query"], ["remark", "Remark"],
           ]} />
 
@@ -260,7 +266,14 @@ export default function LeadDetail() {
 
           {/* Assignment & follow-up */}
           <div className="hivf-card p-4">
-            <h3 className="mb-3 font-display text-sm font-extrabold text-slate-800">Assignment & Follow-up</h3>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="font-display text-sm font-extrabold text-slate-800">Assignment &amp; Follow-up</h3>
+              {fuCount != null && (
+                <span data-testid="total-followup-count" className="rounded-full bg-[#4A90E2]/10 px-2.5 py-0.5 text-[11px] font-bold text-[#357ABD]">
+                  Total Follow-up: {fuCount}
+                </span>
+              )}
+            </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Caller</label>
               <select data-testid="assignee-select" disabled={user.role === "caller"} className="hivf-select mt-1 w-full" value={lead.user_id || ""} onChange={(e) => update({ user_id: e.target.value ? parseInt(e.target.value) : null })}>
@@ -268,7 +281,7 @@ export default function LeadDetail() {
                 {(catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
-            <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} />
+            <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} onCount={setFuCount} />
           </div>
 
           {/* Caller Activities — Case 2 */}
@@ -276,10 +289,13 @@ export default function LeadDetail() {
 
           <WaLeadPanel leadId={lead.id} />
 
-          {/* Tags — Case 2: inline new-tag creation */}
+          {/* Tags — Case 2: inline new-tag creation. Case 3: tag→stage dependent mapping */}
           <div className="hivf-card p-4">
             <div className="flex items-center justify-between">
-              <h3 className="mb-2 font-display text-sm font-extrabold text-slate-800">Disposition Tags</h3>
+              <h3 className="mb-2 font-display text-sm font-extrabold text-slate-800">
+                Disposition Tags
+                {(lead.tags || []).length === 0 && <span className="ml-1.5 text-[10px] font-bold text-rose-500" data-testid="disposition-required">* Required</span>}
+              </h3>
               <button data-testid="new-tag-button" onClick={() => setShowNewTag(true)}
                 className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#4A90E2]/50 px-2.5 py-1 text-[11px] font-bold text-[#357ABD] transition-colors hover:bg-[#4A90E2]/10">
                 <Plus size={12} /> New tag
@@ -291,9 +307,26 @@ export default function LeadDetail() {
               ))}
             </div>
             <select data-testid="add-tag-select" className="hivf-select mt-3 w-full" value=""
-              onChange={(e) => { const v = parseInt(e.target.value); if (v && !(lead.tags || []).includes(v)) update({ tags: [...(lead.tags || []), v] }); }}>
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                if (!v || (lead.tags || []).includes(v)) return;
+                const tagName = tagById[v]?.name;
+                const stage = dispReverse[tagName];
+                const upd = { tags: [...(lead.tags || []), v] };
+                if (stage && stage !== lead.lead_stage) upd.lead_stage = stage;
+                update(upd);
+                if (stage && stage !== lead.lead_stage) toast.success(`Stage set to "${stage}" for "${tagName}"`);
+              }}>
               <option value="">+ Add disposition tag…</option>
-              {(catalogs?.tag || []).filter((t) => t.active !== false && !(lead.tags || []).includes(t.id)).map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              {Object.entries(dispMap).map(([stage, tags]) => {
+                const opts = (catalogs?.tag || []).filter((t) => t.active !== false && !(lead.tags || []).includes(t.id) && (tags || []).includes(t.name));
+                return opts.length ? <optgroup key={stage} label={stage}>{opts.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup> : null;
+              })}
+              {(() => {
+                const mapped = new Set(Object.values(dispMap).flat());
+                const other = (catalogs?.tag || []).filter((t) => t.active !== false && !(lead.tags || []).includes(t.id) && !mapped.has(t.name));
+                return other.length ? <optgroup label="Other">{other.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</optgroup> : null;
+              })()}
             </select>
           </div>
 
@@ -658,15 +691,21 @@ function CustomFieldsCard({ lead, onSave, catalogs }) {
 }
 
 /* ---------- field card with select support (Cases 1 & 7) ---------- */
-function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {} }) {
+function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {}, required = [] }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
+  const [errors, setErrors] = useState({});
 
   const startEdit = () => {
     setDraft(Object.fromEntries(fields.map(([k]) => [k, lead[k] || defaults[k] || ""])));
+    setErrors({});
     setEditing(true);
   };
   const save = () => {
+    const errs = {};
+    required.forEach((k) => { if (!String(draft[k] || "").trim()) errs[k] = "This field is required"; });
+    if (Object.keys(errs).length) { setErrors(errs); toast.error("Please fill the required field(s)"); return; }
+    setErrors({});
     const updates = {};
     fields.forEach(([k]) => { if ((draft[k] || "") !== (lead[k] || "")) updates[k] = draft[k] || null; });
     if (Object.keys(updates).length) onSave(updates);
@@ -688,18 +727,23 @@ function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {} })
       </div>
       <div className="space-y-1.5">
         {fields.map(([k, label, type]) => (
-          <div key={k} className="flex items-center gap-2 text-sm">
-            <span className="w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+          <div key={k} className="flex items-start gap-2 text-sm">
+            <span className="mt-1 w-28 shrink-0 text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              {label}{required.includes(k) && <span className="text-rose-500"> *</span>}
+            </span>
             {editing ? (
-              type === "select" && selects[k] ? (
-                <select className="hivf-select w-full !py-1" value={draft[k] || defaults[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`}>
-                  <option value="">—</option>
-                  {draft[k] && !selects[k].includes(draft[k]) && <option value={draft[k]}>{draft[k]}</option>}
-                  {selects[k].map((o) => <option key={o} value={o}>{o}</option>)}
-                </select>
-              ) : (
-                <input className="hivf-input !py-1" value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`} />
-              )
+              <div className="flex-1">
+                {type === "select" && selects[k] ? (
+                  <select className={`hivf-select w-full !py-1 ${errors[k] ? "!border-rose-400" : ""}`} value={draft[k] || defaults[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`}>
+                    <option value="">—</option>
+                    {draft[k] && !selects[k].includes(draft[k]) && <option value={draft[k]}>{draft[k]}</option>}
+                    {selects[k].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                ) : (
+                  <input className={`hivf-input !py-1 ${errors[k] ? "!border-rose-400" : ""}`} value={draft[k] || ""} onChange={(e) => setDraft((d) => ({ ...d, [k]: e.target.value }))} data-testid={`field-input-${k}`} />
+                )}
+                {errors[k] && <p className="mt-0.5 text-[10px] font-semibold text-rose-500" data-testid={`field-error-${k}`}>{errors[k]}</p>}
+              </div>
             ) : (
               <span className="truncate text-slate-700" data-testid={`field-value-${k}`}>{lead[k] || defaults[k] || <span className="text-slate-300">—</span>}</span>
             )}
@@ -944,13 +988,13 @@ function TemplateActivityPreview({ m, liveStatus, navigate }) {
   );
 }
 
-function FollowUpSection({ leadId, catalogs, onChanged }) {
+function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
   const [items, setItems] = useState(null);
   const [form, setForm] = useState({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "", status: "" });
   const [editId, setEditId] = useState(null);
   const [edit, setEdit] = useState({});
 
-  const load = () => API.get(`/leads/${leadId}/followups`).then(({ data }) => setItems(data));
+  const load = () => API.get(`/leads/${leadId}/followups`).then(({ data }) => { setItems(data); onCount && onCount(data.length); });
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {
@@ -985,8 +1029,8 @@ function FollowUpSection({ leadId, catalogs, onChanged }) {
   };
 
   const tagOptions = catalogs?.follow_up_tag || [];
-  const statusOptions = catalogs?.followup_status || [];
-  const statusTone = (s) => ({ Completed: "bg-emerald-50 text-emerald-600", "Not Done": "bg-rose-50 text-rose-600", Rescheduled: "bg-amber-50 text-amber-600", Cancelled: "bg-slate-100 text-slate-500" }[s] || "bg-[#4A90E2]/10 text-[#357ABD]");
+  const statusOptions = (catalogs?.followup_status || []).filter((s) => s.active !== false);
+  const statusTone = (s) => ({ Completed: "bg-emerald-50 text-emerald-600", Rescheduled: "bg-amber-50 text-amber-600", Cancelled: "bg-slate-100 text-slate-500" }[s] || "bg-[#4A90E2]/10 text-[#357ABD]");
 
   return (
     <div className="mt-4" data-testid="followup-section">

@@ -65,7 +65,6 @@ export default function FollowUps() {
           {[
             ["Total", analytics?.total, "text-slate-800"],
             ["Completed", analytics?.completed, "text-emerald-600"],
-            ["Not Done", analytics?.not_done, "text-rose-600"],
             ["Rescheduled", analytics?.rescheduled, "text-amber-600"],
             ["Cancelled", analytics?.cancelled, "text-slate-500"],
             ["Pending", analytics?.pending, "text-[#357ABD]"],
@@ -116,7 +115,9 @@ export default function FollowUps() {
               <tr className="border-b border-slate-200 text-left text-[11px] uppercase tracking-wider text-slate-400">
                 <th className="px-4 py-2.5">Lead</th>
                 <th className="px-2 py-2.5">Phone</th>
-                <th className="px-2 py-2.5">Follow-up</th>
+                <th className="px-2 py-2.5">Follow Date</th>
+                <th className="px-2 py-2.5">Follow Time</th>
+                <th className="px-2 py-2.5">Status</th>
                 <th className="px-2 py-2.5">FU Tag</th>
                 <th className="px-2 py-2.5">Stage</th>
                 <th className="px-2 py-2.5">Tags</th>
@@ -131,6 +132,16 @@ export default function FollowUps() {
                   <td className="px-4 py-2 font-semibold text-slate-800">{l.contact_name || l.name}</td>
                   <td className="px-2 py-2 text-slate-600">{l.phone || "—"}</td>
                   <td className={`px-2 py-2 font-bold ${tab === "overdue" ? "text-rose-500" : "text-slate-700"}`}>{fmtDay(l.follow_up_date)}</td>
+                  <td className="px-2 py-2 text-slate-600">{l.follow_up_time || "—"}</td>
+                  <td className="px-2 py-2" data-testid={`followup-status-${l.id}`}>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                      l.follow_up_status === "Completed" ? "bg-emerald-50 text-emerald-600"
+                      : l.follow_up_status === "Cancelled" ? "bg-slate-100 text-slate-500"
+                      : l.follow_up_status === "Rescheduled" ? "bg-amber-50 text-amber-600"
+                      : "bg-[#4A90E2]/10 text-[#357ABD]"}`}>
+                      {l.follow_up_status || "Pending"}
+                    </span>
+                  </td>
                   <td className="px-2 py-2 text-slate-500">{l.follow_up_tag || "—"}</td>
                   <td className="px-2 py-2"><StageBadge stage={l.lead_stage} /></td>
                   <td className="px-2 py-2"><div className="flex max-w-48 flex-wrap gap-1">{(l.tags || []).slice(0, 2).map((t) => <TagChip key={t} tag={tagById[t]} />)}</div></td>

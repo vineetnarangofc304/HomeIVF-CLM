@@ -6,6 +6,7 @@ load_dotenv()
 
 import logging
 import asyncio
+import re
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -116,6 +117,10 @@ INDEX_SPECS = [
     # "Lead in Pipeline" tab (default) filters pipeline!=False. This index covers that
     # filter + the [create_date,id] sort so the tab never blocking-sorts / 500s at scale.
     ("leads", [("active", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
+    # Caller-scoped "Lead in Pipeline" tab (user_id + pipeline + sort) — keeps a caller's
+    # default view index-covered even when they have thousands of raw Ozonetel leads mixed
+    # in (was a possible blocking fetch → the caller-side 500 under concurrent load).
+    ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
     # Prefix ('starts with') search on name fields uses these single-field indexes
     # instead of a full collection scan (the "search is slow" fix).
     ("leads", "name", {}),
@@ -136,6 +141,8 @@ INDEX_SPECS = [
     ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
     ("follow_ups", [("follow_up_date", 1)], {}),
     ("follow_ups", [("source", 1), ("lead_id", 1)], {}),
+    # Owner-scoped reminder poll (Case 2) — only the follow-up's creator is reminded.
+    ("follow_ups", [("created_by", 1), ("follow_up_date", 1)], {}),
     ("caller_activities", [("lead_id", 1), ("created_at", -1)], {}),
     ("wa_tracking", "lead_id", {}),
     ("wa_tracking", "campaign_id", {}),
@@ -146,6 +153,8 @@ INDEX_SPECS = [
     ("wa_channels", "id", {"unique": True}),
     ("wa_channels", "phone_digits", {}),
     ("wa_channels", [("last_message_date", -1)], {}),
+    # Case 1 — caller chat-visibility filter (channels owned by the assigned caller).
+    ("wa_channels", [("owner_id", 1), ("last_message_date", -1)], {}),
     ("activities", [("user_id", 1), ("state", 1), ("date_deadline", 1)], {}),
     ("catalogs", [("type", 1), ("id", 1)], {"unique": True}),
     ("contacts", "id", {"unique": True}),
@@ -215,6 +224,31 @@ async def _ensure_indexes():
             logger.info(f"Backfilled search fields on {res.modified_count} leads")
     except Exception as e:
         logger.warning(f"search-field backfill skipped: {str(e)[:160]}")
+    # Case 1 — backfill wa_channels.owner_id from the assigned caller of the matching lead
+    # (by phone number). Idempotent: only channels still missing owner_id. New channels get
+    # it at creation and lead reassignment keeps it in sync going forward.
+    try:
+        if await db.wa_channels.count_documents({"owner_id": {"$exists": False}}) > 0:
+            phone_owner = {}
+            async for l in db.leads.find(
+                {"phone_digits": {"$nin": [None, ""]}, "user_id": {"$ne": None}},
+                {"_id": 0, "phone_digits": 1, "user_id": 1}):
+                pd = (l.get("phone_digits") or "")[-10:]
+                if pd:
+                    phone_owner[pd] = l.get("user_id")
+            from pymongo import UpdateOne
+            ops, n = [], 0
+            async for ch in db.wa_channels.find({"owner_id": {"$exists": False}}, {"_id": 0, "id": 1, "phone_digits": 1}):
+                pd = re.sub(r"\D", "", ch.get("phone_digits") or "")[-10:]
+                ops.append(UpdateOne({"id": ch["id"]}, {"$set": {"owner_id": phone_owner.get(pd)}}))
+                if len(ops) >= 1000:
+                    await db.wa_channels.bulk_write(ops, ordered=False); n += len(ops); ops = []
+            if ops:
+                await db.wa_channels.bulk_write(ops, ordered=False); n += len(ops)
+            if n:
+                logger.info(f"Backfilled owner_id on {n} WhatsApp channels")
+    except Exception as e:
+        logger.warning(f"channel owner backfill skipped: {str(e)[:160]}")
     logger.info("Index ensure pass complete")
 
 
@@ -265,13 +299,15 @@ async def startup():
             {"$setOnInsert": {"id": i + 1, "type": "follow_up_tag", "name": name, "sequence": i + 1, "active": True}},
             upsert=True,
         )
-    # Seed follow-up status values (Case 5 — dynamic, admin-editable)
-    for i, name in enumerate(["Completed", "Not Done", "Rescheduled", "Cancelled"]):
+    # Seed follow-up status values (Case 5 — dynamic, admin-editable). "Not Done" was
+    # removed per Case 2; deactivate any legacy "Not Done" catalog entry.
+    for i, name in enumerate(["Completed", "Rescheduled", "Cancelled"]):
         await db.catalogs.update_one(
             {"type": "followup_status", "name": name},
             {"$setOnInsert": {"id": i + 1, "type": "followup_status", "name": name, "sequence": i + 1, "active": True}},
             upsert=True,
         )
+    await db.catalogs.update_one({"type": "followup_status", "name": "Not Done"}, {"$set": {"active": False}})
     await db.counters.update_one({"_id": "catalog_followup_status"}, {"$max": {"seq": 5}}, upsert=True)
     # Seed default source_lead values (collision-safe: ensure_catalog computes max-id+1,
     # so it never clashes with migrated Odoo catalog ids)
@@ -298,4 +334,23 @@ async def startup():
             {"id": i + 1, "type": "country", "name": n, "sequence": i + 1, "active": True}
             for i, n in enumerate(countries)])
         await db.counters.update_one({"_id": "catalog_country"}, {"$max": {"seq": len(countries) + 1}}, upsert=True)
+    # Seed the Disposition Tag → Lead Stage mapping (Case 3). Only if not already set, so
+    # an admin's later edits in the Admin panel are never overwritten on restart.
+    if await db.settings.find_one({"key": "disposition_map"}) is None:
+        disp_map = {
+            "Contact Attempt": ["Busy", "Not Reachable", "Phone Switched Off", "Ringing"],
+            "Contacted": ["Call back for first pitch", "Call back for appointment", "OPD Booked"],
+            "Converted": ["OPD Done", "Registration Done"],
+            "Closed": ["Age Issue", "Already Have Kid", "Already Pregnant", "Clinic Not Available",
+                       "Gender Selection", "Incoming Not Available", "Invalid Number", "Job Enquiry",
+                       "Junk", "Language Barrier", "Not Contactable", "Not Interested (Fund Issue)",
+                       "Not Interested (Competition)", "Not Looking for Treatment", "Relative Related Enquiry",
+                       "Sperm/Egg Donor", "Unmarried", "Valid Not Interested", "Wrong Number",
+                       "Abusive Language", "Not Eligible For Treatment"],
+        }
+        for tags in disp_map.values():
+            for t in tags:
+                await ensure_catalog("tag", t)
+        await db.settings.update_one({"key": "disposition_map"}, {"$set": {"map": disp_map}}, upsert=True)
+        logger.info("Seeded disposition tag→stage mapping")
     logger.info("Startup complete")
