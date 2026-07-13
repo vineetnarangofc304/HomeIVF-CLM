@@ -198,6 +198,44 @@ async def _cached_count(q: dict) -> int:
         _count_inflight.pop(key, None)
 
 
+# group_counts runs a full-collection aggregation over ~120k pipeline docs every call.
+# On a Lead-menu load EVERY caller fires the SAME group_counts (lead_stage + user_id) with
+# identical params, so a 24-caller burst = 48 identical heavy aggregations contending on the
+# single-worker DB → ~6s tail latency. Cache the result briefly and COALESCE concurrent
+# identical aggregations into ONE DB call (the other 23 await the same task).
+_GROUP_TTL = 30.0
+_group_cache: dict = {}
+_group_inflight: dict = {}
+
+
+async def _cached_group(group_by: str, q: dict, pipeline: list):
+    key = json.dumps([group_by, q], sort_keys=True, default=str)
+    now = time.time()
+    hit = _group_cache.get(key)
+    if hit and hit[0] > now:
+        return hit[1]
+    if key in _group_inflight:
+        return await _group_inflight[key]
+
+    async def _do():
+        try:
+            rows = await db.leads.aggregate(pipeline, allowDiskUse=True, maxTimeMS=15000).to_list(200)
+            val = [{"key": r["_id"], "count": r["count"]} for r in rows]
+        except PyMongoError:
+            return None
+        if len(_group_cache) > 500:
+            _group_cache.clear()
+        _group_cache[key] = (time.time() + _GROUP_TTL, val)
+        return val
+
+    task = asyncio.ensure_future(_do())
+    _group_inflight[key] = task
+    try:
+        return await task
+    finally:
+        _group_inflight.pop(key, None)
+
+
 @router.get("")
 async def list_leads(
     params: dict = Depends(query_params_dep),
@@ -247,8 +285,10 @@ async def group_counts(
     else:
         raise HTTPException(status_code=400, detail="Unsupported group_by")
     pipeline += [{"$sort": {"count": -1}}, {"$limit": 200}]
-    rows = await db.leads.aggregate(pipeline, allowDiskUse=True, maxTimeMS=15000).to_list(200)
-    return [{"key": r["_id"], "count": r["count"]} for r in rows]
+    rows = await _cached_group(group_by, q, pipeline)
+    if rows is None:
+        raise HTTPException(status_code=504, detail="Grouping is taking too long — please narrow the filters.")
+    return rows
 
 
 @router.get("/{lead_id}")

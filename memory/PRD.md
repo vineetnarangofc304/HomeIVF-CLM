@@ -1,5 +1,14 @@
 # HomeIVF CRM — PRD
 
+## Fix (2026-07-13) — 503/504 concurrent-load timeouts on Lead menu (P0) — VERIFIED
+- **Symptom:** under a burst of callers loading the Lead menu, requests piled up to ~68s and returned 503/504. Each caller load fires 4 heavy reads: leads list + group_counts(lead_stage) + group_counts(user_id) + /catalogs.
+- **Root cause chain:** (1) /catalogs did ~5 collection reads on every page load; (2) count_documents scanned ~120k index keys per call; (3) group_counts ran a FULL-collection aggregation over ~120k docs per call — and every caller fired the SAME aggregations with identical params, so 24 callers = 48 identical heavy aggregations contending on the single-worker DB.
+- **Fixes:** in-memory TTL cache for /catalogs (45s, busted on any catalog write); TTL cache + in-flight COALESCING for count_documents (30s) — done prior session; NEW this session: same TTL(30s)+coalescing for `group_counts` in leads.py (`_cached_group`) so N identical concurrent aggregations collapse into ONE DB call. maxPoolSize already 100.
+- **Verified (preview, real 120,024-lead dataset):** cold 40-caller burst (160 reqs) completes in **1.37s, all HTTP 200** (was ~68s + 503s). group_counts sums correct (119,808 == pipeline list total); caller-scoping intact (caller sees 5,266 own, separate cache key); Leads UI renders (page 1 of 2,397).
+- **Files:** backend/routes/leads.py (_cached_group + group_counts), backend/routes/catalogs.py (cache prior), backend/core/db.py (maxPoolSize=100).
+- **⚠️ Needs PRODUCTION REDEPLOY** to take effect on homeivfcrm.com.
+
+
 ## Batch (2026-07-13) — Caller 500/slow + Cases 1–4 — iteration_55 (backend 21/21, frontend 100%)
 - **P0 (caller 500 + slow load):** the 2026-07-11 search fix (case-insensitive→lowercased indexed prefix) + `maxPoolSize` 25→100 addresses it; ADDED a caller-scoped pipeline index `{active,user_id,pipeline,create_date,id}` so a caller's default "Lead in Pipeline" tab never blocking-sorts at scale. Preview verified fast (lists 0.17s, search 0.12s, dashboard 0.39s).
 - **Case 1 — WhatsApp chat visibility by role:** denormalized `owner_id` onto `wa_channels` (assigned caller of the matching lead). Callers see only their own chats; admin+manager see all. `owner_id` set on inbound-webhook channel creation, kept in sync on lead reassignment (`sync_channel_owner` in update/bulk-assign/promote), and backfilled on startup (11,918 channels). Filters in `/whatsapp/channels` + `/whatsapp/unread-summary`.
