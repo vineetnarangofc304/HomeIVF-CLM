@@ -121,6 +121,24 @@ INDEX_SPECS = [
     # default view index-covered even when they have thousands of raw Ozonetel leads mixed
     # in (was a possible blocking fetch → the caller-side 500 under concurrent load).
     ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
+    # The list sorts by [(sort_field, dir), ("id", -1)]. For non-create_date sorts
+    # (Name / City / Phone / Updated column headers) without a matching compound index,
+    # Mongo does a BLOCKING in-memory sort of the whole filtered set (up to 100k+ docs) →
+    # the request hangs long enough for the ingress gateway to return 503. These make
+    # every sortable column index-backed so it can't hang.
+    ("leads", [("active", 1), ("write_date", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("contact_name", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("name", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("city", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("phone", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("lead_stage", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("follow_up_date", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("source_lead", 1), ("id", -1)], {}),
+    # Common list FILTERS that otherwise scan the collection before sorting.
+    ("leads", [("active", 1), ("source_lead", 1), ("create_date", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("lead_stage", 1), ("create_date", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("follow_up_tag", 1)], {}),
+    ("leads", [("active", 1), ("priority", 1)], {}),
     # Prefix ('starts with') search on name fields uses these single-field indexes
     # instead of a full collection scan (the "search is slow" fix).
     ("leads", "name", {}),

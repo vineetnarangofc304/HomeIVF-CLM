@@ -1,4 +1,5 @@
 import re
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,9 +15,22 @@ CATALOG_TYPES = ["tag", "stage", "lost_reason", "lead_stage", "follow_up_tag",
                  "utm_source", "utm_medium", "utm_campaign", "activity_type", "source_lead",
                  "state", "country", "followup_status"]
 
+# /catalogs is loaded by EVERY user on EVERY page and does ~5 collection reads + a large
+# payload. Under a 24-caller burst that alone can pile up and 503. It changes rarely, so
+# cache the whole response globally and bust it on any catalog write.
+_CAT_TTL = 45.0
+_cat_cache = {"exp": 0.0, "data": None}
+
+
+def bust_catalogs():
+    _cat_cache["exp"] = 0.0
+
 
 @router.get("")
 async def get_catalogs(user: dict = Depends(get_current_user)):
+    now = time.time()
+    if _cat_cache["data"] is not None and _cat_cache["exp"] > now:
+        return _cat_cache["data"]
     items = await db.catalogs.find({}, {"_id": 0}).sort([("type", 1), ("sequence", 1), ("name", 1)]).to_list(3000)
     out = {t: [] for t in CATALOG_TYPES}
     for i in items:
@@ -28,6 +42,8 @@ async def get_catalogs(user: dict = Depends(get_current_user)):
     out["custom_fields"] = await db.custom_fields.find({}, {"_id": 0}).sort([("sequence", 1), ("id", 1)]).to_list(300)
     dm = await db.settings.find_one({"key": "disposition_map"}, {"_id": 0})
     out["disposition_map"] = (dm or {}).get("map", {})
+    _cat_cache["data"] = out
+    _cat_cache["exp"] = now + _CAT_TTL
     return out
 
 
@@ -154,6 +170,7 @@ async def set_disposition_map(body: DispositionMapBody, user: dict = Depends(req
         for t in tags:
             await ensure_catalog("tag", t)  # make sure each mapped tag exists
     await db.settings.update_one({"key": "disposition_map"}, {"$set": {"map": clean}}, upsert=True)
+    bust_catalogs()
     return {"map": clean}
 
 class CatalogCreate(BaseModel):
@@ -181,6 +198,7 @@ async def create_catalog(ctype: str, body: CatalogCreate, user: dict = Depends(g
     name = body.name.strip()
     if not name:
         raise HTTPException(status_code=400, detail="Name required")
+    bust_catalogs()
     existing = await db.catalogs.find_one({"type": ctype, "name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
     if existing:
         if existing.get("active") is False:
@@ -218,6 +236,7 @@ async def update_catalog(ctype: str, cid: int, body: CatalogUpdate, user: dict =
     res = await db.catalogs.update_one({"type": ctype, "id": cid}, {"$set": updates})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    bust_catalogs()
     return await db.catalogs.find_one({"type": ctype, "id": cid}, {"_id": 0})
 
 
@@ -228,4 +247,5 @@ async def delete_catalog(ctype: str, cid: int, user: dict = Depends(require_role
     res = await db.catalogs.update_one({"type": ctype, "id": cid}, {"$set": {"active": False}})
     if res.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
+    bust_catalogs()
     return {"ok": True}

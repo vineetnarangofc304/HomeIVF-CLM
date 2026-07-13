@@ -269,24 +269,24 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
             {"$match": stage_match},
             {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}},
-        ]).to_list(20),
+        ], allowDiskUse=True, maxTimeMS=20000).to_list(20),
         db.leads.aggregate([
             {"$match": by_day_match},
             {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
             {"$sort": {"_id": -1}}, {"$limit": by_day_limit},
-        ]).to_list(60),
+        ], allowDiskUse=True, maxTimeMS=20000).to_list(60),
         db.leads.aggregate([
             {"$match": {**base, **board_match}},
             {"$group": {"_id": "$user_id", "count": {"$sum": 1},
                         "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
             {"$sort": {"count": -1}}, {"$limit": 10},
-        ]).to_list(10),
+        ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
         db.leads.aggregate([
             {"$match": tag_match},
             {"$unwind": "$tags"},
             {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
             {"$sort": {"count": -1}}, {"$limit": 10},
-        ]).to_list(10),
+        ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
         db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
         db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
     )

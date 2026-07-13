@@ -235,7 +235,10 @@ export default function Leads() {
     </th>
   );
 
-  const totalPages = data ? Math.max(1, Math.ceil(data.total / 50)) : 1;
+  // total === -1 means the exact count was too expensive and was skipped server-side
+  // (huge filtered set). Fall back to "there is probably a next page" so paging still works.
+  const countUnknown = data && data.total < 0;
+  const totalPages = data && !countUnknown ? Math.max(1, Math.ceil(data.total / 50)) : (data && data.items.length === 50 ? page + 1 : page);
 
   return (
     <div className="flex h-full flex-col" data-testid="leads-page">
@@ -431,7 +434,7 @@ export default function Leads() {
       {!groupBy && view === "list" && data && (
         <div className="flex items-center justify-between border-t border-slate-200 bg-white px-5 py-2.5 text-sm">
           <span className="text-slate-500" data-testid="leads-total-count">
-            {data.total.toLocaleString("en-IN")} leads · page {page} of {totalPages.toLocaleString("en-IN")}
+            {countUnknown ? "Many" : data.total.toLocaleString("en-IN")} leads · page {page} of {totalPages.toLocaleString("en-IN")}
           </span>
           <div className="flex gap-2">
             <button data-testid="prev-page-button" disabled={page <= 1} onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.set("page", page - 1); return n; })} className="hivf-btn-secondary !p-2 disabled:opacity-40"><CaretLeft size={14} /></button>

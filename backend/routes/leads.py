@@ -1,9 +1,12 @@
 import asyncio
+import json
 import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pymongo.errors import PyMongoError
 
 IST = timezone(timedelta(hours=5, minutes=30))
 from pydantic import BaseModel
@@ -153,6 +156,47 @@ def query_params_dep(
 ALLOWED_SORT = {"create_date", "create_date_ist", "contact_name", "name", "phone", "city",
                 "user_id", "lead_stage", "follow_up_date", "source_lead", "id", "write_date"}
 
+# Cap every list query so a slow scan on a big filtered set aborts and RELEASES its pooled
+# connection (fast error) instead of hanging until the ingress gateway 503s.
+LIST_FIND_MS = 15000
+LIST_COUNT_MS = 8000
+
+# count_documents on a big filtered set (e.g. ~120k pipeline leads) scans that many index
+# keys EVERY call. Under a burst of concurrent Lead-menu loads (24 callers) those scans
+# contend on the DB and starve the finds → requests pile up past the timeout → 503 cascade.
+# Cache counts briefly and COALESCE concurrent identical counts into a single DB call.
+_COUNT_TTL = 30.0
+_count_cache: dict = {}
+_count_inflight: dict = {}
+
+
+async def _cached_count(q: dict) -> int:
+    key = json.dumps(q, sort_keys=True, default=str)
+    now = time.time()
+    hit = _count_cache.get(key)
+    if hit and hit[0] > now:
+        return hit[1]
+    if key in _count_inflight:
+        return await _count_inflight[key]
+
+    async def _do():
+        try:
+            val = await db.leads.count_documents(q, maxTimeMS=LIST_COUNT_MS)
+        except PyMongoError:
+            val = -1
+        if val >= 0:
+            if len(_count_cache) > 1000:
+                _count_cache.clear()
+            _count_cache[key] = (time.time() + _COUNT_TTL, val)
+        return val
+
+    task = asyncio.ensure_future(_do())
+    _count_inflight[key] = task
+    try:
+        return await task
+    finally:
+        _count_inflight.pop(key, None)
+
 
 @router.get("")
 async def list_leads(
@@ -165,11 +209,14 @@ async def list_leads(
     if sort not in ALLOWED_SORT:
         sort = "create_date"
     sort_dir = -1 if order == "desc" else 1
-    total, items = await asyncio.gather(
-        db.leads.count_documents(q),
-        db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
-        .skip((page - 1) * limit).limit(limit).to_list(limit),
-    )
+    cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
+           .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
+    try:
+        items = await cur.to_list(limit)
+    except PyMongoError:
+        # Extremely slow filter/sort combo — return empty rather than 500 so the app stays up.
+        raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
+    total = await _cached_count(q)
     return {"items": items, "total": total, "page": page, "limit": limit}
 
 
@@ -200,7 +247,7 @@ async def group_counts(
     else:
         raise HTTPException(status_code=400, detail="Unsupported group_by")
     pipeline += [{"$sort": {"count": -1}}, {"$limit": 200}]
-    rows = await db.leads.aggregate(pipeline).to_list(200)
+    rows = await db.leads.aggregate(pipeline, allowDiskUse=True, maxTimeMS=15000).to_list(200)
     return [{"key": r["_id"], "count": r["count"]} for r in rows]
 
 
