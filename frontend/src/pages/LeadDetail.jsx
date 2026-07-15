@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { toast } from "sonner";
 import {
@@ -8,6 +8,7 @@ import {
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
+import { useNavGuard } from "../context/NavGuardContext";
 import { TagChip, Spinner, EmptyState } from "../components/Bits";
 import { waMeta } from "../lib/waStatus";
 
@@ -17,6 +18,7 @@ export default function LeadDetail() {
   const { user } = useAuth();
   const { catalogs, tagById, userById, lostById } = useCatalogMaps();
   const { refreshCatalogs } = useCatalogs();
+  const { registerGuard, clearGuard, isBlocked, checkAllowed } = useNavGuard();
   const [lead, setLead] = useState(null);
   const [messages, setMessages] = useState([]);
   const [msgTotal, setMsgTotal] = useState(0);
@@ -66,12 +68,55 @@ export default function LeadDetail() {
 
   useEffect(() => { load(); }, [load]);
 
+  // --- Mandatory-field navigation guard: City, State, Disposition Tag ---
+  const touchedRef = useRef(false);
+  const leadRef = useRef(lead);
+  useEffect(() => { leadRef.current = lead; });
+  useEffect(() => { touchedRef.current = false; }, [id]); // reset when a different lead opens
+
+  useEffect(() => {
+    // Block leaving ONLY after the user edits something on an ACTIVE lead while a
+    // mandatory field is still empty. Returns the list of missing field labels.
+    registerGuard(() => {
+      const l = leadRef.current;
+      if (!l || !l.active || !touchedRef.current) return null;
+      const miss = [];
+      if (!(l.city && String(l.city).trim())) miss.push("City");
+      if (!(l.state_name && String(l.state_name).trim())) miss.push("State");
+      if (!((l.tags || []).length)) miss.push("Disposition Tag");
+      return miss.length ? miss : null;
+    });
+    return () => clearGuard();
+  }, [registerGuard, clearGuard]);
+
+  // Warn on tab close / refresh and trap the browser Back button while blocked.
+  useEffect(() => {
+    const onBeforeUnload = (e) => { if (isBlocked()) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    window.history.pushState(null, "", window.location.href); // sentinel entry
+    const onPop = () => {
+      if (isBlocked()) {
+        window.history.pushState(null, "", window.location.href); // re-trap
+        checkAllowed(); // show the mandatory-fields popup
+      } else {
+        window.removeEventListener("popstate", onPop);
+        window.history.back(); // fields OK — allow the real Back
+      }
+    };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("popstate", onPop);
+    };
+  }, [isBlocked, checkAllowed]);
+
   const reloadMessages = async () => {
     const { data: m } = await API.get(`/leads/${id}/messages`, { params: { page: 1 } });
     setMessages(m.items); setMsgTotal(m.total); setMsgPage(1);
   };
 
   const update = async (updates) => {
+    touchedRef.current = true;
     try {
       const { data } = await API.patch(`/leads/${id}`, { updates });
       setLead(data);
@@ -184,13 +229,13 @@ export default function LeadDetail() {
       {/* Header */}
       <div className="shrink-0 border-b border-slate-200 bg-white px-5 py-3">
         <div className="flex flex-wrap items-center gap-3">
-          <button data-testid="back-button" onClick={() => navigate(-1)} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><ArrowLeft size={18} /></button>
+          <button data-testid="back-button" onClick={() => { if (checkAllowed()) navigate(-1); }} className="rounded-full p-1.5 text-slate-400 hover:bg-slate-100"><ArrowLeft size={18} /></button>
           <div className="mr-auto">
             <h1 className="font-display text-lg font-extrabold text-slate-900" data-testid="lead-name">{lead.contact_name || lead.name}</h1>
             <p className="text-xs text-slate-500">#{lead.id} · created {fmtDate(lead.create_date)} {!lead.active && <span className="ml-1 font-bold uppercase text-rose-500">Lost{lead.lost_reason_id ? ` — ${lostById[lead.lost_reason_id]?.name || ""}` : ""}</span>}</p>
           </div>
           {lead.is_duplicate && (
-            <button data-testid="duplicate-badge" onClick={() => lead.duplicate_of && navigate(`/leads/${lead.duplicate_of}`)}
+            <button data-testid="duplicate-badge" onClick={() => lead.duplicate_of && checkAllowed() && navigate(`/leads/${lead.duplicate_of}`)}
               title={`Same phone as lead #${lead.duplicate_of}`}
               className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-200">
               <Warning size={14} weight="fill" /> Duplicate{lead.duplicate_of ? ` of #${lead.duplicate_of}` : ""}
@@ -934,6 +979,7 @@ function NewTagModal({ onClose, onCreated }) {
 
 function WaLeadPanel({ leadId }) {
   const navigate = useNavigate();
+  const { checkAllowed } = useNavGuard();
   const [items, setItems] = useState(null);
   useEffect(() => { API.get(`/wa/lead/${leadId}/messages`).then(({ data }) => setItems(data)).catch(() => setItems([])); }, [leadId]);
   if (!items || items.length === 0) return null;
@@ -947,7 +993,7 @@ function WaLeadPanel({ leadId }) {
         {items.map((m) => {
           const meta = waMeta(m.status);
           return (
-            <div key={m.id} onClick={() => navigate(`/wa/message/${m.id}`)} data-testid={`wa-lead-msg-${m.id}`}
+            <div key={m.id} onClick={() => { if (checkAllowed()) navigate(`/wa/message/${m.id}`); }} data-testid={`wa-lead-msg-${m.id}`}
               className="cursor-pointer rounded-xl border border-slate-100 p-2.5 transition-colors hover:bg-[#25D366]/5">
               <div className="flex items-center justify-between gap-2">
                 <p className="truncate text-xs font-bold text-slate-700">{m.template_name}</p>
@@ -963,6 +1009,7 @@ function WaLeadPanel({ leadId }) {
 }
 
 function TemplateActivityPreview({ m, liveStatus, navigate }) {
+  const { checkAllowed } = useNavGuard();
   const status = liveStatus || m.status || "in_queue";
   const meta = waMeta(status);
   const isWa = m.kind === "wa_template";
@@ -970,7 +1017,7 @@ function TemplateActivityPreview({ m, liveStatus, navigate }) {
   return (
     <div className={`mt-2 rounded-xl border p-2.5 ${isWa ? "border-[#25D366]/25 bg-[#dcf8c6]/30" : "border-indigo-100 bg-indigo-50/40"} ${clickable ? "cursor-pointer transition-colors hover:brightness-95" : ""}`}
       data-testid={`activity-preview-${m.id}`}
-      onClick={() => clickable && navigate(`/wa/message/${m.track_id}`)}>
+      onClick={() => { if (clickable && checkAllowed()) navigate(`/wa/message/${m.track_id}`); }}>
       <div className="mb-1 flex items-center justify-between gap-2">
         <p className="flex items-center gap-1 truncate text-[11px] font-bold text-slate-600">
           {isWa ? <WhatsappLogo size={13} weight="fill" className="text-[#25D366]" /> : <EnvelopeSimple size={13} className="text-indigo-500" />}

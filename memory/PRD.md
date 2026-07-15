@@ -1,6 +1,15 @@
 # HomeIVF CRM — PRD
 
 
+## Feature (2026-07-15) — Mandatory-field navigation guard on Lead edit — VERIFIED (preview)
+- **Why:** leads autosave on every field change, so callers edited a lead and navigated away (left menu) leaving mandatory fields empty → junk data accumulating.
+- **Behavior (user-confirmed):** while on a lead the user has EDITED (touched) this session, if City / State / Disposition Tag is still empty, ALL navigation away is blocked with a popup listing exactly which fields are missing. Applies to EVERYONE (admin/manager/caller). View-only (no edit) is NOT blocked (avoids trapping on the thousands of existing incomplete leads). Inactive/Lost leads are exempt.
+- **Coverage:** left sidebar nav, global search, logout, AI Brain card, in-page Back button, duplicate badge, WhatsApp-message links, page refresh/close (beforeunload), and browser Back (popstate sentinel — flagged as the more fragile vector).
+- **Impl:** new `context/NavGuardContext.jsx` (provider + blocking modal + `registerGuard`/`checkAllowed`/`isBlocked`). `App.js` wraps Routes in `NavGuardProvider`. `Layout.jsx` gates every nav entry via `checkAllowed()`. `LeadDetail.jsx` tracks `touchedRef` (set in `update()`), registers the guard (reads latest lead via `leadRef`), resets touched on lead change, and installs beforeunload+popstate handlers. Uses `BrowserRouter` (no `useBlocker`), so guard is enforced by intercepting each navigation source.
+- **Verified (Playwright):** edit→block popup lists City/State/Disposition Tag & stays on lead; fill all 3 → nav allowed; open incomplete lead without editing → nav allowed (no trap).
+- **⚠️ NEEDS PRODUCTION REDEPLOY** to go live.
+
+
 ## Fix + Feature (2026-07-13b) — Export blank Stage/Tags + "Website AI Agent" source — VERIFIED (preview)
 - **Export (P0, prod-only complaint):** Admin's Leads → Export Excel showed blank "Lead Stage" + "Tags" for a date range on PRODUCTION. Current preview export code was VERIFIED CORRECT (lead with lead_stage="Contacted"+tags → Excel shows "Contacted" + "Ringing, Call back for first pitch"), so production is on an OLDER build → needs redeploy. Added a safety net: `export.py` "Lead Stage" now falls back to the pipeline stage name (via `stage_id` → `stage` catalog) when the disposition `lead_stage` is empty, so the column is never wrongly blank (verified: lead with lead_stage=None + stage_id=4 → exports "Converted"). `_label_maps()` now also returns `stages`.
 - **Website AI Agent source (feature):** seeded `source_lead` catalog with **"Website AI Agent"** (server.py startup) so it appears in the Source dropdown/filters. Webhook (`/api/webhook/lead/{token}`) now honors a `source`/`source_lead`/`lead_source` field in the payload (FIELD_ALIASES), falls back to the webhook's `source_default`, and auto-registers the final source via `ensure_catalog` + `bust_catalogs`. Verified: webhook lead via hook-default AND via explicit `source` field both got `source_lead="Website AI Agent"`.

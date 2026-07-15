@@ -5,6 +5,7 @@ import {
   EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall, Megaphone,
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
+import { useNavGuard } from "../context/NavGuardContext";
 import IncomingCallBanner from "./IncomingCallBanner";
 import WaNotifier from "./WaNotifier";
 import FollowUpReminder from "./FollowUpReminder";
@@ -24,11 +25,16 @@ const NAV = [
 
 export default function Layout({ children }) {
   const { user, logout, can } = useAuth();
+  const { checkAllowed } = useNavGuard();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
 
+  // Block any navigation away while a page (LeadDetail) reports missing mandatory fields.
+  const guardClick = (e) => { if (!checkAllowed()) e.preventDefault(); };
+
   const onSearch = (e) => {
     e.preventDefault();
+    if (!checkAllowed()) return;
     if (search.trim()) navigate(`/leads?search=${encodeURIComponent(search.trim())}`);
   };
 
@@ -45,6 +51,7 @@ export default function Layout({ children }) {
               key={to}
               to={to}
               end={to === "/"}
+              onClick={guardClick}
               data-testid={testid}
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
@@ -59,6 +66,7 @@ export default function Layout({ children }) {
           {(can("admin")) && (
             <NavLink
               to="/admin"
+              onClick={guardClick}
               data-testid="nav-admin"
               className={({ isActive }) =>
                 `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${
@@ -71,7 +79,7 @@ export default function Layout({ children }) {
             </NavLink>
           )}
         </nav>
-        <NavLink to="/ai-insights" data-testid="nav-ai-brain-card" className="mx-3 mb-3 block rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#4A90E2]/10 p-3 transition hover:from-[#8B5CF6]/20 hover:to-[#4A90E2]/20">
+        <NavLink to="/ai-insights" onClick={guardClick} data-testid="nav-ai-brain-card" className="mx-3 mb-3 block rounded-xl bg-gradient-to-br from-[#8B5CF6]/10 to-[#4A90E2]/10 p-3 transition hover:from-[#8B5CF6]/20 hover:to-[#4A90E2]/20">
           <div className="flex items-center gap-2 text-[#8B5CF6]">
             <Sparkle size={16} weight="fill" />
             <span className="text-xs font-bold">AI Brain</span>
@@ -104,7 +112,7 @@ export default function Layout({ children }) {
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#4A90E2]/15 font-display text-sm font-extrabold text-[#357ABD]">
               {user.name?.[0]?.toUpperCase()}
             </div>
-            <button data-testid="logout-button" onClick={logout} title="Logout"
+            <button data-testid="logout-button" onClick={() => { if (checkAllowed()) logout(); }} title="Logout"
               className="rounded-full p-2 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500">
               <SignOut size={18} />
             </button>
