@@ -18,7 +18,8 @@ async def _label_maps():
     tags = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(1000)}
     users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
     lost = {r["id"]: r["name"] for r in await db.catalogs.find({"type": "lost_reason"}, {"_id": 0, "id": 1, "name": 1}).to_list(200)}
-    return tags, users, lost
+    stages = {s["id"]: s["name"] for s in await db.catalogs.find({"type": "stage"}, {"_id": 0, "id": 1, "name": 1}).to_list(200)}
+    return tags, users, lost, stages
 
 
 COLUMNS = [
@@ -45,7 +46,7 @@ async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict
     from openpyxl.styles import Font, PatternFill
 
     q = build_query(**params, current_user=user)
-    tags, users, lost = await _label_maps()
+    tags, users, lost, stages = await _label_maps()
     cursor = db.leads.find(q, {"_id": 0}).sort("create_date_ist", -1).limit(50000)
 
     wb = Workbook()
@@ -65,6 +66,7 @@ async def export_leads_xlsx(params: dict = Depends(query_params_dep), user: dict
             for k, v in custom.items() if v not in (None, "", False))
         row = {
             **lead,
+            "lead_stage": lead.get("lead_stage") or stages.get(lead.get("stage_id"), ""),
             "_tags": ", ".join(tags.get(t, str(t)) for t in (lead.get("tags") or [])),
             "_agent": users.get(lead.get("user_id"), ""),
             "_status": "Active" if lead.get("active", True) else "Lost/Archived",

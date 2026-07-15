@@ -1,5 +1,12 @@
 # HomeIVF CRM — PRD
 
+
+## Fix + Feature (2026-07-13b) — Export blank Stage/Tags + "Website AI Agent" source — VERIFIED (preview)
+- **Export (P0, prod-only complaint):** Admin's Leads → Export Excel showed blank "Lead Stage" + "Tags" for a date range on PRODUCTION. Current preview export code was VERIFIED CORRECT (lead with lead_stage="Contacted"+tags → Excel shows "Contacted" + "Ringing, Call back for first pitch"), so production is on an OLDER build → needs redeploy. Added a safety net: `export.py` "Lead Stage" now falls back to the pipeline stage name (via `stage_id` → `stage` catalog) when the disposition `lead_stage` is empty, so the column is never wrongly blank (verified: lead with lead_stage=None + stage_id=4 → exports "Converted"). `_label_maps()` now also returns `stages`.
+- **Website AI Agent source (feature):** seeded `source_lead` catalog with **"Website AI Agent"** (server.py startup) so it appears in the Source dropdown/filters. Webhook (`/api/webhook/lead/{token}`) now honors a `source`/`source_lead`/`lead_source` field in the payload (FIELD_ALIASES), falls back to the webhook's `source_default`, and auto-registers the final source via `ensure_catalog` + `bust_catalogs`. Verified: webhook lead via hook-default AND via explicit `source` field both got `source_lead="Website AI Agent"`.
+- **Files:** backend/routes/export.py, backend/routes/webhooks.py (imports ensure_catalog + bust_catalogs), backend/server.py (source seed).
+- **⚠️ NEEDS PRODUCTION REDEPLOY** for both to go live on hi-connect-1687.emergent.host.
+
 ## Fix (2026-07-13) — 503/504 concurrent-load timeouts on Lead menu (P0) — VERIFIED
 - **Symptom:** under a burst of callers loading the Lead menu, requests piled up to ~68s and returned 503/504. Each caller load fires 4 heavy reads: leads list + group_counts(lead_stage) + group_counts(user_id) + /catalogs.
 - **Root cause chain:** (1) /catalogs did ~5 collection reads on every page load; (2) count_documents scanned ~120k index keys per call; (3) group_counts ran a FULL-collection aggregation over ~120k docs per call — and every caller fired the SAME aggregations with identical params, so 24 callers = 48 identical heavy aggregations contending on the single-worker DB.
