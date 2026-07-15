@@ -52,7 +52,7 @@ export default function Templates() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-display text-2xl font-extrabold text-slate-900">Templates</h1>
-          <p className="text-sm text-slate-500">WhatsApp & Email templates migrated from Odoo</p>
+          <p className="text-sm text-slate-500">WhatsApp & Email templates</p>
         </div>
         {canEdit && (
           <button data-testid="new-template-button" onClick={newTemplate} className="hivf-btn-primary"><Plus size={15} /> New Template</button>

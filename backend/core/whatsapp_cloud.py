@@ -144,8 +144,7 @@ async def send_lead_template(lead: dict, template: dict, require_template: bool 
             f"Template “{template.get('name')}” is not linked to an approved Meta template, "
             f"so it can only be sent as a free-form message inside the 24-hour customer "
             f"window (Meta rejects it with error 131047 for new leads). Open this WhatsApp "
-            f"template and set its approved Meta template name + language, or run "
-            f"Admin → WhatsApp → “Sync approved templates from Odoo”."
+            f"template and set its approved Meta template name + language to fix this."
         )}
     return await send_text(phone, body)
 

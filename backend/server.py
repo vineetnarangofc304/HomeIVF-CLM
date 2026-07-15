@@ -298,7 +298,7 @@ async def startup():
     elif not verify_password(admin_password, existing.get("password_hash", "")):
         await db.users.update_one({"email": admin_email}, {"$set": {"password_hash": hash_password(admin_password)}})
 
-    # Counter floor for new user ids / lead ids (above odoo ranges)
+    # Counter floor for new user ids / lead ids (above imported id ranges)
     await db.counters.update_one({"_id": "user"}, {"$max": {"seq": 1000}}, upsert=True)
     await db.counters.update_one({"_id": "lead"}, {"$max": {"seq": 500000}}, upsert=True)
     await db.counters.update_one({"_id": "message"}, {"$max": {"seq": 5000000}}, upsert=True)
@@ -332,7 +332,7 @@ async def startup():
     await db.catalogs.update_one({"type": "followup_status", "name": "Not Done"}, {"$set": {"active": False}})
     await db.counters.update_one({"_id": "catalog_followup_status"}, {"$max": {"seq": 5}}, upsert=True)
     # Seed default source_lead values (collision-safe: ensure_catalog computes max-id+1,
-    # so it never clashes with migrated Odoo catalog ids)
+    # so it never clashes with migrated catalog ids)
     for name in ["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads", "Website AI Agent"]:
         await ensure_catalog("source_lead", name)
     # Seed Indian states + countries (Case 1 dropdowns)

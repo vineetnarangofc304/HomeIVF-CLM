@@ -1,6 +1,18 @@
 # HomeIVF CRM — PRD
 
 
+## Change (2026-07-15c) — Export Lead Stage rule fix + FULL Odoo removal — VERIFIED (preview)
+### Export Lead Stage consistency
+- Rule enforced in export: a lead with a **blank disposition tag ⟹ Lead Stage = "New"** (a stray stage like "Contacted" set without a tag is normalised to "New"); tagged leads show their real `lead_stage`. Removed the earlier misleading pipeline `stage_id` fallback (it mixed Odoo pipeline stages into the disposition column). File: `backend/routes/export.py`. Verified: blank-tag "Contacted" → "New"; tagged "Contacted" → "Contacted".
+
+### Odoo fully removed (cutover complete — user confirmed)
+- **Backend:** deleted `backend/migration/` (odoo_sync.py, odoo_migrate.py); removed all migration/sync/audit endpoints from `admin.py` (`/migration/status`, `/migration/audit*`, `/sync/status`, `/sync/start`, `/sync/runs*`, `/whatsapp/sync-odoo-templates`, `_next_since`, `_audit_worker`) — kept role-perms/settings/automations/outbound_queue/duplicates; removed the `migration` permission from `core/permissions.py`; reworded Odoo comments/messages in `server.py`, `catalogs.py`, `whatsapp_cloud.py`; removed `ODOO_URL/ODOO_DB/ODOO_LOGIN/ODOO_PASSWORD` from `backend/.env`; deleted Odoo-dependent test files.
+- **Frontend:** removed the **Migration** admin tab + entire `MigrationTab` component; removed "Sync approved templates from Odoo" button + `syncOdooTemplates`; reworded labels ("Pipeline Stages (Odoo)"→"Pipeline Stages", "All Odoo fields"→"Additional fields", Templates + Automations copy). Files: `Admin.jsx`, `Templates.jsx`, `LeadDetail.jsx`, `Bits.jsx`.
+- **Data preserved:** leads, migrated custom/Q&A fields, pipeline-stage & tag catalogs, templates all intact — only Odoo labels/links/tools removed.
+- Verified: removed endpoints → 404; kept endpoints → 200; `migration` gone from all_perms; Admin renders with no Migration tab and zero "Odoo"/"Migration" text; frontend compiles; backend healthy.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** for both to go live on hi-connect-1687.emergent.host.
+
+
 ## Feature (2026-07-15) — Mandatory-field navigation guard on Lead edit — VERIFIED (preview)
 - **Why:** leads autosave on every field change, so callers edited a lead and navigated away (left menu) leaving mandatory fields empty → junk data accumulating.
 - **Behavior (user-confirmed):** while on a lead the user has EDITED (touched) this session, if City / State / Disposition Tag is still empty, ALL navigation away is blocked with a popup listing exactly which fields are missing. Applies to EVERYONE (admin/manager/caller). View-only (no edit) is NOT blocked (avoids trapping on the thousands of existing incomplete leads). Inactive/Lost leads are exempt.

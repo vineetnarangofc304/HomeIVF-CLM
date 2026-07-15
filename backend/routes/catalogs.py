@@ -192,7 +192,7 @@ class CatalogUpdate(BaseModel):
 async def create_catalog(ctype: str, body: CatalogCreate, user: dict = Depends(get_current_user)):
     if ctype not in CATALOG_TYPES:
         raise HTTPException(status_code=400, detail="Invalid catalog type")
-    # disposition tags can be created by any user (matches Odoo); other types need manager/admin
+    # disposition tags can be created by any user; other types need manager/admin
     if ctype != "tag" and user["role"] not in ("admin", "manager"):
         raise HTTPException(status_code=403, detail="Insufficient permissions")
     name = body.name.strip()

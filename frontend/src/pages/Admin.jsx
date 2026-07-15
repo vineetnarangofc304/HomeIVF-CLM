@@ -6,7 +6,7 @@ import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Email", "Migration"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Email"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -41,7 +41,6 @@ export default function Admin() {
         {tab === "Facebook" && <FacebookTab isAdmin={user.role === "admin"} />}
         {tab === "WhatsApp" && <WhatsAppTab isAdmin={user.role === "admin"} />}
         {tab === "Email" && <EmailTab isAdmin={user.role === "admin"} />}
-        {tab === "Migration" && <MigrationTab />}
       </div>
     </div>
   );
@@ -331,7 +330,7 @@ function DropdownsTab() {
       <CatalogTab ctype="followup_status" title="Follow-up Statuses" />
       <CatalogTab ctype="lost_reason" title="Lost Reasons" />
       <CatalogTab ctype="source_lead" title="Lead Sources" />
-      <CatalogTab ctype="stage" title="Pipeline Stages (Odoo)" />
+      <CatalogTab ctype="stage" title="Pipeline Stages" />
       <CatalogTab ctype="utm_source" title="UTM Sources" />
       <CatalogTab ctype="utm_medium" title="UTM Mediums" />
       <CatalogTab ctype="utm_campaign" title="UTM Campaigns" />
@@ -340,7 +339,7 @@ function DropdownsTab() {
   );
 }
 
-/* ---------- Case 2: Odoo-Studio-style drag-drop form builder ---------- */
+/* ---------- Case 2: drag-drop custom form builder ---------- */
 const FIELD_TYPES = [
   { t: "char", label: "Text" },
   { t: "text", label: "Multiline Text" },
@@ -707,7 +706,7 @@ function AutomationsTab() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-display text-sm font-extrabold text-slate-800">Automation Rules</h3>
-          <p className="text-xs text-slate-500">Replicates your Odoo automations (welcome WhatsApp/email on new lead, tag triggers…). Template sends queue until live APIs are connected.</p>
+          <p className="text-xs text-slate-500">Automate lead follow-ups (welcome WhatsApp/email on new lead, tag triggers…). Template sends queue until live APIs are connected.</p>
         </div>
         <button data-testid="add-automation-button" onClick={() => { resetForm(); setShow(true); }} className="hivf-btn-primary !py-1.5 text-xs"><Plus size={14} /> New rule</button>
       </div>
@@ -1370,12 +1369,6 @@ function WhatsAppTab({ isAdmin }) {
     try { await API.post("/admin/whatsapp/send-test", { to: testTo.trim() }); toast.success("Test message sent ✓"); }
     catch (err) { toast.error(apiErr(err)); }
   };
-  const syncOdooTemplates = async () => {
-    try {
-      const { data } = await API.post("/admin/whatsapp/sync-odoo-templates");
-      toast.success(`Linked ${data.linked_updated} approved templates from Odoo (${data.created} new)`);
-    } catch (err) { toast.error(apiErr(err)); }
-  };
   const subscribeWaba = async () => {
     try {
       const { data } = await API.post("/admin/whatsapp/subscribe");
@@ -1427,7 +1420,6 @@ function WhatsAppTab({ isAdmin }) {
               <button data-testid="wa-save-button" type="submit" className="hivf-btn-primary !py-2"><WhatsappLogo size={14} /> Save Settings</button>
               <button type="button" onClick={fetchPhones} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-phones">Fetch phone numbers</button>
               <button type="button" onClick={fetchTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-fetch-templates">Fetch templates</button>
-              <button type="button" onClick={syncOdooTemplates} className="hivf-btn-secondary !py-2" data-testid="wa-sync-odoo-templates">Sync approved templates from Odoo</button>
               <button type="button" onClick={subscribeWaba} className="hivf-btn-secondary !py-2" data-testid="wa-subscribe-button">Subscribe WABA to webhooks</button>
               <button type="button" onClick={loadWebhookLog} className="hivf-btn-secondary !py-2" data-testid="wa-webhook-log-button">Recent webhook deliveries</button>
               <button type="button" onClick={runDiagnose} disabled={diagLoading} className="hivf-btn-primary !py-2 !bg-slate-800" data-testid="wa-diagnose-button">{diagLoading ? "Diagnosing…" : "Diagnose delivery status"}</button>
@@ -1508,395 +1500,6 @@ function WhatsAppTab({ isAdmin }) {
           <input data-testid="wa-test-to" className="hivf-input" placeholder="Recipient number e.g. 919812345678" value={testTo} onChange={(e) => setTestTo(e.target.value)} />
           <button onClick={sendTest} className="hivf-btn-primary" data-testid="wa-send-test">Send</button>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function MigrationTab() {
-  const [status, setStatus] = useState(null);
-  const [audit, setAudit] = useState(null);
-  const [auditing, setAuditing] = useState(false);
-  const [sync, setSync] = useState(null);
-  const [confirmSync, setConfirmSync] = useState(false);
-  const [resyncSince, setResyncSince] = useState("");
-  const [activeRun, setActiveRun] = useState(null);
-  const [lastDone, setLastDone] = useState(null);
-  const [dupFrom, setDupFrom] = useState("2026-07-01");
-  const [dupTo, setDupTo] = useState("2026-07-09");
-  const [dupScan, setDupScan] = useState(null);
-  const [dupBusy, setDupBusy] = useState(false);
-  const [dupConfirm, setDupConfirm] = useState(false);
-
-  const load = () => API.get("/admin/migration/status").then(({ data }) => setStatus(data));
-  const loadSync = () => API.get("/admin/sync/status").then(({ data }) => {
-    setSync(data);
-    setActiveRun(data.running || null);
-  }).catch((e) => toast.error(apiErr(e)));
-  useEffect(() => {
-    load();
-    loadSync();
-    API.get("/admin/settings").then(({ data }) => data.last_audit && data.last_audit.rows && setAudit(data.last_audit));
-  }, []);
-
-  // poll active run
-  useEffect(() => {
-    if (!activeRun || activeRun.status !== "running") return;
-    const t = setInterval(async () => {
-      const { data } = await API.get(`/admin/sync/runs/${activeRun.run_id}`);
-      setActiveRun(data);
-      if (data.status !== "running") {
-        clearInterval(t);
-        if (data.status === "done") {
-          setLastDone(data);
-          toast.success("Sync complete");
-        } else {
-          toast.error("Sync failed — see details below");
-        }
-        load();
-        loadSync();
-      }
-    }, 3000);
-    return () => clearInterval(t);
-  }, [activeRun?.run_id, activeRun?.status]);
-
-  const startSync = async (sinceOverride) => {
-    setConfirmSync(false);
-    try {
-      const { data } = await API.post("/admin/sync/start", sinceOverride ? { since: sinceOverride } : {});
-      setActiveRun({ run_id: data.run_id, status: "running", since: data.since, until: data.until, progress: {} });
-      toast.info(`Sync started — fetching changes since ${data.since} UTC`);
-    } catch (e) {
-      toast.error(apiErr(e));
-    }
-  };
-
-  const runAudit = async () => {
-    setAuditing(true);
-    try {
-      await API.post("/admin/migration/audit");
-      let tries = 0;
-      const poll = setInterval(async () => {
-        tries += 1;
-        try {
-          const { data } = await API.get("/admin/migration/audit/status");
-          if (data && data.status && data.status !== "running") {
-            clearInterval(poll);
-            setAuditing(false);
-            if (data.status === "error") {
-              toast.error("Audit failed: " + (data.error || "").slice(0, 160));
-              return;
-            }
-            setAudit(data);
-            toast.success(data.all_match ? "Audit passed — everything matches Odoo ✓" : "Audit complete — review differences below");
-          } else if (tries > 60) {
-            clearInterval(poll);
-            setAuditing(false);
-            toast.error("Audit is taking longer than expected — please try again.");
-          }
-        } catch (e) {
-          clearInterval(poll);
-          setAuditing(false);
-          toast.error(apiErr(e));
-        }
-      }, 3000);
-    } catch (e) {
-      setAuditing(false);
-      toast.error(apiErr(e));
-    }
-  };
-
-  const runDupScan = async () => {
-    setDupBusy(true); setDupScan(null);
-    try {
-      const { data } = await API.post("/admin/duplicates/scan", { date_from: dupFrom, date_to: dupTo });
-      const sid = data.scan_id;
-      let tries = 0;
-      const poll = setInterval(async () => {
-        tries += 1;
-        try {
-          const { data: d } = await API.get("/admin/duplicates/scan/status");
-          if (d && d.status && d.status !== "running" && d.scan_id === sid) {
-            clearInterval(poll); setDupBusy(false);
-            if (d.status === "error") { toast.error("Scan failed: " + (d.error || "").slice(0, 150)); return; }
-            setDupScan(d);
-            toast.success(`Found ${d.total_delete} duplicate lead(s) across ${d.group_count} name + mobile combo(s)`);
-          } else if (tries > 60) { clearInterval(poll); setDupBusy(false); toast.error("Scan timed out — please try again."); }
-        } catch (e) { clearInterval(poll); setDupBusy(false); toast.error(apiErr(e)); }
-      }, 3000);
-    } catch (e) { setDupBusy(false); toast.error(apiErr(e)); }
-  };
-
-  const doDupDelete = async () => {
-    setDupConfirm(false);
-    try {
-      const { data } = await API.post("/admin/duplicates/delete", { scan_id: dupScan.scan_id });
-      toast.success(`Deleted ${data.deleted} duplicate lead(s) (archived for recovery)`);
-      setDupScan(null);
-    } catch (e) { toast.error(apiErr(e)); }
-  };
-
-
-  if (!status) return <Spinner />;
-  const fmtUtc = (s) => (s ? new Date(s.replace(" ", "T") + "Z").toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }) + " IST" : "—");
-  const sumNew = (p) => Object.values(p || {}).reduce((a, v) => a + (v.new || 0), 0);
-  const sumUpd = (p) => Object.values(p || {}).reduce((a, v) => a + (v.updated || 0), 0);
-
-  return (
-    <div className="space-y-4">
-      {/* SYNC CARD */}
-      <div className="hivf-card p-4" data-testid="sync-card">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo Sync</h3>
-            <p className="text-xs text-slate-500">Pull everything new/changed in Odoo into this CRM — keep both in lockstep until cutover.</p>
-          </div>
-          <button data-testid="sync-now-button" onClick={() => setConfirmSync(true)}
-            disabled={activeRun?.status === "running"} className="hivf-btn-primary !py-1.5 text-xs">
-            {activeRun?.status === "running" ? "Sync in progress…" : "Sync Now"}
-          </button>
-        </div>
-        {sync && (
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4" data-testid="sync-info">
-            <div className="rounded-xl bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last lead activity in CRM</p>
-              <p className="mt-1 text-sm font-bold text-slate-700" data-testid="last-record-date">{fmtUtc(sync.last_record?.leads_write_date)}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last chatter message</p>
-              <p className="mt-1 text-sm font-bold text-slate-700">{fmtUtc(sync.last_record?.lead_messages_date)}</p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Last sync run</p>
-              <p className="mt-1 text-sm font-bold text-slate-700" data-testid="last-sync-date">
-                {sync.last_sync ? fmtUtc(sync.last_sync.finished_at) : "Never (initial migration only)"}
-              </p>
-            </div>
-            <div className="rounded-xl bg-slate-50 p-3">
-              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Next sync covers</p>
-              <p className="mt-1 text-sm font-bold text-[#357ABD]">{sync.next_since ? `${fmtUtc(sync.next_since)} → now` : "FULL import (empty database)"}</p>
-            </div>
-          </div>
-        )}
-
-        {/* Force re-pull from a chosen date — backfills lead_stage/tags/follow-ups the
-            team updated in Odoo after the last auto-sync window. */}
-        <div className="mt-3 flex flex-wrap items-end gap-2 rounded-xl border border-slate-100 bg-slate-50/60 p-3" data-testid="resync-range">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Re-sync from date (backfill)</p>
-            <input type="date" value={resyncSince} onChange={(e) => setResyncSince(e.target.value)}
-              data-testid="resync-since-input" className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
-          </div>
-          <button type="button" data-testid="resync-from-date-button"
-            disabled={!resyncSince || activeRun?.status === "running"}
-            onClick={() => startSync(resyncSince)}
-            className="hivf-btn-secondary !py-2 text-xs disabled:opacity-50">
-            Re-pull Odoo changes since this date
-          </button>
-          <p className="basis-full text-[11px] text-slate-500">Use this if the team updated Lead Stage / Tags / Follow-ups in Odoo — pick a date just before those edits to pull them into the CRM.</p>
-        </div>
-
-        {/* live progress */}
-        {activeRun && (
-          <div className={`mt-3 rounded-xl border p-3 ${activeRun.status === "running" ? "border-amber-200 bg-amber-50/50" : activeRun.status === "done" ? "border-emerald-200 bg-emerald-50/50" : "border-rose-200 bg-rose-50/50"}`} data-testid="sync-progress">
-            <p className="text-xs font-bold text-slate-700">
-              {activeRun.status === "running" ? `⏳ Syncing… (window: ${activeRun.since} → ${activeRun.until} UTC)` :
-                activeRun.status === "done" ? `✅ Sync #${activeRun.run_id} complete — ${sumNew(activeRun.results || activeRun.progress)} new, ${sumUpd(activeRun.results || activeRun.progress)} updated` :
-                `❌ Sync failed: ${(activeRun.error || "").slice(0, 200)}`}
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {Object.entries(activeRun.results || activeRun.progress || {}).map(([k, v]) => (
-                <span key={k} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-600">
-                  {k.replace(/_/g, " ")}: <b className="text-emerald-600">+{v.new}</b>{v.updated ? <span className="text-[#357ABD]"> / {v.updated} upd</span> : ""}
-                </span>
-              ))}
-            </div>
-            {activeRun.status === "done" && activeRun.totals && (
-              <p className="mt-2 text-[11px] text-slate-500">
-                New totals — {Object.entries(activeRun.totals).map(([k, v]) => `${k.replace(/_/g, " ")}: ${v.toLocaleString("en-IN")}`).join(" · ")}
-              </p>
-            )}
-          </div>
-        )}
-        {!activeRun && sync?.last_sync && (
-          <p className="mt-2 text-[11px] text-slate-400" data-testid="last-sync-summary">
-            Last sync ({fmtUtc(sync.last_sync.finished_at)}): {sumNew(sync.last_sync.results)} new, {sumUpd(sync.last_sync.results)} updated · window {sync.last_sync.since} → {sync.last_sync.until} UTC
-          </p>
-        )}
-      </div>
-
-      {/* confirm modal */}
-      {confirmSync && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setConfirmSync(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="sync-confirm-modal">
-            <h3 className="font-display text-lg font-extrabold text-slate-900">Confirm Odoo Sync</h3>
-            <div className="mt-3 rounded-xl bg-[#4A90E2]/5 p-3 text-sm text-slate-700">
-              {sync?.next_since ? (
-                <>I will fetch all records <b>created or updated in Odoo</b> between<br />
-                  <b className="text-[#357ABD]">{sync.next_since} UTC</b> ({fmtUtc(sync.next_since)})<br />
-                  and <b className="text-[#357ABD]">now</b>.</>
-              ) : (
-                <>I will fetch all records <b>created or updated in Odoo</b> since the last sync, up to <b>now</b>.</>
-              )}
-            </div>
-            <ul className="mt-3 space-y-1 text-xs text-slate-500">
-              <li>• New Odoo records are added; changed records are updated.</li>
-              <li>• For migrated leads edited in BOTH systems, Odoo values win.</li>
-              <li>• Leads created directly in this CRM are never touched.</li>
-              <li>• Dashboards & reports reflect new data immediately after.</li>
-            </ul>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setConfirmSync(false)} className="hivf-btn-secondary" data-testid="sync-cancel-button">Cancel</button>
-              <button onClick={startSync} className="hivf-btn-primary" data-testid="sync-confirm-button">Yes, Sync Now</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="hivf-card p-4" data-testid="migration-audit">
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo vs CRM — Live Audit</h3>
-            <p className="text-xs text-slate-500">Connects to your Odoo right now, counts every entity there, and compares with this CRM — your proof that nothing was missed.</p>
-          </div>
-          <button data-testid="run-audit-button" onClick={runAudit} disabled={auditing} className="hivf-btn-primary !py-1.5 text-xs">
-            {auditing ? "Auditing… (~20s)" : "Run Audit vs Odoo"}
-          </button>
-        </div>
-        {audit && audit.rows && (
-          <>
-            <p className="mt-3 text-xs text-slate-400">Last run: {audit.ran_at} UTC · {audit.all_match ? <span className="font-bold text-emerald-600">ALL ENTITIES MATCH ✓</span> : <span className="font-bold text-amber-600">differences found (see notes)</span>}</p>
-            <table className="mt-2 w-full text-sm" data-testid="audit-table">
-              <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
-                <th className="py-2">Entity</th><th className="py-2 text-right">In Odoo</th><th className="py-2 text-right">In CRM</th><th className="py-2 text-center">Status</th><th className="py-2">Note</th></tr></thead>
-              <tbody>
-                {audit.rows.map((r) => (
-                  <tr key={r.entity} className="border-b border-slate-50">
-                    <td className="py-1.5 font-semibold text-slate-700">{r.entity.replace(/_/g, " ")}</td>
-                    <td className="py-1.5 text-right text-slate-600">{r.odoo >= 0 ? r.odoo.toLocaleString("en-IN") : "n/a"}</td>
-                    <td className="py-1.5 text-right text-slate-600">{r.crm.toLocaleString("en-IN")}</td>
-                    <td className="py-1.5 text-center">{r.match ? <span className="font-bold text-emerald-500">✓</span> : <span className="font-bold text-rose-500">✗</span>}</td>
-                    <td className="py-1.5 text-[11px] text-slate-400">{r.note || ""}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-      </div>
-
-      {/* Duplicate cleanup */}
-      <div className="hivf-card p-4" data-testid="dup-cleanup-card">
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h3 className="font-display text-sm font-extrabold text-slate-800">Duplicate Lead Cleanup</h3>
-            <p className="text-xs text-slate-500">Finds leads that share the <b>same name + mobile number</b>, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Deleted leads are archived (recoverable).</p>
-          </div>
-          <div className="flex items-end gap-2">
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Created from</label>
-              <input type="date" value={dupFrom} onChange={(e) => setDupFrom(e.target.value)} data-testid="dup-from-input"
-                className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">to</label>
-              <input type="date" value={dupTo} onChange={(e) => setDupTo(e.target.value)} data-testid="dup-to-input"
-                className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm" />
-            </div>
-            <button data-testid="dup-scan-button" onClick={runDupScan} disabled={dupBusy} className="hivf-btn-primary !py-1.5 text-xs">
-              {dupBusy ? "Scanning…" : "Find Duplicates"}
-            </button>
-          </div>
-        </div>
-
-        {dupScan && dupScan.status === "done" && (
-          <div className="mt-4" data-testid="dup-scan-result">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <p className="text-sm text-slate-600">
-                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> name + mobile combo(s) · created {dupScan.date_from} → {dupScan.date_to}
-              </p>
-              {dupScan.total_delete > 0 && (
-                <button data-testid="dup-delete-button" onClick={() => setDupConfirm(true)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">
-                  Delete {dupScan.total_delete} duplicate(s)
-                </button>
-              )}
-            </div>
-            {dupScan.total_delete === 0 ? (
-              <p className="mt-3 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-700">No duplicates found in this range. ✓</p>
-            ) : (
-              <div className="mt-3 max-h-96 overflow-auto rounded-xl border border-slate-100">
-                <table className="w-full text-sm" data-testid="dup-table">
-                  <thead className="sticky top-0 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
-                    <tr><th className="p-2">Name + Mobile</th><th className="p-2">Keep (oldest)</th><th className="p-2">Delete (newer duplicates)</th></tr>
-                  </thead>
-                  <tbody>
-                    {(dupScan.groups || []).map((g) => (
-                      <tr key={`${g.name}|${g.phone}`} className="border-t border-slate-50 align-top">
-                        <td className="p-2 font-semibold text-slate-700">{g.name || "—"}<br /><span className="text-[11px] text-slate-400">{g.phone}</span></td>
-                        <td className="p-2 text-emerald-700">
-                          #{g.keeper.id} · {g.keeper.name || "—"}<br />
-                          <span className="text-[11px] text-slate-400">{g.keeper.create_date}</span>
-                        </td>
-                        <td className="p-2 text-rose-600">
-                          {g.candidates.map((c) => (
-                            <div key={c.id}>#{c.id} · {c.name || "—"} <span className="text-[11px] text-slate-400">({c.create_date})</span></div>
-                          ))}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {dupConfirm && dupScan && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4" onClick={() => setDupConfirm(false)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="dup-confirm-modal">
-            <h3 className="font-display text-lg font-extrabold text-slate-900">Delete {dupScan.total_delete} duplicate lead(s)?</h3>
-            <div className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-slate-700">
-              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}), keeping the oldest lead for each <b>name + mobile</b> combination. Deleted leads are <b>archived</b> and can be recovered if needed.
-            </div>
-            <div className="mt-5 flex justify-end gap-2">
-              <button onClick={() => setDupConfirm(false)} className="hivf-btn-secondary" data-testid="dup-cancel-button">Cancel</button>
-              <button onClick={doDupDelete} className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-bold text-white hover:bg-rose-700" data-testid="dup-confirm-delete-button">Yes, delete</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-
-      <div className="hivf-card p-4" data-testid="migration-status">
-      <div className="flex items-center justify-between">
-        <h3 className="font-display text-sm font-extrabold text-slate-800">Odoo Data Migration</h3>
-        <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs"><ArrowsClockwise size={14} /> Refresh</button>
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-5">
-        {Object.entries(status.counts || {}).map(([k, v]) => (
-          <div key={k} className="rounded-xl bg-slate-50 p-3 text-center">
-            <p className="font-display text-lg font-extrabold text-slate-800">{v.toLocaleString("en-IN")}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{k.replace(/_/g, " ")}</p>
-          </div>
-        ))}
-      </div>
-      <table className="mt-4 w-full text-sm">
-        <thead><tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
-          <th className="py-2">Entity</th><th className="py-2">Status</th><th className="py-2 text-right">Progress</th><th className="py-2 text-right">Updated</th></tr></thead>
-        <tbody>
-          {(status.entities || []).map((e) => (
-            <tr key={e.entity} className="border-b border-slate-50">
-              <td className="py-2 font-semibold text-slate-700">{e.entity}</td>
-              <td className="py-2">
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${e.state === "done" ? "bg-emerald-50 text-emerald-600" : e.state === "error" ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600"}`}>{e.state}</span>
-              </td>
-              <td className="py-2 text-right text-slate-600">{e.done?.toLocaleString("en-IN") || 0}{e.total ? ` / ${e.total.toLocaleString("en-IN")}` : ""}</td>
-              <td className="py-2 text-right text-xs text-slate-400">{e.updated_at?.slice(0, 19).replace("T", " ")}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
       </div>
     </div>
   );

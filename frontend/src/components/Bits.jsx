@@ -1,6 +1,6 @@
 import React from "react";
 
-// Odoo tag color index -> tailwind tints
+// tag color index -> tailwind tints
 const TAG_COLORS = [
   "bg-slate-100 text-slate-700", "bg-rose-50 text-rose-700", "bg-orange-50 text-orange-700",
   "bg-amber-50 text-amber-700", "bg-cyan-50 text-cyan-700", "bg-purple-50 text-purple-700",

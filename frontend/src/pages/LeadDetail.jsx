@@ -390,10 +390,10 @@ export default function LeadDetail() {
               campaign_id: (catalogs?.utm_campaign || []).map((s) => s.name),
             }} />
 
-          {/* Raw odoo fields with proper labels */}
+          {/* Additional imported fields with proper labels */}
           {lead.custom && Object.keys(lead.custom).length > 0 && (
             <details className="hivf-card p-4">
-              <summary className="cursor-pointer font-display text-sm font-extrabold text-slate-800">All Odoo fields ({Object.keys(lead.custom).length})</summary>
+              <summary className="cursor-pointer font-display text-sm font-extrabold text-slate-800">Additional fields ({Object.keys(lead.custom).length})</summary>
               <div className="mt-3 max-h-72 space-y-1 overflow-y-auto text-xs">
                 {Object.entries(lead.custom).map(([k, v]) => (
                   <div key={k} className="flex gap-2 border-b border-slate-50 py-1">
@@ -632,7 +632,7 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
     const lbl = fieldLabels[k]?.label || "";
     return lbl.includes("?") || /want_to_consult|tried_ivf|trying_to_conceive|treatment_before|health_issues|genetic|sperm_test|working_couple|fertility_treatment/i.test(k);
   };
-  const odooQa = Object.entries(lead.custom || {})
+  const extraQa = Object.entries(lead.custom || {})
     .filter(([k, v]) => isQuestion(k) && v !== null && v !== "")
     .map(([k, v]) => ({ key: k, label: labelOf(k), value: Array.isArray(v) ? v[1] ?? v.join(",") : String(v), field_type: "char", options: [] }));
   const defined = customDefs.map((d) => ({
@@ -640,7 +640,7 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
     field_type: d.field_type || "char", options: d.options || [],
   }));
   const seen = new Set(defined.map((e) => e.key));
-  const entries = [...defined, ...odooQa.filter((e) => !seen.has(e.key))];
+  const entries = [...defined, ...extraQa.filter((e) => !seen.has(e.key))];
 
   if (entries.length === 0) return null;
 
