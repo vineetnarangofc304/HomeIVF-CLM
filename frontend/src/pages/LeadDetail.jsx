@@ -68,11 +68,12 @@ export default function LeadDetail() {
 
   useEffect(() => { load(); }, [load]);
 
-  // --- Mandatory-field navigation guard: City, State, Disposition Tag ---
+  // --- Mandatory-field navigation guard: City, State, Disposition Tag, Caller Activity ---
   const touchedRef = useRef(false);
   const leadRef = useRef(lead);
+  const callerActCountRef = useRef(0);
   useEffect(() => { leadRef.current = lead; });
-  useEffect(() => { touchedRef.current = false; }, [id]); // reset when a different lead opens
+  useEffect(() => { touchedRef.current = false; callerActCountRef.current = 0; }, [id]); // reset when a different lead opens
 
   useEffect(() => {
     // Block leaving ONLY after the user edits something on an ACTIVE lead while a
@@ -84,6 +85,7 @@ export default function LeadDetail() {
       if (!(l.city && String(l.city).trim())) miss.push("City");
       if (!(l.state_name && String(l.state_name).trim())) miss.push("State");
       if (!((l.tags || []).length)) miss.push("Disposition Tag");
+      if (!callerActCountRef.current) miss.push("Caller Activity");
       return miss.length ? miss : null;
     });
     return () => clearGuard();
@@ -330,7 +332,7 @@ export default function LeadDetail() {
           </div>
 
           {/* Caller Activities — Case 2 */}
-          <CallerActivities leadId={lead.id} />
+          <CallerActivities leadId={lead.id} onCount={(n) => { callerActCountRef.current = n; }} />
 
           <WaLeadPanel leadId={lead.id} />
 
@@ -1152,12 +1154,15 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
   );
 }
 
-function CallerActivities({ leadId }) {
+function CallerActivities({ leadId, onCount }) {
   const [items, setItems] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const load = () => API.get(`/leads/${leadId}/caller-activities`).then(({ data }) => setItems(data));
+  const load = () => API.get(`/leads/${leadId}/caller-activities`).then(({ data }) => {
+    setItems(data);
+    onCount && onCount(data.length);
+  });
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {

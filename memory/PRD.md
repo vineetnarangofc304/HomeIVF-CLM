@@ -1,6 +1,16 @@
 # HomeIVF CRM — PRD
 
 
+## Fix + Feature (2026-07-15d) — Duplicate web leads + Caller Activity required — VERIFIED (preview)
+### Duplicate leads (URGENT) — root cause + fix
+- **Cause:** the web webhook (`/api/webhook/lead/{token}`) created a NEW lead AND round-robin-assigned a caller on EVERY post; it only *flagged* duplicates, never blocked them. The Website AI Agent re-posts the same enquiry repeatedly → the same phone/person was created many times and spread across many callers.
+- **Fix (`webhooks.py`):** dedupe by phone BEFORE assignment — if an ACTIVE lead already exists for the number, do NOT create a new lead or consume an assignment; log a "🔁 Repeat web enquiry … merged" note on the existing lead and return its id. Verified: same phone posted 3× → 1 lead only, repeats merged (`duplicate:true, merged_into`).
+- **Existing dupes cleanup:** the Duplicate-Cleanup UI had been bundled in the removed Odoo Migration tab. Restored it as a **standalone "Duplicates" admin tab** (backend `/admin/duplicates/scan|scan/status|delete` were already intact) — scan by created-date range, groups by name+mobile, keeps oldest, deletes newer (archived/recoverable). Verified: renders + scan completes.
+### Caller Activity now mandatory
+- Added **"Caller Activity"** to the Lead-edit navigation guard (alongside City, State, Disposition Tag). After a user edits an active lead, they can't leave until ≥1 Caller Activity is logged. `CallerActivities` now reports its count up via `onCount` → `callerActCountRef` read by the guard. Verified: block popup shows "Caller Activity" when missing; adding one clears the block.
+- **⚠️ NEEDS PRODUCTION REDEPLOY.** After redeploy: use Admin → **Duplicates** to scan+delete the existing Website-AI-Agent dupes; new ones are auto-prevented.
+
+
 ## Change (2026-07-15c) — Export Lead Stage rule fix + FULL Odoo removal — VERIFIED (preview)
 ### Export Lead Stage consistency
 - Rule enforced in export: a lead with a **blank disposition tag ⟹ Lead Stage = "New"** (a stray stage like "Contacted" set without a tag is normalised to "New"); tagged leads show their real `lead_stage`. Removed the earlier misleading pipeline `stage_id` fallback (it mixed Odoo pipeline stages into the disposition column). File: `backend/routes/export.py`. Verified: blank-tag "Contacted" → "New"; tagged "Contacted" → "Contacted".

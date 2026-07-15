@@ -64,8 +64,33 @@ async def webhook_lead(token: str, request: Request):
                 extras[d["key"]] = str(lower[a]).strip()
                 break
 
-    lid = await next_id("lead")
     now = now_utc_str()
+    phone_digits = re.sub(r"\D", "", data.get("phone") or "")[-10:]
+
+    # De-dupe web leads by phone: if an ACTIVE lead already exists for this number, do
+    # NOT create another lead or consume a caller assignment (that floods several callers
+    # with the same person — the AI agent re-posts the same enquiry). Log the repeat
+    # enquiry on the existing lead and return its id instead.
+    dup = await check_duplicate(phone_digits)
+    if dup["is_duplicate"]:
+        existing_id = dup["duplicate_of"]
+        src = data.get("source_lead") or hook.get("source_default") or "website"
+        bits = [f"source: {src}"]
+        if data.get("query"):
+            bits.append(f"query: {data['query']}")
+        if data.get("conversion_page"):
+            bits.append(f"page: {data['conversion_page']}")
+        await db.leads.update_one({"id": existing_id}, {"$set": {"write_date": now}})
+        await log_message(existing_id,
+                          f"🔁 Repeat web enquiry via '{hook['name']}' ({'; '.join(bits)}) — merged into this lead, no duplicate created",
+                          subtype="comment")
+        await db.webhooks.update_one({"id": hook["id"]}, {"$inc": {"hits": 1}})
+        if src:
+            await ensure_catalog("source_lead", src)
+            bust_catalogs()
+        return {"ok": True, "lead_id": existing_id, "duplicate": True, "merged_into": existing_id}
+
+    lid = await next_id("lead")
     user_id = None
     settings = await db.settings.find_one({"key": "assignment"})
     if hook.get("assign_round_robin") and settings and settings.get("enabled") and settings.get("user_ids"):
@@ -91,12 +116,10 @@ async def webhook_lead(token: str, request: Request):
         "user_id": user_id,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "webhook_id": hook["id"],
-        "phone_digits": re.sub(r"\D", "", data.get("phone") or "")[-10:],
+        "phone_digits": phone_digits,
+        "is_duplicate": False, "duplicate_of": None,
         **{k: v for k, v in data.items() if k not in ("name", "source_lead")},
     }
-    dup = await check_duplicate(doc["phone_digits"])
-    doc["is_duplicate"] = dup["is_duplicate"]
-    doc["duplicate_of"] = dup["duplicate_of"]
     doc.update(ist_date_parts(doc["create_date_ist"]))
     doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
@@ -107,8 +130,6 @@ async def webhook_lead(token: str, request: Request):
         await ensure_catalog("source_lead", doc["source_lead"])
         bust_catalogs()
     await log_message(lid, f"Lead captured via webhook '{hook['name']}'")
-    if dup["is_duplicate"]:
-        await log_message(lid, f"⚠️ Possible duplicate — same phone as lead #{dup['duplicate_of']}", subtype="comment")
     await run_automations("on_create", doc)
     return {"ok": True, "lead_id": lid}
 
