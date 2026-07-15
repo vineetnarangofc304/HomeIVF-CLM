@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime, timezone, timedelta
 
@@ -23,6 +24,17 @@ def verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
+
+
+async def hash_password_async(password: str) -> str:
+    # bcrypt is CPU-bound (~100-300ms) and BLOCKS the single-worker event loop;
+    # run it in a thread so a login / password change never stalls (503 / slow)
+    # every other concurrent request on the pod.
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(plain: str, hashed: str) -> bool:
+    return await asyncio.to_thread(verify_password, plain, hashed)
 
 
 def create_access_token(user_id: int, email: str, role: str) -> str:

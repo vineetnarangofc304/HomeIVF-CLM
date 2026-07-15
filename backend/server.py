@@ -173,6 +173,10 @@ INDEX_SPECS = [
     ("wa_channels", [("last_message_date", -1)], {}),
     # Case 1 — caller chat-visibility filter (channels owned by the assigned caller).
     ("wa_channels", [("owner_id", 1), ("last_message_date", -1)], {}),
+    # unread-summary poll ($match unread_count>0, +owner_id for callers) was a
+    # full wa_channels scan every 15s per agent; these make it index-supported.
+    ("wa_channels", [("unread_count", 1)], {}),
+    ("wa_channels", [("owner_id", 1), ("unread_count", 1)], {}),
     ("activities", [("user_id", 1), ("state", 1), ("date_deadline", 1)], {}),
     ("catalogs", [("type", 1), ("id", 1)], {"unique": True}),
     ("contacts", "id", {"unique": True}),
@@ -329,7 +333,7 @@ async def startup():
     await db.counters.update_one({"_id": "catalog_followup_status"}, {"$max": {"seq": 5}}, upsert=True)
     # Seed default source_lead values (collision-safe: ensure_catalog computes max-id+1,
     # so it never clashes with migrated Odoo catalog ids)
-    for name in ["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads"]:
+    for name in ["landing_page", "chatbot", "website", "App", "Callback_Request", "Meta Lead Ads", "Website AI Agent"]:
         await ensure_catalog("source_lead", name)
     # Seed Indian states + countries (Case 1 dropdowns)
     if await db.catalogs.count_documents({"type": "state"}) == 0:

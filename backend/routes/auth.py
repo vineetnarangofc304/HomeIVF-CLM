@@ -8,7 +8,8 @@ from pydantic import BaseModel
 from core.db import db
 from core.security import (JWT_ALGORITHM, create_access_token, create_refresh_token,
                            get_current_user, get_jwt_secret, hash_password,
-                           set_auth_cookies, verify_password)
+                           hash_password_async, set_auth_cookies,
+                           verify_password, verify_password_async)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -40,7 +41,7 @@ async def login(body: LoginBody, request: Request, response: Response):
         await db.login_attempts.delete_one({"identifier": identifier})
 
     user = await db.users.find_one({"email": email})
-    if not user or not verify_password(body.password, user.get("password_hash", "")):
+    if not user or not await verify_password_async(body.password, user.get("password_hash", "")):
         doc = await db.login_attempts.find_one_and_update(
             {"identifier": identifier}, {"$inc": {"count": 1}}, upsert=True, return_document=True,
         )
@@ -97,9 +98,9 @@ async def refresh(request: Request, response: Response):
 @router.post("/change-password")
 async def change_password(body: ChangePasswordBody, user: dict = Depends(get_current_user)):
     full = await db.users.find_one({"id": user["id"]})
-    if not verify_password(body.current_password, full.get("password_hash", "")):
+    if not await verify_password_async(body.current_password, full.get("password_hash", "")):
         raise HTTPException(status_code=400, detail="Current password is incorrect")
     if len(body.new_password) < 6:
         raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": hash_password(body.new_password)}})
+    await db.users.update_one({"id": user["id"]}, {"$set": {"password_hash": await hash_password_async(body.new_password)}})
     return {"ok": True}

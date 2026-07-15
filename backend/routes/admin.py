@@ -40,6 +40,8 @@ async def set_role_perms(body: RolePermsBody, user: dict = Depends(require_roles
     await db.settings.update_one({"key": "role_permissions"},
         {"$set": {"key": "role_permissions", "value": {"manager": current["manager"], "caller": current["caller"]}}},
         upsert=True)
+    from core.permissions import invalidate_role_permissions_cache
+    invalidate_role_permissions_cache()
     return {"matrix": await get_role_permissions()}
 
 

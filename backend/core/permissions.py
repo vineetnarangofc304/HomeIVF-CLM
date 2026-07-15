@@ -3,6 +3,8 @@
 Admin is always full-access and cannot be reduced (prevents lock-out).
 Manager & caller permissions are editable by an admin in Admin -> Users.
 """
+import time
+
 from core.db import db
 
 MODULE_PERMS = ["dashboard", "leads", "followups", "call_center", "whatsapp",
@@ -41,10 +43,28 @@ DEFAULT_PERMISSIONS = {
 }
 
 
+# get_current_user resolves permissions on EVERY authenticated request, so the
+# raw stored-overrides doc is cached in-process (rebuilt fresh per call so callers
+# may safely mutate the result). Busted on admin edit; short TTL as a safety net.
+_perm_cache = {"stored": None, "ts": 0.0}
+_PERM_CACHE_TTL = 60.0
+
+
+def invalidate_role_permissions_cache() -> None:
+    _perm_cache["stored"] = None
+    _perm_cache["ts"] = 0.0
+
+
 async def get_role_permissions() -> dict:
-    """Full matrix: stored overrides merged over defaults. Admin always full."""
-    doc = await db.settings.find_one({"key": "role_permissions"}, {"_id": 0})
-    stored = (doc or {}).get("value") or {}
+    """Full matrix: stored overrides merged over defaults. Admin always full.
+    The stored overrides are cached for _PERM_CACHE_TTL seconds."""
+    now = time.monotonic()
+    stored = _perm_cache["stored"]
+    if stored is None or (now - _perm_cache["ts"]) >= _PERM_CACHE_TTL:
+        doc = await db.settings.find_one({"key": "role_permissions"}, {"_id": 0})
+        stored = (doc or {}).get("value") or {}
+        _perm_cache["stored"] = stored
+        _perm_cache["ts"] = now
     result = {}
     for role, defaults in DEFAULT_PERMISSIONS.items():
         if role == "admin":

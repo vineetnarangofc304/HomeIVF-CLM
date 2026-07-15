@@ -3,7 +3,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from core.db import db
-from core.security import hash_password, require_roles, require_permission, get_current_user
+from core.security import hash_password, hash_password_async, require_roles, require_permission, get_current_user
 from core.utils import next_id, now_utc_str
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -42,7 +42,7 @@ async def create_user(body: UserCreate, admin: dict = Depends(require_permission
     uid = await next_id("user")
     doc = {
         "id": uid, "name": body.name, "email": email, "role": body.role,
-        "active": True, "password_hash": hash_password(body.password),
+        "active": True, "password_hash": await hash_password_async(body.password),
         "created_at": now_utc_str(),
     }
     await db.users.insert_one(doc)
@@ -70,7 +70,7 @@ async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(requ
     if body.active is not None:
         updates["active"] = body.active
     if body.password:
-        updates["password_hash"] = hash_password(body.password)
+        updates["password_hash"] = await hash_password_async(body.password)
     if body.ozonetel_agent_id is not None:
         updates["ozonetel_agent_id"] = body.ozonetel_agent_id.strip() or None
     if body.ozonetel_phone_name is not None:

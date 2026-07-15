@@ -7,7 +7,8 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog
+from routes.catalogs import bust_catalogs
 
 router = APIRouter(tags=["webhooks"])
 
@@ -26,6 +27,7 @@ FIELD_ALIASES = {
     "ads_platform": ["ads_platform", "platform", "utm_source"],
     "ads_name": ["ads_name", "ad_name"],
     "ads_campaign_name": ["ads_campaign_name", "adset_name"],
+    "source_lead": ["source_lead", "source", "lead_source", "source_name"],
     "conversion_page": ["conversion_page", "page_url", "pageurl", "page", "page_name", "pagename",
                         "form_name", "formname", "form", "landing_page", "landing_page_url",
                         "source_url", "sourceurl", "referrer", "referer", "current_url", "url"],
@@ -85,12 +87,12 @@ async def webhook_lead(token: str, request: Request):
         "name": data.get("name") or data.get("contact_name") or data.get("phone") or "Web Lead",
         "tags": hook.get("tag_ids") or [],
         "lead_stage": hook.get("lead_stage_default"),
-        "source_lead": hook.get("source_default") or "website",
+        "source_lead": data.get("source_lead") or hook.get("source_default") or "website",
         "user_id": user_id,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "webhook_id": hook["id"],
         "phone_digits": re.sub(r"\D", "", data.get("phone") or "")[-10:],
-        **{k: v for k, v in data.items() if k != "name"},
+        **{k: v for k, v in data.items() if k not in ("name", "source_lead")},
     }
     dup = await check_duplicate(doc["phone_digits"])
     doc["is_duplicate"] = dup["is_duplicate"]
@@ -99,6 +101,11 @@ async def webhook_lead(token: str, request: Request):
     doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
     await db.webhooks.update_one({"id": hook["id"]}, {"$inc": {"hits": 1}})
+    # Register the lead's source in the catalog so it shows in the Source dropdown/filters
+    # (e.g. "Website AI Agent" arriving from the site's API). Idempotent get-or-create.
+    if doc.get("source_lead"):
+        await ensure_catalog("source_lead", doc["source_lead"])
+        bust_catalogs()
     await log_message(lid, f"Lead captured via webhook '{hook['name']}'")
     if dup["is_duplicate"]:
         await log_message(lid, f"⚠️ Possible duplicate — same phone as lead #{dup['duplicate_of']}", subtype="comment")
