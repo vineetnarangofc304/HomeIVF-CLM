@@ -1,6 +1,16 @@
 # HomeIVF CRM — PRD
 
 
+## Feature (2026-07-17) — KPI Performance Overview Dashboard — VERIFIED (preview, iteration_57: backend 100%, frontend 100%)
+- **What:** new left-sidebar page **"KPI Report"** (`/kpi`, nav testid `nav-kpi`, under `reports` permission → admin/manager only; caller is Guard-redirected + 403 on API). Replicates the user's color-coded KPI screenshot.
+- **Layout:** top FTD/MTD/YTD total cards; a green **Conversion Metrics (MTD)** strip (Valid→OPD Booked, OPD Booked→OPD Done, OPD Done→Registration, Registration→Stimulation Start with num/den/pct + bars); then 5 color-coded stage sections — **Yellow VALID LEADS**, **Red CONTACT ATTEMPT**, **Orange CONTACTED**, **Green CONVERTED**, **Grey CLOSED** — each a Sub Status / FTD / MTD / YTD / % (MTD) table with a Total footer.
+- **Definitions (user-confirmed):** FTD = leads created TODAY (IST), MTD = this month, YTD = this year — all by **lead creation date** (`create_date_ist`). **VALID LEADS** = computed cross-stage bucket (Call back for appointment + OPD Booked + OPD Done + Valid Not Interested), so OPD Booked/OPD Done intentionally also appear under their real stage.
+- **Backend:** `GET /api/reports/kpi-overview` (reports.py). Reads stage→tag grouping from `settings.disposition_map` and tag catalog. Single `$facet` aggregation over the current-year slice (`active` + `pipeline!=False`) computes by-tag + totals in one scan; handles `tags` stored as BOTH int catalog ids AND string names (normalised + merged). Cached 120s per (scope, day).
+- **Verified:** seeded 16 mixed-tag 2026 leads → FTD=5/MTD=18/YTD=23, Valid MTD=5, Valid→OPD Booked=40%; both int-id (Ringing=26) and string ("Busy") tags counted; caller 403; UI renders + Refresh works. Seed data removed after test.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** to appear on the live site.
+
+
+
 ## Fix + Feature (2026-07-15d) — Duplicate web leads + Caller Activity required — VERIFIED (preview)
 ### Duplicate leads (URGENT) — root cause + fix
 - **Cause:** the web webhook (`/api/webhook/lead/{token}`) created a NEW lead AND round-robin-assigned a caller on EVERY post; it only *flagged* duplicates, never blocked them. The Website AI Agent re-posts the same enquiry repeatedly → the same phone/person was created many times and spread across many callers.
