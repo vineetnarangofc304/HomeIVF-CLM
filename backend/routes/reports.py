@@ -1,4 +1,6 @@
 import asyncio
+import re
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
@@ -320,3 +322,124 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
         "range_start": range_start, "range_end": range_end,
         "leads_range": leads_range, "converted_range": converted_range,
     }
+
+
+# --- KPI Performance Overview -------------------------------------------------
+# Color-coded stage report grouped by disposition Sub-Status with FTD (today),
+# MTD (this month) and YTD (this year) counts + a conversion funnel. Counts are
+# by lead creation date. Stage->tag grouping comes from settings.disposition_map;
+# "Valid Leads" is a computed cross-stage bucket. Cached for 120s (admin/manager
+# report — low concurrency) so the year-wide facet scan never repeats per load.
+
+_kpi_cache: dict = {}
+_KPI_TTL = 120
+
+VALID_LEAD_TAGS = ["Call back for appointment", "OPD Booked", "OPD Done", "Valid Not Interested"]
+_STAGE_ORDER = ["Contact Attempt", "Contacted", "Converted", "Closed"]
+_STAGE_TITLES = {
+    "Contact Attempt": "CONTACT ATTEMPT — not reached",
+    "Contacted": "CONTACTED — active pipeline",
+    "Converted": "CONVERTED",
+    "Closed": "CLOSED — lost / invalid",
+}
+_STAGE_COLORS = {"Contact Attempt": "red", "Contacted": "orange", "Converted": "green", "Closed": "grey"}
+
+
+def _norm(s: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (s or "").lower())
+
+
+@router.get("/kpi-overview")
+async def kpi_overview(user: dict = Depends(require_permission("reports"))):
+    today = today_ist()            # YYYY-MM-DD (IST)
+    month_start = today[:7] + "-01"
+    year_start = today[:4] + "-01-01"
+
+    scope = user["id"] if user.get("role") == "caller" else "all"
+    ck = f"{scope}:{today}"
+    now = time.time()
+    hit = _kpi_cache.get(ck)
+    if hit and now - hit[0] < _KPI_TTL:
+        return hit[1]
+
+    dm_doc = await db.settings.find_one({"key": "disposition_map"}, {"_id": 0, "map": 1})
+    disp_map = (dm_doc or {}).get("map", {})
+
+    tags = await db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
+    id_to_name = {t["id"]: t["name"] for t in tags}
+
+    base = {"active": True, "pipeline": {"$ne": False}}
+    if user.get("role") == "caller":
+        base["user_id"] = user["id"]
+
+    mtd_cond = {"$cond": [{"$gte": ["$create_date_ist", month_start]}, 1, 0]}
+    ftd_cond = {"$cond": [{"$gte": ["$create_date_ist", today]}, 1, 0]}
+    sums = {"ytd": {"$sum": 1}, "mtd": {"$sum": mtd_cond}, "ftd": {"$sum": ftd_cond}}
+
+    res = await db.leads.aggregate([
+        {"$match": {**base, "create_date_ist": {"$gte": year_start}}},
+        {"$facet": {
+            "by_tag": [{"$unwind": "$tags"}, {"$group": {"_id": "$tags", **sums}}],
+            "totals": [{"$group": {"_id": None, **sums}}],
+        }},
+    ], allowDiskUse=True, maxTimeMS=25000).to_list(1)
+    res = res[0] if res else {"by_tag": [], "totals": []}
+
+    # `tags` are stored either as catalog INT ids (migrated) or as string names
+    # (some CRM/webhook paths), so normalise both to a canonical key and merge.
+    norm_counts: dict = {}
+    for r in res.get("by_tag", []):
+        key = r.get("_id")
+        if key is None or isinstance(key, bool):
+            continue
+        if isinstance(key, (int, float)):
+            nm = id_to_name.get(int(key))
+            norm = _norm(nm) if nm else None
+        else:
+            norm = _norm(str(key))
+        if not norm:
+            continue
+        acc = norm_counts.setdefault(norm, {"ftd": 0, "mtd": 0, "ytd": 0})
+        acc["ftd"] += r["ftd"]; acc["mtd"] += r["mtd"]; acc["ytd"] += r["ytd"]
+
+    tt = (res.get("totals") or [{}])[0] or {}
+    total = {"ftd": tt.get("ftd", 0), "mtd": tt.get("mtd", 0), "ytd": tt.get("ytd", 0)}
+
+    def tag_counts(name: str) -> dict:
+        return dict(norm_counts.get(_norm(name), {"ftd": 0, "mtd": 0, "ytd": 0}))
+
+    def build(names: list):
+        rows, tot = [], {"ftd": 0, "mtd": 0, "ytd": 0}
+        for nm in names:
+            c = tag_counts(nm)
+            rows.append({"label": nm, **c})
+            for k in tot:
+                tot[k] += c[k]
+        return rows, tot
+
+    sections = []
+    v_rows, v_tot = build(VALID_LEAD_TAGS)
+    sections.append({"key": "valid", "title": "VALID LEADS", "color": "yellow",
+                     "subtitle": "Appt callback + OPD Booked + OPD Done + Valid NI",
+                     "rows": v_rows, "totals": v_tot})
+    for st in _STAGE_ORDER:
+        rows, tot = build(disp_map.get(st, []))
+        sections.append({"key": _norm(st), "title": _STAGE_TITLES.get(st, st.upper()),
+                         "color": _STAGE_COLORS.get(st, "grey"), "rows": rows, "totals": tot})
+
+    def ratio(num, den):
+        return {"num": num, "den": den, "pct": round(100 * num / den) if den else 0}
+
+    b, d, r, s = (tag_counts("OPD Booked")["mtd"], tag_counts("OPD Done")["mtd"],
+                  tag_counts("Registration Done")["mtd"], tag_counts("Treatment Started")["mtd"])
+    conversion = [
+        {"label": "Valid → OPD Booked", **ratio(b, v_tot["mtd"])},
+        {"label": "OPD Booked → OPD Done", **ratio(d, b)},
+        {"label": "OPD Done → Registration", **ratio(r, d)},
+        {"label": "Registration → Stimulation Start", **ratio(s, r)},
+    ]
+
+    out = {"total": total, "today": today, "month_start": month_start, "year_start": year_start,
+           "sections": sections, "conversion": conversion}
+    _kpi_cache[ck] = (now, out)
+    return out

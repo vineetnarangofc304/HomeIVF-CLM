@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   SquaresFour, UsersThree, ClockCountdown, WhatsappLogo, ChartBar,
-  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall, Megaphone,
+  EnvelopeSimple, GearSix, SignOut, MagnifyingGlass, Sparkle, PhoneCall, Megaphone, Gauge,
 } from "@phosphor-icons/react";
 import { useAuth } from "../context/AuthContext";
 import { useNavGuard } from "../context/NavGuardContext";
@@ -19,6 +19,7 @@ const NAV = [
   { to: "/whatsapp", label: "WhatsApp", icon: WhatsappLogo, testid: "nav-whatsapp", perm: "whatsapp" },
   { to: "/marketing", label: "Marketing", icon: Megaphone, testid: "nav-marketing", perm: "marketing" },
   { to: "/reports", label: "Reports", icon: ChartBar, testid: "nav-reports", perm: "reports" },
+  { to: "/kpi", label: "KPI Report", icon: Gauge, testid: "nav-kpi", perm: "reports" },
   { to: "/ai-insights", label: "AI Insights", icon: Sparkle, testid: "nav-ai-insights", perm: "reports" },
   { to: "/templates", label: "Templates", icon: EnvelopeSimple, testid: "nav-templates", perm: "templates" },
 ];
