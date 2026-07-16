@@ -1,0 +1,28 @@
+{
+  "summary": "Iteration 56 — Verified webhook dedupe, duplicate-scan source filter, Odoo removal (backend 7/7 pytest PASSED) and the frontend Caller-Activity mandatory guard + Duplicates admin tab + no Migration/Odoo in /admin (all UI checks PASSED).",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter56_webhook_dupes_source.py",
+    "/app/test_reports/pytest/iter56_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "routes/webhooks.py check_duplicate() runs BEFORE the phone-digits fallback pattern (last 10 digits). Confirm check_duplicate uses the same phone_digits normalization; otherwise a leading-country-code variant of the same number could bypass dedupe and still allocate a new caller. Verified via test: same 10-digit phone dedupes correctly, but suggest an explicit test for '+919998887xxx' vs '9998887xxx' variants.",
+    "routes/admin.py _dup_scan_worker groups by (name.lower(), phone_digits). Two records with the SAME phone but slightly different names (e.g. trailing whitespace vs 'Rahul' vs 'Rahul Kumar') will NOT be flagged as duplicates. If the product intent is 'one active lead per phone' (which the webhook now enforces), consider making the dup scan phone-only (with name shown for display) OR document this name-matching behavior in the admin UI.",
+    "routes/webhooks.py webhook_lead(): the fallback round-robin (when no assignment settings) uses ir_sequences 'web_assign_pointer' — good, persistent — but the primary path in settings.assignment updates pointer only when settings exist AND enabled AND has user_ids. If a lead ends up with user_id=None (settings disabled AND no active callers), it will be invisible to callers (server-side filter). Consider surfacing an admin warning if a webhook is round-robin but no callers exist.",
+    "Frontend LeadDetail nav guard: touchedRef is only set by update()/edits — good — but StageBadge fallback shows '—' when lead_stage is empty. Verified stage-btn-Contacted click sets lead_stage and triggers touched. The dup-source-select in Admin returned option[value] as empty in one snapshot; not a blocker (label text is populated) but consider adding a value attribute for each source in the DuplicatesTab select to make automated selection more robust."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter56_webhook_dupes_source.py"],
+  "success_rate": { "backend": "100% (7/7)", "frontend": "100% (4/4 flows)" },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026",
+  "seed_data_creation": "Backend: creates a TEST_WAA_iter56 webhook (deleted at end); posts 3 same-phone leads (deleted via mongo cleanup); seeds 4 disposable duplicate leads (2x 'Website AI Agent', 2x 'Meta') and deletes them in fixture teardown. Frontend: lead 600000 was primed with city=Mumbai, state=Maharashtra, tags=['Ringing'], one throwaway caller activity was added — test also verified the guard clears afterwards.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "All 5 items from iter56 request verified. Backend suite at /app/backend/tests/test_iter56_webhook_dupes_source.py is safe to rerun as regression (self-cleans). Duplicate scan source scoping confirmed: source='Website AI Agent' returns only WAA groups; omitted source returns all sources. Webhook dedupe returns {ok:true,duplicate:true,merged_into:X} on repeat POSTs and does NOT create a new lead nor consume caller round-robin. Frontend LeadDetail guard triggers only after an edit + only on active leads (spec-correct). No blocking issues.",
+  "rca of the issue": "N/A — regression verification, no bugs found."
+}

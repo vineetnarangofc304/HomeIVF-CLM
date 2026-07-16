@@ -1511,14 +1511,20 @@ function WhatsAppTab({ isAdmin }) {
 function DuplicatesTab() {
   const [dupFrom, setDupFrom] = useState("2026-06-01");
   const [dupTo, setDupTo] = useState(new Date().toISOString().slice(0, 10));
+  const [dupSource, setDupSource] = useState("");
+  const [sources, setSources] = useState([]);
   const [dupScan, setDupScan] = useState(null);
   const [dupBusy, setDupBusy] = useState(false);
   const [dupConfirm, setDupConfirm] = useState(false);
 
+  useEffect(() => {
+    API.get("/catalogs").then(({ data }) => setSources((data.source_lead || []).map((s) => s.name))).catch(() => {});
+  }, []);
+
   const runDupScan = async () => {
     setDupBusy(true); setDupScan(null);
     try {
-      const { data } = await API.post("/admin/duplicates/scan", { date_from: dupFrom, date_to: dupTo });
+      const { data } = await API.post("/admin/duplicates/scan", { date_from: dupFrom, date_to: dupTo, source: dupSource || null });
       const sid = data.scan_id;
       let tries = 0;
       const poll = setInterval(async () => {
@@ -1551,9 +1557,17 @@ function DuplicatesTab() {
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="font-display text-sm font-extrabold text-slate-800">Duplicate Lead Cleanup</h3>
-            <p className="text-xs text-slate-500">Finds leads that share the <b>same name + mobile number</b>, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Deleted leads are archived (recoverable).</p>
+            <p className="text-xs text-slate-500">Finds leads that share the <b>same name + mobile number</b>, keeps the <b>oldest</b> one, and lets you delete the newer duplicates created in a date range. Filter by <b>Source</b> to clean only one source (e.g. Website AI Agent). Deleted leads are archived (recoverable).</p>
           </div>
-          <div className="flex items-end gap-2">
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Source</label>
+              <select value={dupSource} onChange={(e) => setDupSource(e.target.value)} data-testid="dup-source-select"
+                className="mt-1 rounded-lg border border-slate-200 px-2 py-1.5 text-sm">
+                <option value="">All sources</option>
+                {sources.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
             <div>
               <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Created from</label>
               <input type="date" value={dupFrom} onChange={(e) => setDupFrom(e.target.value)} data-testid="dup-from-input"
@@ -1574,7 +1588,7 @@ function DuplicatesTab() {
           <div className="mt-4" data-testid="dup-scan-result">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-sm text-slate-600">
-                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> name + mobile combo(s) · created {dupScan.date_from} → {dupScan.date_to}
+                <b className="text-rose-600" data-testid="dup-total">{dupScan.total_delete}</b> duplicate lead(s) to delete across <b>{dupScan.group_count}</b> name + mobile combo(s) · created {dupScan.date_from} → {dupScan.date_to} · <b>{dupScan.source ? dupScan.source : "All sources"}</b>
               </p>
               {dupScan.total_delete > 0 && (
                 <button data-testid="dup-delete-button" onClick={() => setDupConfirm(true)} className="rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-700">
@@ -1618,7 +1632,7 @@ function DuplicatesTab() {
           <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl" data-testid="dup-confirm-modal">
             <h3 className="font-display text-lg font-extrabold text-slate-900">Delete {dupScan.total_delete} duplicate lead(s)?</h3>
             <div className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-slate-700">
-              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}), keeping the oldest lead for each <b>name + mobile</b> combination. Deleted leads are <b>archived</b> and can be recovered if needed.
+              This permanently removes the <b>newer</b> duplicate leads (created {dupScan.date_from} → {dupScan.date_to}{dupScan.source ? <>, source <b>{dupScan.source}</b></> : ", all sources"}), keeping the oldest lead for each <b>name + mobile</b> combination. Deleted leads are <b>archived</b> and can be recovered if needed.
             </div>
             <div className="mt-5 flex justify-end gap-2">
               <button onClick={() => setDupConfirm(false)} className="hivf-btn-secondary" data-testid="dup-cancel-button">Cancel</button>

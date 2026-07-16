@@ -109,10 +109,12 @@ async def outbound_queue(user: dict = Depends(require_roles("admin", "manager"))
 
 
 # ---------- Case 1: Duplicate lead cleanup (scan preview + confirm delete) ----------
-def _dup_scan_worker(date_from, date_to, scan_id):
+def _dup_scan_worker(date_from, date_to, scan_id, source=None):
     """Find leads that share a phone number, keeping the OLDEST per phone and flagging
-    the newer duplicates CREATED within [date_from, date_to] for deletion. Runs on a
-    background thread; result stored in settings.dup_scan.
+    the newer duplicates CREATED within [date_from, date_to] for deletion. Optionally
+    scoped to a single lead SOURCE so only that source's duplicates are cleaned (e.g.
+    "Website AI Agent"), leaving other sources untouched. Runs on a background thread;
+    result stored in settings.dup_scan.
 
     Indexed two-step approach (avoids a full-collection $group that trips MongoDB's
     operation time limit on large datasets):
@@ -120,7 +122,7 @@ def _dup_scan_worker(date_from, date_to, scan_id):
       2) fetch only leads sharing those phones (uses phone_digits index) and group in-memory."""
     from pymongo import MongoClient
     sdb = MongoClient(os.environ["MONGO_URL"])[os.environ["DB_NAME"]]
-    fields = ["id", "name", "phone", "create_date", "user_id", "stage_id", "active"]
+    fields = ["id", "name", "phone", "create_date", "user_id", "stage_id", "active", "source_lead"]
     try:
         try:
             sdb.leads.create_index("phone_digits")
@@ -128,14 +130,19 @@ def _dup_scan_worker(date_from, date_to, scan_id):
         except Exception:
             pass
         lo, hi = f"{date_from} 00:00:00", f"{date_to} 23:59:59"
-        window_phones = [p for p in sdb.leads.distinct("phone_digits", {
-            "create_date": {"$gte": lo, "$lte": hi}, "phone_digits": {"$nin": [None, ""]}}) if p]
+        window_match = {"create_date": {"$gte": lo, "$lte": hi}, "phone_digits": {"$nin": [None, ""]}}
+        if source:
+            window_match["source_lead"] = source
+        window_phones = [p for p in sdb.leads.distinct("phone_digits", window_match) if p]
         groups_out, cand_ids = [], []
         for i in range(0, len(window_phones), 400):
             chunk = window_phones[i:i + 400]
             proj = {"_id": 0, "phone_digits": 1, **{f: 1 for f in fields}}
+            fetch_q = {"phone_digits": {"$in": chunk}}
+            if source:
+                fetch_q["source_lead"] = source
             by_combo = {}
-            for l in sdb.leads.find({"phone_digits": {"$in": chunk}}, proj):
+            for l in sdb.leads.find(fetch_q, proj):
                 key = ((l.get("name") or "").strip().lower(), l.get("phone_digits"))
                 by_combo.setdefault(key, []).append(l)
             for (nm, ph), grp in by_combo.items():
@@ -152,7 +159,7 @@ def _dup_scan_worker(date_from, date_to, scan_id):
                 cand_ids += [c["id"] for c in cands]
         sdb.settings.update_one({"key": "dup_scan"}, {"$set": {
             "key": "dup_scan", "status": "done", "scan_id": scan_id,
-            "date_from": date_from, "date_to": date_to,
+            "date_from": date_from, "date_to": date_to, "source": source or "",
             "groups": groups_out[:1000], "group_count": len(groups_out),
             "candidate_ids": cand_ids, "total_delete": len(cand_ids),
             "scanned_at": now_utc_str()}}, upsert=True)
@@ -168,16 +175,18 @@ def _dup_scan_worker(date_from, date_to, scan_id):
 class DupScanBody(BaseModel):
     date_from: str
     date_to: str
+    source: Optional[str] = None
 
 
 @router.post("/duplicates/scan")
 async def dup_scan(body: DupScanBody, user: dict = Depends(require_roles("admin"))):
     scan_id = int(datetime.now(timezone.utc).timestamp())
+    src = (body.source or "").strip() or None
     await db.settings.update_one({"key": "dup_scan"}, {"$set": {
         "key": "dup_scan", "status": "running", "scan_id": scan_id,
-        "date_from": body.date_from, "date_to": body.date_to,
+        "date_from": body.date_from, "date_to": body.date_to, "source": src or "",
         "started_at": now_utc_str(), "started_by": user["name"]}}, upsert=True)
-    threading.Thread(target=_dup_scan_worker, args=(body.date_from, body.date_to, scan_id),
+    threading.Thread(target=_dup_scan_worker, args=(body.date_from, body.date_to, scan_id, src),
                      name="dup-scan", daemon=True).start()
     return {"status": "running", "scan_id": scan_id}
 
