@@ -12,7 +12,7 @@ IST = timezone(timedelta(hours=5, minutes=30))
 from pydantic import BaseModel
 
 from core.db import db
-from core.security import get_current_user, require_roles
+from core.security import get_current_user, require_roles, ensure_lead_edit
 from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm, sync_channel_owner
 from core import whatsapp_cloud as wac
 
@@ -46,7 +46,7 @@ def build_query(
     search=None, stage_id=None, lead_stage=None, tags=None, user_id=None,
     source_lead=None, campaign_name=None, ads_platform=None, city=None, state_name=None,
     active="true", date_from=None, date_to=None, follow_up=None, priority=None,
-    follow_up_tag=None, lost_reason_id=None, bucket=None,
+    follow_up_tag=None, lost_reason_id=None, bucket=None, duplicate=None,
     current_user=None,
 ):
     q = {}
@@ -104,6 +104,9 @@ def build_query(
         q["follow_up_tag"] = follow_up_tag
     if lost_reason_id:
         q["lost_reason_id"] = int(lost_reason_id)
+    if duplicate == "true":
+        q["is_duplicate"] = True
+        q.pop("active", None)  # duplicates are usually archived/merged — show all regardless of active
     if campaign_name:
         q["campaign_name"] = {"$regex": re.escape(campaign_name), "$options": "i"}
     if ads_platform:
@@ -127,9 +130,8 @@ def build_query(
         q["follow_up_date"] = {"$gt": today}
     elif follow_up == "set":
         q["follow_up_date"] = {"$gt": ""}
-    # callers only see their own leads
-    if current_user and current_user.get("role") == "caller":
-        q["user_id"] = current_user["id"]
+    # Callers can VIEW all leads; edit rights are restricted to the assigned caller
+    # and enforced per-mutation (ensure_lead_edit). So no owner scoping on the list.
     return q
 
 
@@ -142,14 +144,14 @@ def query_params_dep(
     active: str = "true", date_from: Optional[str] = None, date_to: Optional[str] = None,
     follow_up: Optional[str] = None, priority: Optional[str] = None,
     follow_up_tag: Optional[str] = None, lost_reason_id: Optional[str] = None,
-    bucket: Optional[str] = None,
+    bucket: Optional[str] = None, duplicate: Optional[str] = None,
 ):
     return dict(
         search=search, stage_id=stage_id, lead_stage=lead_stage, tags=tags, user_id=user_id,
         source_lead=source_lead, campaign_name=campaign_name, ads_platform=ads_platform,
         city=city, state_name=state_name, active=active, date_from=date_from, date_to=date_to,
         follow_up=follow_up, priority=priority, follow_up_tag=follow_up_tag, lost_reason_id=lost_reason_id,
-        bucket=bucket,
+        bucket=bucket, duplicate=duplicate,
     )
 
 
@@ -384,6 +386,7 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     updates = {k: v for k, v in body.updates.items() if k in EDITABLE_FIELDS}
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update")
@@ -425,6 +428,7 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     await db.leads.update_one({"id": lead_id}, {"$set": {
         "active": False, "lost_reason_id": body.lost_reason_id,
         "date_closed": now_utc_str(), "probability": 0,
@@ -439,6 +443,10 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
 
 @router.post("/{lead_id}/restore")
 async def restore_lead(lead_id: int, user: dict = Depends(get_current_user)):
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     await db.leads.update_one({"id": lead_id}, {"$set": {"active": True, "lost_reason_id": None}})
     await log_message(lead_id, "Lead restored", author=user)
     return {"ok": True}
@@ -461,6 +469,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     phone = (body.phone or lead.get("phone") or "").strip()
     pdig = re.sub(r"\D", "", phone)[-10:]
     name = body.contact_name or body.name or lead.get("contact_name") or lead.get("name")
@@ -510,6 +519,7 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     template = await db.templates_whatsapp.find_one({"id": body.template_id}, {"_id": 0})
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -577,6 +587,7 @@ async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     to = (body.to or lead.get("email_from") or "").strip()
     if not to:
         raise HTTPException(status_code=400, detail="Lead has no email address — enter one")
@@ -687,6 +698,7 @@ async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(ge
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     note = (body.note or "").strip()
     if not note:  # Case 1 — note is mandatory for every follow-up
         raise HTTPException(status_code=400, detail="A note is required for every follow-up")
@@ -709,6 +721,9 @@ async def update_followup(lead_id: int, fid: int, body: FollowUpBody, user: dict
     fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
+    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
+    if _lead:
+        ensure_lead_edit(_lead, user)
     note = (body.note or "").strip()
     if not note:
         raise HTTPException(status_code=400, detail="A note is required for every follow-up")
@@ -730,6 +745,9 @@ async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, 
     fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
+    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
+    if _lead:
+        ensure_lead_edit(_lead, user)
     status = (body.status or "").strip() or None
     await db.follow_ups.update_one({"id": fid}, {"$set": {"status": status}})
     await _sync_lead_followup(lead_id)
@@ -739,6 +757,9 @@ async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, 
 
 @router.delete("/{lead_id}/followups/{fid}")
 async def delete_followup(lead_id: int, fid: int, user: dict = Depends(get_current_user)):
+    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
+    if _lead:
+        ensure_lead_edit(_lead, user)
     res = await db.follow_ups.delete_one({"id": fid, "lead_id": lead_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Follow-up not found")
@@ -760,9 +781,10 @@ async def list_caller_activities(lead_id: int, user: dict = Depends(get_current_
 
 @router.post("/{lead_id}/caller-activities")
 async def add_caller_activity(lead_id: int, body: CallerActivityBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     fb = (body.feedback or "").strip()
     if not fb:
         raise HTTPException(status_code=400, detail="Feedback note is required")

@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 
 from core.db import db
-from core.security import get_current_user, require_roles
+from core.security import get_current_user, require_roles, ensure_lead_edit
 from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, search_norm
 
 router = APIRouter(prefix="/calls", tags=["calls"])
@@ -254,6 +254,7 @@ async def click_to_dial(body: DialBody, user: dict = Depends(get_current_user)):
         lead = await db.leads.find_one({"id": body.lead_id}, LEAD_SUMMARY)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
+        ensure_lead_edit(lead, user)
         phone = phone or lead.get("phone")
     if not phone:
         raise HTTPException(status_code=400, detail="No phone number to dial")

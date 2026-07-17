@@ -1,0 +1,30 @@
+{
+  "summary": "Iteration 58 — Record-level access control (Case 1) + Duplicate/My Leads filters (Case 2). Backend: 16/16 pytest cases pass covering caller-sees-all, ensure_lead_edit denial on 8 mutation endpoints + click-to-dial, assign→edit-allowed→revert flow, admin unrestricted edits, duplicate=true filter (total=1 regardless of active). Frontend: caller readonly-banner + access-denied-modal verified for 9/10 gated actions on foreign lead #133223; filter-duplicate dropdown and my-leads-toggle work for caller; admin sees filter-duplicate (SELECT) with 'Duplicate Leads only' shrinking list to 1 and chip 'Duplicate Lead: Only' appearing; my-leads-toggle correctly hidden for admin. ONE frontend defect: caller-activity-add does NOT trigger access-denied-modal because <CallerActivities/> at LeadDetail.jsx:352 is instantiated without canEdit / onDenied props.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "CallerActivities (LeadDetail.jsx:352)", "issue": "Missing canEdit={canEdit} and onDenied={deny} props. As a result, on a read-only lead the caller can type feedback and click 'Add More Note' → POST returns 403 which surfaces as a toast instead of the required access-denied-modal. The other gated child components (FieldCard/QACard/CustomFieldsCard/FollowUpSection) receive these props correctly.", "selector": "[data-testid=\"caller-activity-add\"]", "priority": "HIGH"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": ["/app/backend/tests/test_iter58_record_access.py", "/app/test_reports/pytest/iter58.xml"],
+  "action_items": [
+    "Pass canEdit + onDenied props to <CallerActivities/> instance in LeadDetail.jsx (line 352), matching the pattern used for FieldCard/QACard/CustomFieldsCard/FollowUpSection. This is the only remaining gap for full record-level UI enforcement."
+  ],
+  "critical_code_review_comments": [
+    "backend/routes/leads.py: ensure_lead_edit is applied consistently on all 11 lead-mutating endpoints (update, lost, restore, promote, whatsapp, email, followups add/update/status/delete, caller-activities) — good.",
+    "backend/routes/chatter.py: post_message/create_activity/mark_done/cancel_activity all gated — good.",
+    "backend/routes/calls.py: click_to_dial gated only when lead_id present (intentional). Note: /calls/{id}/disposition (set_disposition) is NOT gated — a caller could set a disposition on a call whose lead belongs to another caller. Consider adding ensure_lead_edit(lead, user) inside if lead_id branch if this should also be caller-restricted.",
+    "build_query: duplicate=true correctly pops active to expose archived duplicates. Good.",
+    "core/security.ensure_lead_edit: only role=='caller' is checked; manager & admin bypass — matches spec."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter58_record_access.py"],
+  "success_rate": {"backend": "100% (16/16)", "frontend": "~93% (9/10 gated actions + all filters + banner work; caller-activity-add modal broken)"},
+  "test_credentials": "Used admin@homeivf.com / HomeIVF@2026 and agent@homeivf.com / Agent@2026 (id 1001). Lead #133223 owner reverted to user 2 after tests.",
+  "seed_data_creation": "None — used existing lead #133223. City was set to 'TestCity58' during the allowed-edit test (still present on the lead).",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The one remaining defect is a trivial JSX prop-pass at /app/frontend/src/pages/LeadDetail.jsx line 352 — after main agent fixes, re-run the frontend script and verify caller-activity-add opens access-denied-modal on lead #133223 as caller agent@homeivf.com. Backend suite /app/backend/tests/test_iter58_record_access.py is idempotent (auto-reverts owner) and safe to rerun.",
+  "rca of the issue": "CallerActivities component accepts canEdit + onDenied props (defaults canEdit=true, onDenied=noop) and gates its add() with 'if (!canEdit) return onDenied()'. But at LeadDetail.jsx:352 it is rendered as <CallerActivities leadId={lead.id} onCount={...} /> with no canEdit/onDenied — so the default true is used and the modal is never triggered. The 403 backend response then surfaces as a generic toast (via apiErr(e)). Fix: pass canEdit={canEdit} onDenied={deny}."
+}

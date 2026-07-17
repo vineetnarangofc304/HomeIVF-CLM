@@ -38,6 +38,7 @@ export default function LeadDetail() {
   const [viewAtt, setViewAtt] = useState(null);
   const [waTrackById, setWaTrackById] = useState({});
   const [fuCount, setFuCount] = useState(null);
+  const [denied, setDenied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -112,12 +113,17 @@ export default function LeadDetail() {
     };
   }, [isBlocked, checkAllowed]);
 
+  // Case 1 — callers may VIEW any lead but only EDIT one assigned to them.
+  const canEdit = user.role !== "caller" || (!!lead && lead.user_id === user.id);
+  const deny = () => setDenied(true);
+
   const reloadMessages = async () => {
     const { data: m } = await API.get(`/leads/${id}/messages`, { params: { page: 1 } });
     setMessages(m.items); setMsgTotal(m.total); setMsgPage(1);
   };
 
   const update = async (updates) => {
+    if (!canEdit) { deny(); return; }
     touchedRef.current = true;
     try {
       const { data } = await API.patch(`/leads/${id}`, { updates });
@@ -128,6 +134,7 @@ export default function LeadDetail() {
   };
 
   const postNote = async () => {
+    if (!canEdit) { deny(); return; }
     if (!note.trim()) return;
     try {
       const { data } = await API.post(`/leads/${id}/messages`, { body: note.trim().replace(/\n/g, "<br/>"), subtype: "note" });
@@ -144,6 +151,7 @@ export default function LeadDetail() {
   };
 
   const clickToDial = async () => {
+    if (!canEdit) { deny(); return; }
     setDialing(true);
     try {
       await API.post(`/calls/dial`, { lead_id: lead.id });
@@ -157,6 +165,7 @@ export default function LeadDetail() {
 
   const [moving, setMoving] = useState(false);
   const moveToPipeline = async () => {
+    if (!canEdit) { deny(); return; }
     setMoving(true);
     try {
       const { data } = await API.post(`/leads/${id}/promote-to-pipeline`, {
@@ -176,6 +185,7 @@ export default function LeadDetail() {
   };
 
   const uploadFiles = async (fileList) => {
+    if (!canEdit) { deny(); return; }
     const files = Array.from(fileList || []);
     if (!files.length) return;
     for (const f of files) {
@@ -192,6 +202,7 @@ export default function LeadDetail() {
   };
 
   const deleteAttachment = async (att) => {
+    if (!canEdit) { deny(); return; }
     if (!window.confirm(`Delete ${att.original_filename}?`)) return;
     await API.delete(`/attachments/${att.id}`);
     await reloadAttachments();
@@ -253,11 +264,11 @@ export default function LeadDetail() {
             className="inline-flex items-center gap-1.5 rounded-full bg-indigo-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-indigo-600 disabled:opacity-60">
             <Phone size={15} weight="bold" /> {dialing ? "Dialing…" : "Call"}
           </button>
-          <button data-testid="send-whatsapp-button" onClick={() => setShowWa(true)}
+          <button data-testid="send-whatsapp-button" onClick={() => (canEdit ? setShowWa(true) : deny())}
             className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-emerald-600">
             <WhatsappLogo size={15} weight="bold" /> WhatsApp
           </button>
-          <button data-testid="send-email-button" onClick={() => setShowEmail(true)}
+          <button data-testid="send-email-button" onClick={() => (canEdit ? setShowEmail(true) : deny())}
             className="inline-flex items-center gap-1.5 rounded-full bg-[#4A90E2] px-3 py-1.5 text-xs font-bold text-white transition-colors hover:bg-[#357ABD]">
             <EnvelopeSimple size={15} weight="bold" /> Email
           </button>
@@ -270,13 +281,19 @@ export default function LeadDetail() {
             ))}
           </div>
           {lead.active ? (
-            <button data-testid="mark-lost-button" onClick={() => setShowLost(true)} className="hivf-btn-secondary !py-1.5 text-xs text-rose-600"><Prohibit size={14} /> Lost</button>
+            <button data-testid="mark-lost-button" onClick={() => (canEdit ? setShowLost(true) : deny())} className="hivf-btn-secondary !py-1.5 text-xs text-rose-600"><Prohibit size={14} /> Lost</button>
           ) : (
-            <button data-testid="restore-button" onClick={async () => { await API.post(`/leads/${id}/restore`); load(); }} className="hivf-btn-secondary !py-1.5 text-xs text-emerald-600"><ArrowCounterClockwise size={14} /> Restore</button>
+            <button data-testid="restore-button" onClick={async () => { if (!canEdit) return deny(); await API.post(`/leads/${id}/restore`); load(); }} className="hivf-btn-secondary !py-1.5 text-xs text-emerald-600"><ArrowCounterClockwise size={14} /> Restore</button>
           )}
         </div>
       </div>
 
+      {!canEdit && (
+        <div className="shrink-0 border-b border-amber-200 bg-amber-50 px-5 py-2 text-sm text-amber-800 flex items-center gap-2" data-testid="readonly-banner">
+          <Prohibit size={16} weight="bold" />
+          <span>View only — this lead is assigned to <b>{userById[lead.user_id]?.name || "another caller"}</b>. Only the assigned caller can make changes.</span>
+        </div>
+      )}
       <div className="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden">
       <div className="grid grid-cols-1 gap-5 p-5 lg:grid-cols-5 lg:h-full">
         {/* LEFT: fields */}
@@ -286,7 +303,7 @@ export default function LeadDetail() {
             <p className="mt-1 text-xs text-slate-500">AI insights & next-best-action arrive in Phase 2.</p>
           </div>
 
-          <FieldCard title="Contact" lead={lead} onSave={update}
+          <FieldCard title="Contact" lead={lead} onSave={update} canEdit={canEdit} onDenied={deny}
             fields={[
               ["contact_name", "Name"], ["phone", "Phone"], ["alternate_number", "Alternate Number"],
               ["email_from", "Email"], ["street", "Address"], ["city", "City"],
@@ -300,16 +317,16 @@ export default function LeadDetail() {
             }} />
 
           {/* Meta / Google Q&A — Case 3 */}
-          <QACard lead={lead} onSave={update} catalogs={catalogs} labelOf={labelOf} />
+          <QACard lead={lead} onSave={update} catalogs={catalogs} labelOf={labelOf} canEdit={canEdit} onDenied={deny} />
 
-          <FieldCard title="Case Details" lead={lead} onSave={update} fields={[
+          <FieldCard title="Case Details" lead={lead} onSave={update} canEdit={canEdit} onDenied={deny} fields={[
             ["gender", "Gender"], ["male_age", "Male Age"], ["female_age", "Female Age"],
             ["spouse_name", "Spouse Name"], ["pre_conditions", "Pre-conditions"],
             ["doctor_name", "Doctor"], ["query", "Query"], ["remark", "Remark"],
           ]} />
 
           {/* Admin-defined custom fields (Case 4) — general section */}
-          <CustomFieldsCard lead={lead} onSave={update} catalogs={catalogs} />
+          <CustomFieldsCard lead={lead} onSave={update} catalogs={catalogs} canEdit={canEdit} onDenied={deny} />
 
           {/* Assignment & follow-up */}
           <div className="hivf-card p-4">
@@ -328,7 +345,7 @@ export default function LeadDetail() {
                 {(catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
             </div>
-            <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} onCount={setFuCount} />
+            <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} onCount={setFuCount} canEdit={canEdit} onDenied={deny} />
           </div>
 
           {/* Caller Activities — Case 2 */}
@@ -343,7 +360,7 @@ export default function LeadDetail() {
                 Disposition Tags
                 {(lead.tags || []).length === 0 && <span className="ml-1.5 text-[10px] font-bold text-rose-500" data-testid="disposition-required">* Required</span>}
               </h3>
-              <button data-testid="new-tag-button" onClick={() => setShowNewTag(true)}
+              <button data-testid="new-tag-button" onClick={() => (canEdit ? setShowNewTag(true) : deny())}
                 className="inline-flex items-center gap-1 rounded-full border border-dashed border-[#4A90E2]/50 px-2.5 py-1 text-[11px] font-bold text-[#357ABD] transition-colors hover:bg-[#4A90E2]/10">
                 <Plus size={12} /> New tag
               </button>
@@ -378,7 +395,7 @@ export default function LeadDetail() {
           </div>
 
           {/* Attribution + UTM — Case 7 */}
-          <FieldCard title="Attribution" lead={lead} onSave={update}
+          <FieldCard title="Attribution" lead={lead} onSave={update} canEdit={canEdit} onDenied={deny}
             fields={[
               ["source_lead", "Source"], ["ads_platform", "Ads Platform"], ["campaign_name", "Campaign"],
               ["ads_campaign_name", "Ads Campaign"], ["ads_name", "Ad Name"],
@@ -419,7 +436,7 @@ export default function LeadDetail() {
                 </button>
               ))}
               <div className="flex-1" />
-              <button data-testid="schedule-activity-button" onClick={() => setShowActivity(true)} className="mb-1 hivf-btn-secondary !px-2.5 !py-1 text-xs"><CalendarCheck size={13} /> Schedule</button>
+              <button data-testid="schedule-activity-button" onClick={() => (canEdit ? setShowActivity(true) : deny())} className="mb-1 hivf-btn-secondary !px-2.5 !py-1 text-xs"><CalendarCheck size={13} /> Schedule</button>
             </div>
 
             {tab === "chatter" && (
@@ -582,6 +599,16 @@ export default function LeadDetail() {
         await refreshCatalogs();
         if (!(lead.tags || []).includes(tag.id)) update({ tags: [...(lead.tags || []), tag.id] });
       }} />}
+      {denied && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/50 p-4" onClick={() => setDenied(false)} data-testid="access-denied-modal">
+          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-2xl bg-white p-6 text-center shadow-xl">
+            <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-rose-100 text-rose-600"><Prohibit size={26} weight="bold" /></div>
+            <h3 className="font-display text-lg font-extrabold text-slate-900">Access Denied</h3>
+            <p className="mt-2 text-sm text-slate-600">This lead is assigned to <b>{userById[lead.user_id]?.name || "another caller"}</b>. Only the assigned caller can make changes — you can still view all the details.</p>
+            <button data-testid="access-denied-close" onClick={() => setDenied(false)} className="hivf-btn-primary mt-5 w-full justify-center">Got it</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -624,7 +651,7 @@ function fieldDisplay(type, value) {
 }
 
 /* ---------- Meta / Google Q&A (Case 3) ---------- */
-function QACard({ lead, onSave, catalogs, labelOf }) {
+function QACard({ lead, onSave, catalogs, labelOf, canEdit = true, onDenied = () => {} }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
   const fieldLabels = catalogs?.field_labels || {};
@@ -667,7 +694,7 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
             <button data-testid="qa-save-button" onClick={save} className="text-xs font-bold text-[#357ABD]">Save</button>
           </div>
         ) : (
-          <button data-testid="qa-edit-button" onClick={startEdit} className="text-slate-300 hover:text-[#8B5CF6]"><NotePencil size={16} /></button>
+          <button data-testid="qa-edit-button" onClick={canEdit ? startEdit : onDenied} className="text-slate-300 hover:text-[#8B5CF6]"><NotePencil size={16} /></button>
         )}
       </div>
       <p className="mb-3 text-[11px] text-slate-400">Answers the customer submitted on the ad / landing page — confirm these on the call.</p>
@@ -689,7 +716,7 @@ function QACard({ lead, onSave, catalogs, labelOf }) {
 }
 
 /* ---------- Admin-defined custom fields (Case 4) ---------- */
-function CustomFieldsCard({ lead, onSave, catalogs }) {
+function CustomFieldsCard({ lead, onSave, catalogs, canEdit = true, onDenied = () => {} }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
   const defs = (catalogs?.custom_fields || []).filter((f) => f.active !== false && f.section === "general");
@@ -717,7 +744,7 @@ function CustomFieldsCard({ lead, onSave, catalogs }) {
             <button data-testid="custom-fields-save-button" onClick={save} className="text-xs font-bold text-[#357ABD]">Save</button>
           </div>
         ) : (
-          <button data-testid="custom-fields-edit-button" onClick={startEdit} className="text-slate-300 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
+          <button data-testid="custom-fields-edit-button" onClick={canEdit ? startEdit : onDenied} className="text-slate-300 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
         )}
       </div>
       <div className="space-y-1.5">
@@ -738,7 +765,7 @@ function CustomFieldsCard({ lead, onSave, catalogs }) {
 }
 
 /* ---------- field card with select support (Cases 1 & 7) ---------- */
-function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {}, required = [] }) {
+function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {}, required = [], canEdit = true, onDenied = () => {} }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState({});
   const [errors, setErrors] = useState({});
@@ -769,7 +796,7 @@ function FieldCard({ title, lead, onSave, fields, selects = {}, defaults = {}, r
             <button data-testid={`save-${title.toLowerCase().replace(/\s/g, "-")}`} onClick={save} className="text-xs font-bold text-[#357ABD]">Save</button>
           </div>
         ) : (
-          <button data-testid={`edit-${title.toLowerCase().replace(/\s/g, "-")}`} onClick={startEdit} className="text-slate-300 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
+          <button data-testid={`edit-${title.toLowerCase().replace(/\s/g, "-")}`} onClick={canEdit ? startEdit : onDenied} className="text-slate-300 hover:text-[#4A90E2]"><NotePencil size={16} /></button>
         )}
       </div>
       <div className="space-y-1.5">
@@ -1037,7 +1064,7 @@ function TemplateActivityPreview({ m, liveStatus, navigate }) {
   );
 }
 
-function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
+function FollowUpSection({ leadId, catalogs, onChanged, onCount, canEdit = true, onDenied = () => {} }) {
   const [items, setItems] = useState(null);
   const [form, setForm] = useState({ follow_up_date: "", follow_up_time: "", follow_up_tag: "", note: "", status: "" });
   const [editId, setEditId] = useState(null);
@@ -1047,6 +1074,7 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {
+    if (!canEdit) return onDenied();
     if (!form.note.trim()) { toast.error("Note is required for every follow-up"); return; }
     try {
       await API.post(`/leads/${leadId}/followups`, form);
@@ -1055,8 +1083,9 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
       load(); onChanged && onChanged();
     } catch (e) { toast.error(apiErr(e)); }
   };
-  const startEdit = (f) => { setEditId(f.id); setEdit({ follow_up_date: f.follow_up_date || "", follow_up_time: f.follow_up_time || "", follow_up_tag: f.follow_up_tag || "", note: f.note || "", status: f.status || "" }); };
+  const startEdit = (f) => { if (!canEdit) return onDenied(); setEditId(f.id); setEdit({ follow_up_date: f.follow_up_date || "", follow_up_time: f.follow_up_time || "", follow_up_tag: f.follow_up_tag || "", note: f.note || "", status: f.status || "" }); };
   const saveEdit = async (fid) => {
+    if (!canEdit) return onDenied();
     if (!edit.note.trim()) { toast.error("Note is required"); return; }
     try {
       await API.patch(`/leads/${leadId}/followups/${fid}`, edit);
@@ -1065,6 +1094,7 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
     } catch (e) { toast.error(apiErr(e)); }
   };
   const setStatus = async (fid, status) => {
+    if (!canEdit) return onDenied();
     try {
       await API.post(`/leads/${leadId}/followups/${fid}/status`, { status });
       toast.success(status ? `Marked ${status}` : "Status cleared");
@@ -1072,6 +1102,7 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
     } catch (e) { toast.error(apiErr(e)); }
   };
   const del = async (fid) => {
+    if (!canEdit) return onDenied();
     if (!window.confirm("Delete this follow-up entry?")) return;
     try { await API.delete(`/leads/${leadId}/followups/${fid}`); toast.success("Deleted"); load(); onChanged && onChanged(); }
     catch (e) { toast.error(apiErr(e)); }
@@ -1154,7 +1185,7 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount }) {
   );
 }
 
-function CallerActivities({ leadId, onCount }) {
+function CallerActivities({ leadId, onCount, canEdit = true, onDenied = () => {} }) {
   const [items, setItems] = useState(null);
   const [feedback, setFeedback] = useState("");
   const [saving, setSaving] = useState(false);
@@ -1166,6 +1197,7 @@ function CallerActivities({ leadId, onCount }) {
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {
+    if (!canEdit) return onDenied();
     if (!feedback.trim()) { toast.error("Enter a feedback note"); return; }
     setSaving(true);
     try {

@@ -21,6 +21,7 @@ const FILTER_DEFS = [
   { key: "state_name", label: "State" },
   { key: "city", label: "City" },
   { key: "lost_reason_id", label: "Lost Reason" },
+  { key: "duplicate", label: "Duplicate Lead" },
 ];
 
 const GROUP_OPTIONS = [
@@ -107,7 +108,7 @@ export default function Leads() {
   const filterParams = useMemo(() => {
     const obj = {};
     ["search", "lead_stage", "tags", "user_id", "source_lead", "follow_up", "active", "date_from", "date_to",
-      "stage_id", "follow_up_tag", "campaign_name", "ads_platform", "state_name", "city", "lost_reason_id"].forEach((k) => {
+      "stage_id", "follow_up_tag", "campaign_name", "ads_platform", "state_name", "city", "lost_reason_id", "duplicate"].forEach((k) => {
       const v = params.get(k);
       if (v) obj[k] = v;
     });
@@ -263,6 +264,13 @@ export default function Leads() {
             placeholder="Search name / phone / email…"
             className="hivf-input !w-60"
           />
+          {user.role === "caller" && (
+            <button data-testid="my-leads-toggle"
+              onClick={() => setParam("user_id", params.get("user_id") === String(user.id) ? "" : String(user.id))}
+              className={`rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${params.get("user_id") === String(user.id) ? "border-[#4A90E2] bg-[#4A90E2] text-white" : "border-slate-200 bg-white text-slate-500 hover:border-[#4A90E2] hover:text-[#357ABD]"}`}>
+              My Leads
+            </button>
+          )}
           <select data-testid="filter-lead-stage" className="hivf-select" value={params.get("lead_stage") || ""} onChange={(e) => setParam("lead_stage", e.target.value)}>
             <option value="">Lead Stage: All</option>
             {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
@@ -297,6 +305,10 @@ export default function Leads() {
             <option value="true">Active</option>
             <option value="false">Lost / Archived</option>
             <option value="all">All</option>
+          </select>
+          <select data-testid="filter-duplicate" className="hivf-select" value={params.get("duplicate") || ""} onChange={(e) => setParam("duplicate", e.target.value)}>
+            <option value="">Duplicate Lead: All</option>
+            <option value="true">Duplicate Leads only</option>
           </select>
           <input data-testid="filter-date-from" type="date" className="hivf-select" value={params.get("date_from") || ""} onChange={(e) => setParam("date_from", e.target.value)} />
           <input data-testid="filter-date-to" type="date" className="hivf-select" value={params.get("date_to") || ""} onChange={(e) => setParam("date_to", e.target.value)} />
@@ -337,7 +349,7 @@ export default function Leads() {
           )}
           {activeChips.map((f) => (
             <span key={f.key} className="inline-flex items-center gap-1 rounded-full bg-[#4A90E2]/10 px-2.5 py-1 text-[11px] font-semibold text-[#357ABD]">
-              {f.label}: {f.key === "user_id" ? (userById[params.get(f.key)]?.name || params.get(f.key)) : f.key === "tags" ? (tagById[params.get(f.key)]?.name || params.get(f.key)) : params.get(f.key)}
+              {f.label}: {f.key === "user_id" ? (userById[params.get(f.key)]?.name || params.get(f.key)) : f.key === "tags" ? (tagById[params.get(f.key)]?.name || params.get(f.key)) : f.key === "duplicate" ? "Only" : params.get(f.key)}
               <button onClick={() => setParam(f.key, "")}><X size={11} /></button>
             </span>
           ))}

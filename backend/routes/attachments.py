@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Header,
 from fastapi.responses import Response
 
 from core.db import db
-from core.security import get_current_user, get_jwt_secret, JWT_ALGORITHM
+from core.security import get_current_user, get_jwt_secret, JWT_ALGORITHM, ensure_lead_edit
 from core.storage import put_object, get_object, APP_NAME
 from core.utils import log_message, now_utc_str
 
@@ -30,9 +30,10 @@ async def list_attachments(lead_id: int, user: dict = Depends(get_current_user))
 
 @router.post("/leads/{lead_id}/attachments")
 async def upload_attachment(lead_id: int, file: UploadFile = File(...), user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
+    ensure_lead_edit(lead, user)
     data = await file.read()
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 25MB)")
@@ -89,6 +90,9 @@ async def delete_attachment(att_id: str, user: dict = Depends(get_current_user))
     rec = await db.attachments.find_one({"id": att_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Attachment not found")
+    _lead = await db.leads.find_one({"id": rec["lead_id"]}, {"_id": 0, "user_id": 1})
+    if _lead:
+        ensure_lead_edit(_lead, user)
     await db.attachments.update_one({"id": att_id}, {"$set": {"is_deleted": True}})
     await log_message(rec["lead_id"], f"📎 Attachment removed: {rec.get('original_filename')} by {user['name']}", author=user, subtype="comment")
     return {"ok": True}

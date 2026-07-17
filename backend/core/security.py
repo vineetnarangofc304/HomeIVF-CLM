@@ -111,3 +111,14 @@ def require_permission(perm: str):
             raise HTTPException(status_code=403, detail="Insufficient permissions")
         return user
     return checker
+
+
+def ensure_lead_edit(lead: dict, user: dict):
+    """Record-level access control: everyone can VIEW any lead, but a caller may
+    only MUTATE a lead assigned to them. Admins & managers are unrestricted.
+    Raises 403 'Access Denied' otherwise. Call after fetching the lead."""
+    if user.get("role") == "caller" and lead.get("user_id") != user.get("id"):
+        raise HTTPException(
+            status_code=403,
+            detail="Access Denied — this lead is assigned to another caller. Only the assigned caller can make changes.",
+        )
