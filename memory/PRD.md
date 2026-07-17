@@ -1,6 +1,15 @@
 # HomeIVF CRM — PRD
 
 
+## Feature (2026-07-17) — Record-level access (Case 1) + Duplicate/My-Leads filters (Case 2) — VERIFIED (iteration_58: backend 16/16, frontend 10/10)
+- **Case 1 — View-all / edit-only-if-assigned:** callers can now VIEW every lead (search any phone, open any record to see prior handling) but may only MUTATE a lead assigned to them. Enforced server-side by `core/security.ensure_lead_edit(lead, user)` → 403 `"Access Denied — this lead is assigned to another caller…"`. Applied to ALL lead-mutating endpoints: leads.py (update, lost, restore, promote, send_whatsapp, send_email, followups add/update/status/delete, caller-activities), chatter.py (notes, activities create/done/cancel), calls.py (click-to-dial + set-disposition), attachments.py (upload/delete). `build_query` no longer owner-scopes callers. Admins & managers unrestricted. Dashboard/Reports/Follow-ups/Call-logs remain personal (own data) — unchanged.
+- **Case 1 — UI (LeadDetail.jsx):** `canEdit = role!=='caller' || lead.user_id===user.id`. Non-owner callers see a `readonly-banner` and any action opens an `access-denied-modal`. FieldCard/QACard/CustomFieldsCard/FollowUpSection/CallerActivities receive `canEdit`+`onDenied`; header buttons + note/tag/stage/upload gated. Assigned caller edits normally. NavGuard mandatory-field trap only fires after a real edit, so view-only callers navigate freely.
+- **Case 2 — Duplicate Lead filter (Leads.jsx):** toolbar dropdown `filter-duplicate` ("Duplicate Leads only" → `?duplicate=true`). Backend shows all `is_duplicate=true` leads regardless of active (merged dupes are archived). Chip shows "Duplicate Lead: Only".
+- **Case 2 — My Leads toggle:** caller-only `my-leads-toggle` button filters list to `user_id=<self>`; hidden for admin.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** to reach the live site.
+
+
+
 ## Feature (2026-07-17) — KPI Performance Overview Dashboard — VERIFIED (preview, iteration_57: backend 100%, frontend 100%)
 - **What:** new left-sidebar page **"KPI Report"** (`/kpi`, nav testid `nav-kpi`, under `reports` permission → admin/manager only; caller is Guard-redirected + 403 on API). Replicates the user's color-coded KPI screenshot.
 - **Layout:** top FTD/MTD/YTD total cards; a green **Conversion Metrics (MTD)** strip (Valid→OPD Booked, OPD Booked→OPD Done, OPD Done→Registration, Registration→Stimulation Start with num/den/pct + bars); then 5 color-coded stage sections — **Yellow VALID LEADS**, **Red CONTACT ATTEMPT**, **Orange CONTACTED**, **Green CONVERTED**, **Grey CLOSED** — each a Sub Status / FTD / MTD / YTD / % (MTD) table with a Total footer.

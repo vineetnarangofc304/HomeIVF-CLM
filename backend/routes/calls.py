@@ -328,6 +328,7 @@ async def set_disposition(call_id: int, body: DispositionBody, user: dict = Depe
     if lead_id:
         lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
         if lead:
+            ensure_lead_edit(lead, user)
             updates = {}
             if body.disposition == "Converted":
                 stage = await _ensure_catalog("lead_stage", "Converted")

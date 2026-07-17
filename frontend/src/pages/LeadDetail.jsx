@@ -349,7 +349,7 @@ export default function LeadDetail() {
           </div>
 
           {/* Caller Activities — Case 2 */}
-          <CallerActivities leadId={lead.id} onCount={(n) => { callerActCountRef.current = n; }} />
+          <CallerActivities leadId={lead.id} onCount={(n) => { callerActCountRef.current = n; }} canEdit={canEdit} onDenied={deny} />
 
           <WaLeadPanel leadId={lead.id} />
 
