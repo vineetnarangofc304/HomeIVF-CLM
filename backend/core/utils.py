@@ -124,6 +124,23 @@ async def log_message(lead_id: int, body: str, author: dict = None, subtype: str
     return msg
 
 
+async def log_audit(lead_id: int, user: dict = None, action: str = "", field: str = None,
+                    old=None, new=None, detail: str = None):
+    """Case change 1 — structured per-lead audit trail (who / what / old→new / when).
+    Multiple callers may now edit any lead, so every change is recorded here."""
+    aid = await next_id("audit")
+    doc = {
+        "id": aid, "lead_id": lead_id,
+        "user_id": user.get("id") if user else None,
+        "user_name": user.get("name") if user else "System",
+        "action": action, "field": field, "old": old, "new": new, "detail": detail,
+        "at": now_utc_str(),
+    }
+    await db.audit_logs.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
 # WhatsApp message lifecycle (Case 5 — message tracking flow)
 WA_STATUS_FLOW = ["in_queue", "sent", "delivered", "read", "replied", "received", "failed", "bounced", "cancelled"]
 

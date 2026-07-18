@@ -254,7 +254,6 @@ async def click_to_dial(body: DialBody, user: dict = Depends(get_current_user)):
         lead = await db.leads.find_one({"id": body.lead_id}, LEAD_SUMMARY)
         if not lead:
             raise HTTPException(status_code=404, detail="Lead not found")
-        ensure_lead_edit(lead, user)
         phone = phone or lead.get("phone")
     if not phone:
         raise HTTPException(status_code=400, detail="No phone number to dial")
@@ -328,7 +327,6 @@ async def set_disposition(call_id: int, body: DispositionBody, user: dict = Depe
     if lead_id:
         lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
         if lead:
-            ensure_lead_edit(lead, user)
             updates = {}
             if body.disposition == "Converted":
                 stage = await _ensure_catalog("lead_stage", "Converted")

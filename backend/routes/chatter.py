@@ -5,7 +5,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, ensure_lead_edit
-from core.utils import log_message, next_id, now_utc_str, today_ist
+from core.utils import log_message, log_audit, next_id, now_utc_str, today_ist
 
 router = APIRouter(tags=["chatter"])
 
@@ -29,8 +29,8 @@ async def post_message(lead_id: int, body: MessageBody, user: dict = Depends(get
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     msg = await log_message(lead_id, body.body, author=user, subtype=body.subtype if body.subtype in ("note", "comment") else "note")
+    await log_audit(lead_id, user, "note_added", field="Note", detail=(body.body or "")[:240])
     return msg
 
 
@@ -53,7 +53,6 @@ async def create_activity(lead_id: int, body: ActivityCreate, user: dict = Depen
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     aid = await next_id("activity")
     doc = {
         "id": aid, "lead_id": lead_id, "lead_name": lead.get("name"),
@@ -76,9 +75,6 @@ async def mark_done(activity_id: int, body: ActivityDone, user: dict = Depends(g
     act = await db.activities.find_one({"id": activity_id})
     if not act:
         raise HTTPException(status_code=404, detail="Activity not found")
-    _lead = await db.leads.find_one({"id": act["lead_id"]}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     await db.activities.update_one({"id": activity_id}, {"$set": {"state": "done", "done_date": now_utc_str(), "feedback": body.feedback}})
     await log_message(act["lead_id"], f"Activity done: {act['type_name']}" + (f" — {body.feedback}" if body.feedback else ""), author=user)
     return {"ok": True}
@@ -89,9 +85,6 @@ async def cancel_activity(activity_id: int, user: dict = Depends(get_current_use
     act = await db.activities.find_one({"id": activity_id})
     if not act:
         raise HTTPException(status_code=404, detail="Activity not found")
-    _lead = await db.leads.find_one({"id": act["lead_id"]}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     await db.activities.update_one({"id": activity_id}, {"$set": {"state": "canceled"}})
     return {"ok": True}
 

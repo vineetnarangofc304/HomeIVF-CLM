@@ -33,7 +33,6 @@ async def upload_attachment(lead_id: int, file: UploadFile = File(...), user: di
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     data = await file.read()
     if len(data) > MAX_BYTES:
         raise HTTPException(status_code=413, detail="File too large (max 25MB)")
@@ -90,9 +89,6 @@ async def delete_attachment(att_id: str, user: dict = Depends(get_current_user))
     rec = await db.attachments.find_one({"id": att_id}, {"_id": 0})
     if not rec:
         raise HTTPException(status_code=404, detail="Attachment not found")
-    _lead = await db.leads.find_one({"id": rec["lead_id"]}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     await db.attachments.update_one({"id": att_id}, {"$set": {"is_deleted": True}})
     await log_message(rec["lead_id"], f"📎 Attachment removed: {rec.get('original_filename')} by {user['name']}", author=user, subtype="comment")
     return {"ok": True}

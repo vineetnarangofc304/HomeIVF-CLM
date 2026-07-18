@@ -114,7 +114,7 @@ export default function LeadDetail() {
   }, [isBlocked, checkAllowed]);
 
   // Case 1 — callers may VIEW any lead but only EDIT one assigned to them.
-  const canEdit = user.role !== "caller" || (!!lead && lead.user_id === user.id);
+  const canEdit = true; // Case change 1 — all callers may edit any lead (assignment field stays locked separately)
   const deny = () => setDenied(true);
 
   const reloadMessages = async () => {
@@ -344,6 +344,11 @@ export default function LeadDetail() {
                 <option value="">Unassigned</option>
                 {(catalogs?.users || []).filter((u) => u.active).map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
               </select>
+              {lead.original_user_id && (
+                <p className="mt-1 text-[11px] text-slate-400" data-testid="original-caller">
+                  🔒 Originally assigned to <b className="text-slate-500">{userById[lead.original_user_id]?.name || `#${lead.original_user_id}`}</b> · locked
+                </p>
+              )}
             </div>
             <FollowUpSection leadId={lead.id} catalogs={catalogs} onChanged={load} onCount={setFuCount} canEdit={canEdit} onDenied={deny} />
           </div>
@@ -429,7 +434,7 @@ export default function LeadDetail() {
         <div className="lg:col-span-3 lg:h-full lg:overflow-y-auto lg:min-h-0">
           <div className="hivf-card">
             <div className="flex items-center gap-1 border-b border-slate-100 px-4 pt-3">
-              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length], ["attachments", "Attachments", attachments.length]].map(([k, l, c]) => (
+              {[["chatter", "Chatter", msgTotal], ["activities", "Activities", activities.length], ["whatsapp", "WhatsApp", waChannels.length], ["calls", "Calls", calls.length], ["attachments", "Attachments", attachments.length], ["audit", "Activity Log", 0]].map(([k, l, c]) => (
                 <button key={k} data-testid={`tab-${k}`} onClick={() => setTab(k)}
                   className={`rounded-t-lg px-3 py-2 text-sm font-bold transition-colors ${tab === k ? "border-b-2 border-[#4A90E2] text-[#357ABD]" : "text-slate-500 hover:text-slate-700"}`}>
                   {l} {c > 0 && <span className="ml-1 rounded-full bg-slate-100 px-1.5 text-[10px]">{c}</span>}
@@ -469,6 +474,8 @@ export default function LeadDetail() {
                 </div>
               </div>
             )}
+
+            {tab === "audit" && <AuditLog leadId={lead.id} userById={userById} />}
 
             {tab === "activities" && (
               <div className="space-y-2 p-4" data-testid="activities-list">

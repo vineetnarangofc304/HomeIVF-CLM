@@ -13,7 +13,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles, ensure_lead_edit
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm, sync_channel_owner
+from core.utils import log_message, log_audit, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm, sync_channel_owner
 from core import whatsapp_cloud as wac
 
 router = APIRouter(prefix="/leads", tags=["leads"])
@@ -39,7 +39,8 @@ EDITABLE_FIELDS = {
     "source_id", "medium_id", "campaign_id",
 }
 
-TRACKED = ["stage_id", "lead_stage", "user_id", "tags", "follow_up_date", "follow_up_tag", "lost_reason_id"]
+TRACKED = ["stage_id", "lead_stage", "user_id", "tags", "follow_up_date", "follow_up_tag", "lost_reason_id",
+           "name", "contact_name", "phone", "alternate_number", "email_from", "city", "state_name", "priority"]
 
 
 def build_query(
@@ -301,6 +302,12 @@ async def get_lead(lead_id: int, user: dict = Depends(get_current_user)):
     return lead
 
 
+@router.get("/{lead_id}/audit")
+async def lead_audit(lead_id: int, user: dict = Depends(get_current_user)):
+    """Case change 1 — visible per-lead audit trail (who / what / old→new / when)."""
+    return await db.audit_logs.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).to_list(500)
+
+
 class LeadCreate(BaseModel):
     name: Optional[str] = None
     contact_name: Optional[str] = None
@@ -339,6 +346,7 @@ async def create_lead(body: LeadCreate, user: dict = Depends(get_current_user)):
         "write_date": now, "create_uid": user["id"], "custom": {},
         "phone_digits": phone_digits,
         "is_duplicate": dup["is_duplicate"], "duplicate_of": dup["duplicate_of"],
+        "original_user_id": data.get("user_id"),
         **data,
     }
     doc.update(ist_date_parts(doc["create_date_ist"]))
@@ -358,25 +366,44 @@ class LeadUpdate(BaseModel):
 
 async def _track_changes(lead, updates, user):
     parts = []
+    tag_names = user_names = stage_names = None
     for f in TRACKED:
-        if f in updates and updates[f] != lead.get(f):
-            old, new = lead.get(f), updates[f]
-            if f == "tags":
-                old_set, new_set = set(old or []), set(new or [])
-                added, removed = new_set - old_set, old_set - new_set
-                names = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0}).to_list(500)}
-                if added:
-                    parts.append("Tags added: " + ", ".join(names.get(t, str(t)) for t in added))
-                if removed:
-                    parts.append("Tags removed: " + ", ".join(names.get(t, str(t)) for t in removed))
-            elif f == "user_id":
-                users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
-                parts.append(f"Assigned: {users.get(old, old or 'None')} → {users.get(new, new or 'None')}")
-            elif f == "stage_id":
-                stages = {s["id"]: s["name"] for s in await db.catalogs.find({"type": "stage"}, {"_id": 0}).to_list(50)}
-                parts.append(f"Pipeline stage: {stages.get(old, old or 'None')} → {stages.get(new, new or 'None')}")
-            else:
-                parts.append(f"{f.replace('_', ' ').title()}: {old or 'None'} → {new or 'None'}")
+        if f not in updates or updates[f] == lead.get(f):
+            continue
+        old, new = lead.get(f), updates[f]
+        if f == "tags":
+            if tag_names is None:
+                tag_names = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0}).to_list(500)}
+            old_set, new_set = set(old or []), set(new or [])
+            added, removed = new_set - old_set, old_set - new_set
+            det = []
+            if added:
+                det.append("added " + ", ".join(tag_names.get(t, str(t)) for t in added))
+            if removed:
+                det.append("removed " + ", ".join(tag_names.get(t, str(t)) for t in removed))
+            if det:
+                parts.append("Disposition / Tags: " + "; ".join(det))
+                await log_audit(lead["id"], user, "disposition_changed", field="Disposition / Tags",
+                                old=(", ".join(tag_names.get(t, str(t)) for t in old_set) or "None"),
+                                new=(", ".join(tag_names.get(t, str(t)) for t in new_set) or "None"))
+        elif f == "user_id":
+            if user_names is None:
+                user_names = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+            ol, nl = user_names.get(old, old or "None"), user_names.get(new, new or "None")
+            parts.append(f"Assigned: {ol} → {nl}")
+            await log_audit(lead["id"], user, "reassigned", field="Assigned caller", old=ol, new=nl)
+        elif f == "stage_id":
+            if stage_names is None:
+                stage_names = {s["id"]: s["name"] for s in await db.catalogs.find({"type": "stage"}, {"_id": 0}).to_list(50)}
+            ol, nl = stage_names.get(old, old or "None"), stage_names.get(new, new or "None")
+            parts.append(f"Pipeline stage: {ol} → {nl}")
+            await log_audit(lead["id"], user, "stage_changed", field="Pipeline stage", old=ol, new=nl)
+        else:
+            label = f.replace("_", " ").title()
+            parts.append(f"{label}: {old or 'None'} → {new or 'None'}")
+            await log_audit(lead["id"], user, "field_changed", field=label,
+                            old=(str(old) if old not in (None, "") else "None"),
+                            new=(str(new) if new not in (None, "") else "None"))
     if parts:
         await log_message(lead["id"], "<br/>".join(parts), author=user)
 
@@ -386,10 +413,16 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     updates = {k: v for k, v in body.updates.items() if k in EDITABLE_FIELDS}
+    # Case change 1 — every caller can edit any lead, BUT the assigned caller is
+    # protected: only admin/manager may re-assign, and original_user_id is immutable.
+    if user.get("role") == "caller":
+        updates.pop("user_id", None)
+    updates.pop("original_user_id", None)
     if not updates:
         raise HTTPException(status_code=400, detail="No valid fields to update")
+    if updates.get("user_id") and not lead.get("original_user_id"):
+        updates["original_user_id"] = updates["user_id"]
     if "custom" in updates and isinstance(updates["custom"], dict):
         merged = dict(lead.get("custom") or {})
         merged.update(updates["custom"])
@@ -428,7 +461,6 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     await db.leads.update_one({"id": lead_id}, {"$set": {
         "active": False, "lost_reason_id": body.lost_reason_id,
         "date_closed": now_utc_str(), "probability": 0,
@@ -438,6 +470,7 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
         r = await db.catalogs.find_one({"type": "lost_reason", "id": body.lost_reason_id})
         reason = f" — Reason: {r['name']}" if r else ""
     await log_message(lead_id, f"Lead marked as Lost{reason}{('<br/>' + body.note) if body.note else ''}", author=user)
+    await log_audit(lead_id, user, "lead_lost", field="Status", new="Lost", detail=(reason.strip(" —") or None))
     return {"ok": True}
 
 
@@ -446,7 +479,6 @@ async def restore_lead(lead_id: int, user: dict = Depends(get_current_user)):
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     await db.leads.update_one({"id": lead_id}, {"$set": {"active": True, "lost_reason_id": None}})
     await log_message(lead_id, "Lead restored", author=user)
     return {"ok": True}
@@ -469,7 +501,6 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     phone = (body.phone or lead.get("phone") or "").strip()
     pdig = re.sub(r"\D", "", phone)[-10:]
     name = body.contact_name or body.name or lead.get("contact_name") or lead.get("name")
@@ -519,7 +550,6 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     template = await db.templates_whatsapp.find_one({"id": body.template_id}, {"_id": 0})
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
@@ -572,6 +602,7 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     )
     if live and send_status == "failed":
         raise HTTPException(status_code=400, detail=send_note)
+    await log_audit(lead_id, user, "whatsapp_sent", field="WhatsApp", detail=f"{template['name']} → {phone}")
     return {"ok": True, "status": send_status, "phone": phone, "template": template["name"]}
 
 
@@ -587,7 +618,6 @@ async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     to = (body.to or lead.get("email_from") or "").strip()
     if not to:
         raise HTTPException(status_code=400, detail="Lead has no email address — enter one")
@@ -698,7 +728,6 @@ async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(ge
     lead = await db.leads.find_one({"id": lead_id})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     note = (body.note or "").strip()
     if not note:  # Case 1 — note is mandatory for every follow-up
         raise HTTPException(status_code=400, detail="A note is required for every follow-up")
@@ -712,6 +741,7 @@ async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(ge
     tag = f" · {doc['follow_up_tag']}" if doc.get("follow_up_tag") else ""
     when = doc.get("follow_up_date") or "no date"
     await log_message(lead_id, f"Follow-up scheduled for <b>{when}</b>{tag}<br/>{note}", author=user)
+    await log_audit(lead_id, user, "follow_up_added", field="Follow-up", detail=f"{when}{tag} — {note}")
     doc.pop("_id", None)
     return doc
 
@@ -721,9 +751,6 @@ async def update_followup(lead_id: int, fid: int, body: FollowUpBody, user: dict
     fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
-    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     note = (body.note or "").strip()
     if not note:
         raise HTTPException(status_code=400, detail="A note is required for every follow-up")
@@ -745,9 +772,6 @@ async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, 
     fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
-    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     status = (body.status or "").strip() or None
     await db.follow_ups.update_one({"id": fid}, {"$set": {"status": status}})
     await _sync_lead_followup(lead_id)
@@ -757,9 +781,6 @@ async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, 
 
 @router.delete("/{lead_id}/followups/{fid}")
 async def delete_followup(lead_id: int, fid: int, user: dict = Depends(get_current_user)):
-    _lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
-    if _lead:
-        ensure_lead_edit(_lead, user)
     res = await db.follow_ups.delete_one({"id": fid, "lead_id": lead_id})
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Follow-up not found")
@@ -784,7 +805,6 @@ async def add_caller_activity(lead_id: int, body: CallerActivityBody, user: dict
     lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1})
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    ensure_lead_edit(lead, user)
     fb = (body.feedback or "").strip()
     if not fb:
         raise HTTPException(status_code=400, detail="Feedback note is required")
@@ -793,6 +813,7 @@ async def add_caller_activity(lead_id: int, body: CallerActivityBody, user: dict
            "created_by": user["id"], "created_by_name": user["name"], "created_at": now_utc_str()}
     await db.caller_activities.insert_one(doc)
     await log_message(lead_id, f"🗣️ Caller activity — {fb}", author=user)
+    await log_audit(lead_id, user, "caller_activity", field="Caller activity", detail=fb)
     doc.pop("_id", None)
     return doc
 
