@@ -6,7 +6,7 @@ import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Telephony", "Facebook", "WhatsApp", "Email", "Duplicates"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Attendance", "Telephony", "Facebook", "WhatsApp", "Email", "Duplicates"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -37,6 +37,7 @@ export default function Admin() {
         {tab === "Webhooks" && <WebhooksTab />}
         {tab === "Automations" && <AutomationsTab />}
         {tab === "Assignment" && <AssignmentTab />}
+        {tab === "Attendance" && <AttendanceTab />}
         {tab === "Telephony" && <TelephonyTab isAdmin={user.role === "admin"} />}
         {tab === "Facebook" && <FacebookTab isAdmin={user.role === "admin"} />}
         {tab === "WhatsApp" && <WhatsAppTab isAdmin={user.role === "admin"} />}
@@ -827,7 +828,7 @@ function AssignmentTab() {
   return (
     <div className="hivf-card p-4" data-testid="assignment-settings">
       <h3 className="font-display text-sm font-extrabold text-slate-800">Round-robin Auto Assignment</h3>
-      <p className="mt-1 text-xs text-slate-500">Incoming webhook leads get distributed across the selected callers automatically.</p>
+      <p className="mt-1 text-xs text-slate-500">Incoming webhook &amp; Facebook leads are distributed across callers automatically. Routing is <b>presence-based</b>: only callers marked <b>Available</b> or <b>On Call</b> receive new leads. If everyone is on a break / Offline, the lead waits in the queue and is auto-assigned the moment a caller becomes available. Selecting callers below limits the pool; leave all unselected to rotate across every available caller.</p>
       <label className="mt-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
         <input type="checkbox" data-testid="assignment-enabled-checkbox" checked={!!settings.enabled} onChange={(e) => save({ ...settings, enabled: e.target.checked })} />
         Enable auto-assignment
@@ -844,6 +845,164 @@ function AssignmentTab() {
     </div>
   );
 }
+
+const fmtDur = (s) => {
+  s = parseInt(s || 0, 10);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h) return `${h}h ${m}m`;
+  if (m) return `${m}m`;
+  return `${s}s`;
+};
+const ATT_STATUS_CLS = {
+  "Available": "bg-emerald-50 text-emerald-600", "On Call": "bg-indigo-50 text-indigo-600",
+  "Lunch Break": "bg-amber-50 text-amber-600", "Washroom Break": "bg-amber-50 text-amber-600",
+  "Refreshment Break": "bg-amber-50 text-amber-600", "Meeting": "bg-sky-50 text-sky-600",
+  "Offline": "bg-slate-100 text-slate-500",
+};
+
+function SummaryCard({ label, value, cls }) {
+  return (
+    <div className="hivf-card p-3">
+      <p className="text-[10px] uppercase tracking-wider text-slate-400">{label}</p>
+      <p className={`mt-1 font-display text-xl font-extrabold ${cls}`}>{value}</p>
+    </div>
+  );
+}
+
+function AttendanceTab() {
+  const [mode, setMode] = useState("day");
+  const [day, setDay] = useState(new Date().toISOString().slice(0, 10));
+  const [month, setMonth] = useState(new Date().toISOString().slice(0, 7));
+  const [data, setData] = useState(null);
+  const [openUser, setOpenUser] = useState(null);
+  const [timeline, setTimeline] = useState(null);
+
+  const load = () => {
+    setData(null); setOpenUser(null); setTimeline(null);
+    const params = mode === "month" ? { month } : { date: day };
+    API.get("/agent/attendance", { params }).then(({ data }) => setData(data)).catch((e) => toast.error(apiErr(e)));
+  };
+  useEffect(() => { load(); }, [mode, day, month]);
+
+  const openTimeline = async (uid) => {
+    if (openUser === uid) { setOpenUser(null); setTimeline(null); return; }
+    setOpenUser(uid); setTimeline(null);
+    const params = mode === "month" ? { month, user_id: uid } : { date: day, user_id: uid };
+    const { data: d } = await API.get("/agent/attendance", { params });
+    setTimeline(d.timeline || []);
+  };
+
+  const order = data?.status_order || [];
+  const t = data?.totals;
+
+  return (
+    <div data-testid="attendance-tab">
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="flex overflow-hidden rounded-full border border-slate-200" data-testid="attendance-mode-toggle">
+          {["day", "month"].map((m) => (
+            <button key={m} data-testid={`attendance-mode-${m}`} onClick={() => setMode(m)}
+              className={`px-4 py-1.5 text-xs font-bold transition-colors ${mode === m ? "bg-[#4A90E2] text-white" : "bg-white text-slate-500 hover:bg-slate-50"}`}>
+              {m === "day" ? "Day-wise" : "Month-wise"}
+            </button>
+          ))}
+        </div>
+        {mode === "day" ? (
+          <input type="date" value={day} onChange={(e) => setDay(e.target.value)} className="hivf-input !w-44 !py-1.5 text-sm" data-testid="attendance-date" />
+        ) : (
+          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="hivf-input !w-44 !py-1.5 text-sm" data-testid="attendance-month" />
+        )}
+        <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="attendance-refresh"><ArrowsClockwise size={14} /> Refresh</button>
+      </div>
+
+      {!data ? <Spinner /> : (
+        <>
+          <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="attendance-summary">
+            <SummaryCard label="Callers" value={t.caller_count} cls="text-slate-900" />
+            <SummaryCard label={mode === "month" ? "Present (any day)" : "Present today"} value={t.present_count} cls="text-emerald-600" />
+            <SummaryCard label="Total working time" value={fmtDur(t.working_seconds)} cls="text-[#357ABD]" />
+            <SummaryCard label="Total break time" value={fmtDur(t.break_seconds)} cls="text-amber-600" />
+          </div>
+
+          {data.rows.length === 0 ? (
+            <div className="hivf-card p-10 text-center text-sm text-slate-400">No status activity recorded for this {mode === "month" ? "month" : "day"}.</div>
+          ) : (
+            <div className="hivf-card overflow-x-auto">
+              <table className="w-full text-sm" data-testid="attendance-table">
+                <thead>
+                  <tr className="border-b border-slate-100 bg-slate-50 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                    <th className="px-3 py-2">Caller</th>
+                    <th className="px-3 py-2">Status</th>
+                    {mode === "month" && <th className="px-3 py-2 text-right">Days</th>}
+                    <th className="px-3 py-2">First seen</th>
+                    <th className="px-3 py-2">Last seen</th>
+                    <th className="px-3 py-2 text-right">Working</th>
+                    <th className="px-3 py-2 text-right">Break</th>
+                    <th className="px-3 py-2">Breakdown</th>
+                    <th className="px-3 py-2" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.rows.map((r) => (
+                    <React.Fragment key={r.user_id}>
+                      <tr className="border-b border-slate-50 hover:bg-slate-50/50" data-testid={`attendance-row-${r.user_id}`}>
+                        <td className="px-3 py-2 font-semibold text-slate-700">{r.name} <span className="text-[10px] text-slate-400">({r.role})</span></td>
+                        <td className="px-3 py-2">
+                          <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${r.present ? "bg-emerald-50 text-emerald-600" : "bg-rose-50 text-rose-500"}`} data-testid={`attendance-present-${r.user_id}`}>
+                            {r.present ? "Present" : "Absent"}
+                          </span>
+                        </td>
+                        {mode === "month" && <td className="px-3 py-2 text-right text-slate-500">{r.days_present}</td>}
+                        <td className="px-3 py-2 text-xs text-slate-400">{r.first_seen ? fmtDate(r.first_seen) : "—"}</td>
+                        <td className="px-3 py-2 text-xs text-slate-400">{r.last_seen ? fmtDate(r.last_seen) : "—"}</td>
+                        <td className="px-3 py-2 text-right font-bold text-[#357ABD]">{fmtDur(r.working_seconds)}</td>
+                        <td className="px-3 py-2 text-right font-bold text-amber-600">{fmtDur(r.break_seconds)}</td>
+                        <td className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
+                            {order.filter((s) => r.by_status[s]).map((s) => (
+                              <span key={s} className={`rounded px-1.5 py-0.5 text-[10px] font-semibold ${ATT_STATUS_CLS[s] || "bg-slate-100 text-slate-500"}`}>
+                                {s}: {fmtDur(r.by_status[s])}
+                              </span>
+                            ))}
+                            {order.every((s) => !r.by_status[s]) && <span className="text-[10px] text-slate-300">—</span>}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2 text-right">
+                          <button onClick={() => openTimeline(r.user_id)} className="text-xs font-bold text-[#357ABD] hover:underline" data-testid={`attendance-timeline-btn-${r.user_id}`}>
+                            {openUser === r.user_id ? "Hide" : "Timeline"}
+                          </button>
+                        </td>
+                      </tr>
+                      {openUser === r.user_id && (
+                        <tr className="bg-slate-50/60" data-testid={`attendance-timeline-${r.user_id}`}>
+                          <td colSpan={mode === "month" ? 9 : 8} className="px-4 py-3">
+                            {timeline === null ? <div className="py-2 text-xs text-slate-400">Loading timeline…</div>
+                              : timeline.length === 0 ? <div className="py-2 text-xs text-slate-400">No status changes in this period.</div>
+                              : (
+                                <div className="space-y-1.5">
+                                  {timeline.map((lg) => (
+                                    <div key={lg.id} className="flex flex-wrap items-center gap-2 text-xs">
+                                      <span className={`rounded-full px-2 py-0.5 font-bold ${ATT_STATUS_CLS[lg.status] || "bg-slate-100 text-slate-500"}`}>{lg.status}</span>
+                                      <span className="text-slate-500">{fmtDate(lg.start)} → {lg.end ? fmtDate(lg.end) : <span className="font-semibold text-amber-600">ongoing</span>}</span>
+                                      <span className="ml-auto font-bold text-slate-600">{fmtDur(lg.duration_sec)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 
 function TelephonyTab({ isAdmin }) {
   const [cfg, setCfg] = useState(null);

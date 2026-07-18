@@ -1,4 +1,5 @@
 """Agent break/status system (§5) + Agent Live Status + break reports."""
+import re
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,7 +7,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles
-from core.utils import next_id, now_utc_str
+from core.utils import next_id, now_utc_str, drain_lead_queue
 
 router = APIRouter(prefix="/agent", tags=["agent"])
 
@@ -48,7 +49,12 @@ async def set_status(body: StatusBody, user: dict = Depends(get_current_user)):
         "date": now[:10],
     })
     await db.users.update_one({"id": user["id"]}, {"$set": {"status": status, "status_since": now}})
-    return {"ok": True, "status": status, "since": now}
+    # Case 2 — becoming Available/On Call pulls any queued leads (arrived while everyone
+    # was offline) and assigns them round-robin across the callers now available.
+    assigned = 0
+    if status in {"Available", "On Call"}:
+        assigned = await drain_lead_queue()
+    return {"ok": True, "status": status, "since": now, "assigned_from_queue": assigned}
 
 
 @router.get("/me")
@@ -165,3 +171,98 @@ async def status_logs(date: str = None, user_id: int = None, breaks_only: bool =
             lg["duration_sec"] = _secs_since(lg["start"])
             lg["ongoing"] = True
     return logs
+
+
+
+STATUS_ORDER = ["Available", "On Call", "Lunch Break", "Washroom Break", "Refreshment Break", "Meeting", "Offline"]
+
+
+@router.get("/attendance")
+async def attendance(date: str = None, month: str = None, user_id: int = None,
+                     user: dict = Depends(require_roles("admin", "manager"))):
+    """Case 2 — day-wise or month-wise attendance. Per-caller time in each status
+    (Available / On Call / breaks / Offline), working vs break totals, first/last seen,
+    and (when user_id is passed) that caller's full status timeline for the period."""
+    if month:
+        match = {"date": {"$regex": f"^{re.escape(month)}"}}
+        period, mode = month, "month"
+    else:
+        day = date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        match = {"date": day}
+        period, mode = day, "day"
+
+    users = await db.users.find(
+        {"active": True}, {"_id": 0, "id": 1, "name": 1, "role": 1}).to_list(500)
+    umap = {u["id"]: u for u in users}
+    rows = {uid: {"user_id": uid, "name": umap[uid]["name"], "role": umap[uid].get("role"),
+                  "by_status": {}, "first_seen": None, "last_seen": None, "days": set()}
+            for uid in umap}
+
+    async for lg in db.status_logs.find(match):
+        uid = lg.get("user_id")
+        if uid not in rows:
+            continue
+        secs = lg.get("duration_sec") if lg.get("duration_sec") is not None else _secs_since(lg["start"])
+        st = lg.get("status") or "Offline"
+        r = rows[uid]
+        r["by_status"][st] = r["by_status"].get(st, 0) + secs
+        if lg.get("date"):
+            r["days"].add(lg["date"])
+        if r["first_seen"] is None or lg["start"] < r["first_seen"]:
+            r["first_seen"] = lg["start"]
+        end = lg.get("end") or lg["start"]
+        if r["last_seen"] is None or end > r["last_seen"]:
+            r["last_seen"] = end
+
+    out = []
+    for uid, r in rows.items():
+        bs = r["by_status"]
+        working = bs.get("Available", 0) + bs.get("On Call", 0)
+        brk = sum(bs.get(s, 0) for s in BREAK_STATUSES)
+        offline = bs.get("Offline", 0)
+        present = bool(r["first_seen"]) and (working + brk) > 0
+        # Callers always appear (present or absent); managers/admins only when they logged status.
+        if r["role"] != "caller" and not r["first_seen"]:
+            continue
+        out.append({
+            "user_id": uid, "name": r["name"], "role": r["role"],
+            "by_status": bs, "first_seen": r["first_seen"], "last_seen": r["last_seen"],
+            "working_seconds": working, "break_seconds": brk, "offline_seconds": offline,
+            "days_present": len(r["days"]), "present": present,
+        })
+    out.sort(key=lambda x: (0 if x["present"] else 1, -x["working_seconds"], x["name"]))
+
+    timeline = []
+    if user_id:
+        tl = await db.status_logs.find({**match, "user_id": user_id}, {"_id": 0}).sort("start", 1).to_list(3000)
+        for lg in tl:
+            if lg.get("duration_sec") is None:
+                lg["duration_sec"] = _secs_since(lg["start"])
+                lg["ongoing"] = True
+        timeline = tl
+
+    totals = {
+        "working_seconds": sum(o["working_seconds"] for o in out),
+        "break_seconds": sum(o["break_seconds"] for o in out),
+        "present_count": sum(1 for o in out if o["present"]),
+        "caller_count": sum(1 for o in out if o["role"] == "caller"),
+    }
+    return {"period": period, "mode": mode, "status_order": STATUS_ORDER,
+            "rows": out, "timeline": timeline, "totals": totals}
+
+
+@router.get("/queue")
+async def lead_queue_status(user: dict = Depends(require_roles("admin", "manager"))):
+    """Case 2 — leads waiting for a caller to become Available (assigned when someone does)."""
+    total = await db.lead_queue.count_documents({})
+    items = await db.lead_queue.find({}, {"_id": 0}).sort("lead_id", 1).limit(50).to_list(50)
+    lead_ids = [it["lead_id"] for it in items]
+    leads = {l["id"]: l for l in await db.leads.find(
+        {"id": {"$in": lead_ids}}, {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1, "source_lead": 1}).to_list(50)}
+    out = []
+    for it in items:
+        l = leads.get(it["lead_id"], {})
+        out.append({"lead_id": it["lead_id"], "queued_at": it.get("queued_at"),
+                    "name": l.get("contact_name") or l.get("name") or f"Lead {it['lead_id']}",
+                    "phone": l.get("phone"), "source": l.get("source_lead")})
+    return {"total": total, "items": out}

@@ -5,6 +5,7 @@ import {
   ArrowLeft, NotePencil, PaperPlaneTilt, CalendarCheck, Sparkle, Prohibit,
   ArrowCounterClockwise, WhatsappLogo, CheckCircle, XCircle, EnvelopeSimple, Plus,
   Phone, PhoneIncoming, PhoneOutgoing, Paperclip, UploadSimple, DownloadSimple, Trash, Warning, Eye, X, ArrowRight,
+  ClockCounterClockwise, Tag, UserSwitch, PencilSimpleLine, ChatCircleText,
 } from "@phosphor-icons/react";
 import { API, apiErr, fmtDate, fmtDay, todayStr } from "../lib/api";
 import { useAuth, useCatalogMaps, useCatalogs } from "../context/AuthContext";
@@ -1293,6 +1294,71 @@ function LostModal({ leadId, onClose, onSaved, catalogs }) {
           <button type="submit" className="hivf-btn-primary !bg-rose-500 hover:!bg-rose-600" data-testid="lost-submit">Mark Lost</button>
         </div>
       </form>
+    </div>
+  );
+}
+
+
+/* ---------- Activity Log / Audit trail (Case change 1 — accountability) ---------- */
+const AUDIT_META = {
+  disposition_changed: { label: "Disposition / Tags", icon: Tag, cls: "bg-purple-50 text-purple-600" },
+  reassigned: { label: "Re-assigned", icon: UserSwitch, cls: "bg-blue-50 text-blue-600" },
+  stage_changed: { label: "Stage changed", icon: ArrowRight, cls: "bg-cyan-50 text-cyan-600" },
+  field_changed: { label: "Field edited", icon: PencilSimpleLine, cls: "bg-slate-100 text-slate-600" },
+  lead_lost: { label: "Marked Lost", icon: Prohibit, cls: "bg-rose-50 text-rose-600" },
+  follow_up_added: { label: "Follow-up", icon: CalendarCheck, cls: "bg-emerald-50 text-emerald-600" },
+  caller_activity: { label: "Caller activity", icon: ChatCircleText, cls: "bg-amber-50 text-amber-600" },
+  whatsapp_sent: { label: "WhatsApp sent", icon: WhatsappLogo, cls: "bg-[#25D366]/10 text-emerald-600" },
+};
+
+function AuditLog({ leadId }) {
+  const [items, setItems] = useState(null);
+  const [visible, setVisible] = useState(50);
+
+  useEffect(() => {
+    setItems(null); setVisible(50);
+    API.get(`/leads/${leadId}/audit`).then(({ data }) => setItems(data)).catch(() => setItems([]));
+  }, [leadId]);
+
+  if (items === null) return <div className="p-6 text-center text-sm text-slate-400" data-testid="audit-loading">Loading activity log…</div>;
+  if (items.length === 0) return <div className="p-4"><EmptyState title="No changes recorded yet" subtitle="Every edit to this lead — who, what and when — will appear here" /></div>;
+
+  return (
+    <div className="p-4" data-testid="audit-log">
+      <p className="mb-3 text-[11px] text-slate-400">Full accountability trail — who changed what, and when. Any caller can edit this lead; every change is recorded permanently.</p>
+      <div className="space-y-2.5" data-testid="audit-list">
+        {items.slice(0, visible).map((a) => {
+          const meta = AUDIT_META[a.action] || { label: a.action || "Change", icon: ClockCounterClockwise, cls: "bg-slate-100 text-slate-600" };
+          const Icon = meta.icon;
+          return (
+            <div key={a.id} className="flex gap-3 rounded-xl border border-slate-100 p-3" data-testid={`audit-row-${a.id}`}>
+              <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${meta.cls}`}><Icon size={16} weight="bold" /></div>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-x-3">
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${meta.cls}`}>{meta.label}</span>
+                  <span className="text-[11px] text-slate-400">{fmtDate(a.at)}</span>
+                </div>
+                {a.field && <p className="mt-1 text-xs font-bold text-slate-700">{a.field}</p>}
+                {(a.old != null || a.new != null) && (a.old !== a.new) ? (
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    <span className="rounded bg-rose-50 px-1.5 py-0.5 text-rose-500 line-through">{a.old ?? "None"}</span>
+                    <ArrowRight size={11} weight="bold" className="mx-1 inline text-slate-300" />
+                    <span className="rounded bg-emerald-50 px-1.5 py-0.5 font-semibold text-emerald-600">{a.new ?? "None"}</span>
+                  </p>
+                ) : a.detail ? (
+                  <p className="mt-0.5 whitespace-pre-wrap text-xs text-slate-500">{a.detail}</p>
+                ) : null}
+                <p className="mt-1 text-[10px] font-semibold text-slate-400" data-testid={`audit-user-${a.id}`}>by {a.user_name || "System"}</p>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {visible < items.length && (
+        <button onClick={() => setVisible((v) => v + 50)} className="hivf-btn-secondary mt-3 w-full justify-center text-xs" data-testid="audit-load-more">
+          Show older ({items.length - visible} more)
+        </button>
+      )}
     </div>
   );
 }

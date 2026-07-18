@@ -105,6 +105,69 @@ async def next_id(name: str) -> int:
     return doc["seq"]
 
 
+# ---------------- Case 2: presence-based lead routing ----------------
+# A caller receives new leads only while working. Per the confirmed spec: "Available"
+# AND "On Call" both receive; Lunch/Washroom/Refreshment Break, Meeting and Offline do NOT.
+AVAILABLE_STATUSES = {"Available", "On Call"}
+
+
+async def _presence_callers(prefer_ids=None):
+    q = {"active": True, "role": "caller"}
+    if prefer_ids:
+        q["id"] = {"$in": [int(i) for i in prefer_ids]}
+    return await db.users.find(q, {"_id": 0, "id": 1, "status": 1}).sort("id", 1).to_list(500)
+
+
+async def pick_available_caller(prefer_ids=None):
+    """Presence-based round-robin: return the next active caller who is currently
+    Available/On Call, or None if NOBODY is available (the lead should be queued)."""
+    callers = await _presence_callers(prefer_ids)
+    available = [c["id"] for c in callers if (c.get("status") or "Offline") in AVAILABLE_STATUSES]
+    if not available:
+        return None
+    ptr = await next_id("presence_assign_pointer")
+    return available[(ptr - 1) % len(available)]
+
+
+async def queue_lead_for_assignment(lead_id: int):
+    """No caller was available when this lead arrived — park it (FIFO) so it is
+    auto-assigned the moment a caller becomes Available/On Call."""
+    await db.lead_queue.update_one(
+        {"lead_id": lead_id},
+        {"$setOnInsert": {"lead_id": lead_id, "queued_at": now_utc_str()}},
+        upsert=True,
+    )
+
+
+async def drain_lead_queue():
+    """Assign every queued lead (arrived while all callers were offline) round-robin
+    across the callers who are CURRENTLY available. Called when a caller becomes
+    Available/On Call. Older queued leads go out first (FIFO)."""
+    callers = await _presence_callers()
+    available = [c["id"] for c in callers if (c.get("status") or "Offline") in AVAILABLE_STATUSES]
+    if not available:
+        return 0
+    queued = await db.lead_queue.find({}, {"_id": 0}).sort("lead_id", 1).to_list(10000)
+    assigned = 0
+    for item in queued:
+        lead_id = item["lead_id"]
+        lead = await db.leads.find_one(
+            {"id": lead_id}, {"_id": 0, "id": 1, "active": 1, "user_id": 1, "phone_digits": 1, "original_user_id": 1})
+        if not lead or not lead.get("active") or lead.get("user_id"):
+            await db.lead_queue.delete_one({"lead_id": lead_id})
+            continue
+        cid = available[assigned % len(available)]
+        await db.leads.update_one({"id": lead_id}, {"$set": {
+            "user_id": cid, "original_user_id": lead.get("original_user_id") or cid,
+            "write_date": now_utc_str()}})
+        await db.lead_queue.delete_one({"lead_id": lead_id})
+        await sync_channel_owner(lead.get("phone_digits"), cid)
+        await log_message(lead_id, "Auto-assigned from the waiting queue (a caller became Available)")
+        assigned += 1
+    return assigned
+
+
+
 async def log_message(lead_id: int, body: str, author: dict = None, subtype: str = "tracking", extra: dict = None):
     mid = await next_id("message")
     msg = {

@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm, pick_available_caller, queue_lead_for_assignment
 
 router = APIRouter(tags=["facebook"])
 
@@ -140,23 +140,12 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         if derived:
             data["contact_name"] = derived
             data["name"] = derived
-    # round-robin assignment (same rules as web lead capture)
-    user_id = None
+    # Case 2 — presence-based round-robin: route only to callers who are currently
+    # Available/On Call. Prefer a configured assignment list if one is enabled.
     assign = await db.settings.find_one({"key": "assignment"})
-    if assign and assign.get("enabled") and assign.get("user_ids"):
-        ids = assign["user_ids"]
-        ptr = assign.get("pointer", 0) % len(ids)
-        user_id = ids[ptr]
-        await db.settings.update_one({"key": "assignment"}, {"$set": {"pointer": (ptr + 1) % len(ids)}})
-    if user_id is None:
-        # Fallback so Facebook leads are never orphaned/invisible: callers only see leads
-        # assigned to them, so round-robin unassigned FB leads across active caller users
-        # (they then appear in the team's Lead report exactly like every other lead).
-        callers = await db.users.find({"active": True, "role": "caller"}, {"_id": 0, "id": 1}).sort("id", 1).to_list(500)
-        if callers:
-            cids = [c["id"] for c in callers]
-            ptr = await next_id("fb_assign_pointer")
-            user_id = cids[(ptr - 1) % len(cids)]
+    prefer = assign["user_ids"] if (assign and assign.get("enabled") and assign.get("user_ids")) else None
+    user_id = await pick_available_caller(prefer)
+    queue_it = user_id is None
 
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
@@ -174,6 +163,7 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         "fb_ad_id": raw.get("ad_id"),
         "fb_form_name": raw.get("form_name"),
         "user_id": user_id,
+        "original_user_id": user_id,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "facebook_lead": True,
         "facebook_leadgen_id": raw.get("leadgen_id") or raw.get("id"),
@@ -187,6 +177,8 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
     doc.update(ist_date_parts(doc["create_date_ist"]))
     doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
+    if queue_it:
+        await queue_lead_for_assignment(lid)
     await log_message(lid, f"Lead captured via {source_label} (Facebook Page lead form)")
     if dup["is_duplicate"]:
         await log_message(lid, f"⚠️ Possible duplicate — same phone as lead #{dup['duplicate_of']}", subtype="comment")

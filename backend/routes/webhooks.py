@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog, pick_available_caller, queue_lead_for_assignment
 from routes.catalogs import bust_catalogs
 
 router = APIRouter(tags=["webhooks"])
@@ -92,20 +92,17 @@ async def webhook_lead(token: str, request: Request):
 
     lid = await next_id("lead")
     user_id = None
-    settings = await db.settings.find_one({"key": "assignment"})
-    if hook.get("assign_round_robin") and settings and settings.get("enabled") and settings.get("user_ids"):
-        ids = settings["user_ids"]
-        ptr = settings.get("pointer", 0) % len(ids)
-        user_id = ids[ptr]
-        await db.settings.update_one({"key": "assignment"}, {"$set": {"pointer": (ptr + 1) % len(ids)}})
-    if user_id is None and hook.get("assign_round_robin"):
-        # Fallback so web leads are never orphaned/invisible: callers only see leads
-        # assigned to them, so round-robin unassigned web leads across active callers.
-        callers = await db.users.find({"active": True, "role": "caller"}, {"_id": 0, "id": 1}).sort("id", 1).to_list(500)
-        if callers:
-            cids = [c["id"] for c in callers]
-            ptr = await next_id("web_assign_pointer")
-            user_id = cids[(ptr - 1) % len(cids)]
+    queue_it = False
+    if hook.get("assign_round_robin"):
+        # Case 2 — presence-based round-robin: route only to callers who are currently
+        # Available/On Call. If a manual assignment list is configured, prefer those ids.
+        settings = await db.settings.find_one({"key": "assignment"})
+        prefer = settings["user_ids"] if (settings and settings.get("enabled") and settings.get("user_ids")) else None
+        user_id = await pick_available_caller(prefer)
+        if user_id is None:
+            # Nobody available right now → queue the lead; it is auto-assigned the moment
+            # a caller becomes Available/On Call (FIFO, older leads first).
+            queue_it = True
 
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
@@ -114,6 +111,7 @@ async def webhook_lead(token: str, request: Request):
         "lead_stage": hook.get("lead_stage_default"),
         "source_lead": data.get("source_lead") or hook.get("source_default") or "website",
         "user_id": user_id,
+        "original_user_id": user_id,
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "webhook_id": hook["id"],
         "phone_digits": phone_digits,
@@ -123,6 +121,8 @@ async def webhook_lead(token: str, request: Request):
     doc.update(ist_date_parts(doc["create_date_ist"]))
     doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
+    if queue_it:
+        await queue_lead_for_assignment(lid)
     await db.webhooks.update_one({"id": hook["id"]}, {"$inc": {"hits": 1}})
     # Register the lead's source in the catalog so it shows in the Source dropdown/filters
     # (e.g. "Website AI Agent" arriving from the site's API). Idempotent get-or-create.
