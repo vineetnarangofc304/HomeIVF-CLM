@@ -225,8 +225,37 @@ async def heatmap(type: str = "dow_hour", date_from: Optional[str] = None,
     raise HTTPException(status_code=400, detail="Invalid heatmap type")
 
 
+_dash_cache: dict = {}
+_dash_inflight: dict = {}
+_DASH_TTL = 45
+
+
 @router.get("/dashboard")
 async def dashboard(date_from: str = None, date_to: str = None, user: dict = Depends(get_current_user)):
+    # Cache + coalesce: the dashboard fires 8 counts + 4 aggregations per load and had NO
+    # cache (unlike KPI), so a burst of caller loads repeated the same heavy scans. Key by
+    # (scope, range, IST-day) → auto-invalidates daily; 45s TTL; concurrent identical
+    # requests share ONE computation (in-flight coalescing) instead of N duplicate scans.
+    scope = user["id"] if user.get("role") == "caller" else "all"
+    ck = f"{scope}:{date_from or '-'}:{date_to or '-'}:{today_ist()}"
+    hit = _dash_cache.get(ck)
+    if hit and time.time() - hit[0] < _DASH_TTL:
+        return hit[1]
+    if ck in _dash_inflight:
+        return await _dash_inflight[ck]
+    task = asyncio.ensure_future(_compute_dashboard(date_from, date_to, user))
+    _dash_inflight[ck] = task
+    try:
+        result = await task
+    finally:
+        _dash_inflight.pop(ck, None)
+    if len(_dash_cache) > 500:
+        _dash_cache.clear()
+    _dash_cache[ck] = (time.time(), result)
+    return result
+
+
+async def _compute_dashboard(date_from: str = None, date_to: str = None, user: dict = None):
     # Scope to the "Lead in Pipeline" working set (exclude raw, un-promoted Ozonetel
     # call-leads which carry pipeline=False) so the dashboard Today count + Funnel
     # match the "Lead in Pipeline" export for the same date range (Case 4 mismatch fix).

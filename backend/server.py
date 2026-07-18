@@ -156,6 +156,11 @@ INDEX_SPECS = [
     ("leads", [("create_date_ist", -1), ("lead_stage", 1)], {}),
     ("leads", [("active", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
     ("leads", [("create_date_ist", -1), ("create_dow", 1), ("create_hour", 1)], {}),
+    # Dashboard/KPI scope (base = active + pipeline!=False, grouped by lead_stage over a
+    # create_date_ist range): index-first so cold (uncached) report loads never page the
+    # whole ~240MB collection. Admin scope + caller (user_id) scope.
+    ("leads", [("active", 1), ("pipeline", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
+    ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date_ist", -1)], {}),
     ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
     ("follow_ups", [("follow_up_date", 1)], {}),
     ("follow_ups", [("source", 1), ("lead_id", 1)], {}),

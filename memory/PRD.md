@@ -1,6 +1,14 @@
 # HomeIVF CRM — PRD
 
 
+## Perf (2026-07-19) — Dashboard + KPI report speed optimization — VERIFIED (preview)
+- **Symptom:** user reports Dashboard/KPI "very very slow" (on freshly-deployed PRODUCTION; preview measured already fast). 
+- **Root fixes (code, help both envs after redeploy):** (1) **Dashboard caching + in-flight coalescing** — `/reports/dashboard` fired 8 count_documents + 4 aggregations on EVERY load with NO cache (KPI already had a 120s cache). Refactored into a thin cached wrapper (`_dash_cache`, 45s TTL, keyed by scope+range+IST-day so it auto-invalidates daily) + `_compute_dashboard()`; concurrent identical requests share ONE computation. (2) **Two targeted compound indexes** on leads: `{active,pipeline,create_date_ist,lead_stage}` (admin scope) and `{active,user_id,pipeline,create_date_ist}` (caller scope) so cold/uncached report loads are index-first instead of paging the ~240MB collection. 
+- **Measured (preview, 120k leads):** dashboard cold 0.43s → warm ~0.09s; caller dashboard warm ~0.09s; **10 parallel admin loads = 0.27s total** (coalesced). KPI already ~0.1-0.17s (cached). Cache correctness verified (cold==warm payload).
+- **⚠️ NEEDS PRODUCTION REDEPLOY** — new indexes build in the background on startup (brief slow window right after deploy while they build, then fast). If production is still slow post-redeploy AFTER indexes finish, likely a DB-tier/network factor → Emergent Support.
+
+
+
 ## Feature (2026-07-18) — KPI "Lead Pulse" Performance Dashboard REBUILT to client-approved design — VERIFIED (iteration_59: backend 6/6, frontend 100%)
 - Full rebuild of `/kpi` to match the client's approved reference HTML ("Lead Pulse"). Single page: live clock header, **Month/Year filter**, dark FTD/MTD/YTD chip, 4 KPI boxes (Today Total Leads, OPD Booked, OPD Done, Registration), **Pipeline Pulse** 100%-stacked bars (FTD/MTD/YTD), **Valid Leads** card (single total row + formula), 4 stage tables showing ALL fixed dispositions (Contact Attempt 4, Contacted 3, Converted 5, Closed 22 — zero rows always shown), Conversion Metrics (MTD green / YTD amber, cumulative step ratios), Conversion funnel (FTD/MTD/YTD toggle, cumulative), and 3 Chart.js charts (Stage-mix donut, Top-10 closed reasons, Daily-pace grouped bar).
 - **Month filter:** past month re-renders with FTD→"Avg/Day", MTD→"Month", amber closed-month banner, YTD = Jan 1..end of selected month; pace chart switches to month-vs-previous-month. Current month = live (auto-refresh 5 min).
