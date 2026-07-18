@@ -157,10 +157,15 @@ async def drain_lead_queue():
             await db.lead_queue.delete_one({"lead_id": lead_id})
             continue
         cid = available[assigned % len(available)]
-        await db.leads.update_one({"id": lead_id}, {"$set": {
-            "user_id": cid, "original_user_id": lead.get("original_user_id") or cid,
-            "write_date": now_utc_str()}})
+        # Atomic guard: only assign if still unassigned. Prevents a double-assign race
+        # when two callers flip to Available at the same instant (24-caller production).
+        res = await db.leads.update_one(
+            {"id": lead_id, "$or": [{"user_id": None}, {"user_id": {"$exists": False}}]},
+            {"$set": {"user_id": cid, "original_user_id": lead.get("original_user_id") or cid,
+                      "write_date": now_utc_str()}})
         await db.lead_queue.delete_one({"lead_id": lead_id})
+        if res.modified_count == 0:
+            continue  # another concurrent drain already claimed this lead
         await sync_channel_owner(lead.get("phone_digits"), cid)
         await log_message(lead_id, "Auto-assigned from the waiting queue (a caller became Available)")
         assigned += 1
