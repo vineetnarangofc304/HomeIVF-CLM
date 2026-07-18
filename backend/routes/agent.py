@@ -57,6 +57,42 @@ async def set_status(body: StatusBody, user: dict = Depends(get_current_user)):
     return {"ok": True, "status": status, "since": now, "assigned_from_queue": assigned}
 
 
+class AdminStatusBody(BaseModel):
+    user_id: int
+    status: str = "Offline"
+
+
+@router.post("/admin/set-status")
+async def admin_set_status(body: AdminStatusBody, user: dict = Depends(require_roles("admin", "manager"))):
+    """Case 2 — admin/manager manually overrides a caller's presence (e.g. force Offline
+    when a caller forgot to). Setting Offline immediately stops new-lead assignment to them
+    (routing reads users.status live). Setting Available/On Call drains the waiting queue."""
+    status = body.status.strip()
+    if status not in VALID_STATUSES:
+        raise HTTPException(status_code=400, detail="Invalid status")
+    target = await db.users.find_one({"id": body.user_id}, {"_id": 0, "id": 1, "name": 1})
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    now = now_utc_str()
+    open_log = await db.status_logs.find_one({"user_id": body.user_id, "end": None}, sort=[("start", -1)])
+    if open_log:
+        await db.status_logs.update_one(
+            {"id": open_log["id"]},
+            {"$set": {"end": now, "duration_sec": _secs_since(open_log["start"])}},
+        )
+    lid = await next_id("status_log")
+    await db.status_logs.insert_one({
+        "id": lid, "user_id": body.user_id, "user_name": target["name"], "status": status,
+        "is_break": status in BREAK_STATUSES, "start": now, "end": None, "duration_sec": None,
+        "date": now[:10], "set_by_admin": user["name"],
+    })
+    await db.users.update_one({"id": body.user_id}, {"$set": {"status": status, "status_since": now}})
+    assigned = 0
+    if status in {"Available", "On Call"}:
+        assigned = await drain_lead_queue()
+    return {"ok": True, "user_id": body.user_id, "status": status, "by": user["name"], "assigned_from_queue": assigned}
+
+
 @router.get("/me")
 async def my_status(user: dict = Depends(get_current_user)):
     u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "status": 1, "status_since": 1})
@@ -192,9 +228,11 @@ async def attendance(date: str = None, month: str = None, user_id: int = None,
         period, mode = day, "day"
 
     users = await db.users.find(
-        {"active": True}, {"_id": 0, "id": 1, "name": 1, "role": 1}).to_list(500)
+        {"active": True}, {"_id": 0, "id": 1, "name": 1, "role": 1, "status": 1, "status_since": 1}).to_list(500)
     umap = {u["id"]: u for u in users}
     rows = {uid: {"user_id": uid, "name": umap[uid]["name"], "role": umap[uid].get("role"),
+                  "current_status": umap[uid].get("status") or "Offline",
+                  "current_since": umap[uid].get("status_since"),
                   "by_status": {}, "first_seen": None, "last_seen": None, "days": set()}
             for uid in umap}
 
@@ -226,6 +264,7 @@ async def attendance(date: str = None, month: str = None, user_id: int = None,
             continue
         out.append({
             "user_id": uid, "name": r["name"], "role": r["role"],
+            "current_status": r["current_status"], "current_since": r["current_since"],
             "by_status": bs, "first_seen": r["first_seen"], "last_seen": r["last_seen"],
             "working_seconds": working, "break_seconds": brk, "offline_seconds": offline,
             "days_present": len(r["days"]), "present": present,

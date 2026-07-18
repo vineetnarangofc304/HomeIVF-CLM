@@ -172,6 +172,34 @@ async def drain_lead_queue():
     return assigned
 
 
+def _secs_since_utc(start: str) -> int:
+    try:
+        s = datetime.strptime(start, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
+        return max(0, int((datetime.now(timezone.utc) - s).total_seconds()))
+    except Exception:
+        return 0
+
+
+async def reset_stale_statuses():
+    """Case 2 (choice 3a) — everyone starts each day Offline and must re-mark Available.
+    Once per IST day, close any still-open status log and force every non-Offline user to
+    Offline. Idempotent, guarded by settings.status_reset.last_reset_date."""
+    today = today_ist()
+    guard = await db.settings.find_one({"key": "status_reset"})
+    if guard and guard.get("last_reset_date") == today:
+        return 0
+    now = now_utc_str()
+    async for lg in db.status_logs.find({"end": None}, {"_id": 0, "id": 1, "start": 1}):
+        await db.status_logs.update_one(
+            {"id": lg["id"]}, {"$set": {"end": now, "duration_sec": _secs_since_utc(lg["start"])}})
+    res = await db.users.update_many(
+        {"status": {"$ne": "Offline"}}, {"$set": {"status": "Offline", "status_since": now}})
+    await db.settings.update_one(
+        {"key": "status_reset"},
+        {"$set": {"key": "status_reset", "last_reset_date": today, "reset_at": now}}, upsert=True)
+    return res.modified_count
+
+
 
 async def log_message(lead_id: int, body: str, author: dict = None, subtype: str = "tracking", extra: dict = None):
     mid = await next_id("message")

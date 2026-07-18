@@ -274,6 +274,21 @@ async def _ensure_indexes():
     logger.info("Index ensure pass complete")
 
 
+async def _status_reset_loop():
+    """Case 2 (choice 3a) — reset everyone to Offline at the start of each IST day.
+    Runs immediately on startup (covers overnight/deploy rollovers), then every 5 min so
+    the day-boundary reset lands within a few minutes of IST midnight. Idempotent per day."""
+    from core.utils import reset_stale_statuses
+    while True:
+        try:
+            n = await reset_stale_statuses()
+            if n:
+                logger.info(f"Daily status reset — {n} user(s) set Offline")
+        except Exception as e:
+            logger.error(f"status reset failed: {str(e)[:150]}")
+        await asyncio.sleep(300)
+
+
 @app.on_event("startup")
 async def startup():
     try:
@@ -284,6 +299,8 @@ async def startup():
         logger.error(f"Storage init failed: {e}")
     # Build indexes in the background — never block startup / readiness on this.
     asyncio.create_task(_ensure_indexes())
+    # Daily Offline reset (Case 2) — background loop.
+    asyncio.create_task(_status_reset_loop())
     # Seed admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
