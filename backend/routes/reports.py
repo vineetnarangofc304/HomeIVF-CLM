@@ -1,4 +1,5 @@
 import asyncio
+import calendar
 import re
 import time
 from datetime import datetime, timedelta, timezone
@@ -324,25 +325,36 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
     }
 
 
-# --- KPI Performance Overview -------------------------------------------------
-# Color-coded stage report grouped by disposition Sub-Status with FTD (today),
-# MTD (this month) and YTD (this year) counts + a conversion funnel. Counts are
-# by lead creation date. Stage->tag grouping comes from settings.disposition_map;
-# "Valid Leads" is a computed cross-stage bucket. Cached for 120s (admin/manager
-# report — low concurrency) so the year-wide facet scan never repeats per load.
+# --- KPI Performance Overview ("Lead Pulse") ---------------------------------
+# Month-aware per-disposition FTD / MTD / YTD report matching the approved design.
+# All 4 stages + their full fixed disposition list are ALWAYS returned (zero rows
+# included). Counts are by lead creation date in IST. `%` is computed client-side
+# against the period's TOTAL leads. Funnel / valid / conversion are derived on the
+# client from the current-stage snapshot (no stage history needed). Cached 120s per
+# (scope, month, today) — this is a low-concurrency admin/manager report.
 
 _kpi_cache: dict = {}
 _KPI_TTL = 120
 
-VALID_LEAD_TAGS = ["Call back for appointment", "OPD Booked", "OPD Done", "Valid Not Interested"]
-_STAGE_ORDER = ["Contact Attempt", "Contacted", "Converted", "Closed"]
-_STAGE_TITLES = {
-    "Contact Attempt": "CONTACT ATTEMPT — not reached",
-    "Contacted": "CONTACTED — active pipeline",
-    "Converted": "CONVERTED",
-    "Closed": "CLOSED — lost / invalid",
-}
-_STAGE_COLORS = {"Contact Attempt": "red", "Contacted": "orange", "Converted": "green", "Closed": "grey"}
+# Fixed stage -> ordered disposition list (client-approved spec). Disposition names
+# are matched to catalog tags by a normalised key so both int-id and string tag
+# storage resolve correctly.
+KPI_STAGES = [
+    {"key": "attempt", "name": "Contact Attempt", "hex": "#E7A23C",
+     "rows": ["Ringing", "Busy", "Phone Switched Off", "Not Reachable"]},
+    {"key": "contacted", "name": "Contacted", "hex": "#2F6DE0",
+     "rows": ["Call back for first pitch", "Call back for appointment", "OPD Booked"]},
+    {"key": "converted", "name": "Converted", "hex": "#11A07B",
+     "rows": ["OPD Done", "Registration Done", "Blood Test Booked", "Kits Booked", "Treatment Started"]},
+    {"key": "closed", "name": "Closed — Lost / Invalid", "hex": "#8A97AB",
+     "rows": ["Age Issue", "Duplicate Lead", "Already Have kid", "Already Pregnant",
+              "Clinic Not Available", "Gender Selection", "Incoming Not Available", "Invalid Number",
+              "Job Enquiry", "Junk", "Language Barrier", "Not Contactable",
+              "Not Interested (Fund Issue)", "Not Interested (Competition)", "Not looking for treatment",
+              "Relative Related Enquiry", "Sperm/Egg Donor", "Unmarried", "Valid Not Interested",
+              "Wrong Number", "Abusive Language", "Not Eligible For Treatment"]},
+]
+_MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
 def _norm(s: str) -> str:
@@ -350,20 +362,33 @@ def _norm(s: str) -> str:
 
 
 @router.get("/kpi-overview")
-async def kpi_overview(user: dict = Depends(require_permission("reports"))):
-    today = today_ist()            # YYYY-MM-DD (IST)
-    month_start = today[:7] + "-01"
-    year_start = today[:4] + "-01-01"
+async def kpi_overview(month: Optional[str] = None, user: dict = Depends(require_permission("reports"))):
+    today = today_ist()                       # YYYY-MM-DD (IST)
+    cur_month = today[:7]                      # YYYY-MM
+    if not (month and re.match(r"^\d{4}-\d{2}$", month)):
+        month = cur_month
+    is_current = month == cur_month
+    y, mo = int(month[:4]), int(month[5:7])
+    days_in_month = calendar.monthrange(y, mo)[1]
+    month_start = f"{month}-01"
+    ny, nmo = (y + 1, 1) if mo == 12 else (y, mo + 1)
+    next_month_start = f"{ny:04d}-{nmo:02d}-01"
+    year_start = f"{y:04d}-01-01"              # YTD anchored to the selected month's year
+    elapsed_days = int(today[8:10]) if is_current else days_in_month
 
-    scope = user["id"] if user.get("role") == "caller" else "all"
-    ck = f"{scope}:{today}"
+    prev_label = prev_start = None
+    prev_days = 0
+    if mo > 1:
+        pmo = mo - 1
+        prev_start = f"{y:04d}-{pmo:02d}-01"
+        prev_days = calendar.monthrange(y, pmo)[1]
+        prev_label = f"{_MONTH_ABBR[pmo - 1]} {y}"
+
+    ck = f"{user.get('id') if user.get('role') == 'caller' else 'all'}:{month}:{today}"
     now = time.time()
     hit = _kpi_cache.get(ck)
     if hit and now - hit[0] < _KPI_TTL:
         return hit[1]
-
-    dm_doc = await db.settings.find_one({"key": "disposition_map"}, {"_id": 0, "map": 1})
-    disp_map = (dm_doc or {}).get("map", {})
 
     tags = await db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
     id_to_name = {t["id"]: t["name"] for t in tags}
@@ -372,12 +397,22 @@ async def kpi_overview(user: dict = Depends(require_permission("reports"))):
     if user.get("role") == "caller":
         base["user_id"] = user["id"]
 
+    match = {**base, "create_date_ist": {"$gte": year_start}}
+    if not is_current:
+        match["create_date_ist"] = {"$gte": year_start, "$lt": next_month_start}
+
     mtd_cond = {"$cond": [{"$gte": ["$create_date_ist", month_start]}, 1, 0]}
     ftd_cond = {"$cond": [{"$gte": ["$create_date_ist", today]}, 1, 0]}
-    sums = {"ytd": {"$sum": 1}, "mtd": {"$sum": mtd_cond}, "ftd": {"$sum": ftd_cond}}
+    if prev_start:
+        pmtd_cond = {"$cond": [{"$and": [{"$gte": ["$create_date_ist", prev_start]},
+                                         {"$lt": ["$create_date_ist", month_start]}]}, 1, 0]}
+    else:
+        pmtd_cond = {"$literal": 0}
+    sums = {"ytd": {"$sum": 1}, "mtd": {"$sum": mtd_cond},
+            "ftd": {"$sum": ftd_cond}, "pmtd": {"$sum": pmtd_cond}}
 
     res = await db.leads.aggregate([
-        {"$match": {**base, "create_date_ist": {"$gte": year_start}}},
+        {"$match": match},
         {"$facet": {
             "by_tag": [{"$unwind": "$tags"}, {"$group": {"_id": "$tags", **sums}}],
             "totals": [{"$group": {"_id": None, **sums}}],
@@ -385,61 +420,61 @@ async def kpi_overview(user: dict = Depends(require_permission("reports"))):
     ], allowDiskUse=True, maxTimeMS=25000).to_list(1)
     res = res[0] if res else {"by_tag": [], "totals": []}
 
-    # `tags` are stored either as catalog INT ids (migrated) or as string names
-    # (some CRM/webhook paths), so normalise both to a canonical key and merge.
+    # tags are stored as int catalog ids (migrated) or string names (some paths) —
+    # normalise both to a canonical key and merge.
     norm_counts: dict = {}
     for r in res.get("by_tag", []):
         key = r.get("_id")
         if key is None or isinstance(key, bool):
             continue
-        if isinstance(key, (int, float)):
-            nm = id_to_name.get(int(key))
-            norm = _norm(nm) if nm else None
-        else:
-            norm = _norm(str(key))
-        if not norm:
+        nm = id_to_name.get(int(key)) if isinstance(key, (int, float)) else str(key)
+        nk = _norm(nm) if nm else None
+        if not nk:
             continue
-        acc = norm_counts.setdefault(norm, {"ftd": 0, "mtd": 0, "ytd": 0})
-        acc["ftd"] += r["ftd"]; acc["mtd"] += r["mtd"]; acc["ytd"] += r["ytd"]
+        acc = norm_counts.setdefault(nk, {"ftd": 0, "mtd": 0, "ytd": 0, "pmtd": 0})
+        for f in ("ftd", "mtd", "ytd", "pmtd"):
+            acc[f] += r.get(f, 0)
+
+    def counts(name: str) -> dict:
+        return norm_counts.get(_norm(name), {"ftd": 0, "mtd": 0, "ytd": 0, "pmtd": 0})
+
+    stages = []
+    prev_stage_totals = {}
+    for st in KPI_STAGES:
+        rows, tot = [], {"ftd": 0, "mtd": 0, "ytd": 0}
+        pmtd_tot = 0
+        for nm in st["rows"]:
+            c = counts(nm)
+            # Past-month "day" column is the month's per-day average.
+            ftd_val = c["ftd"] if is_current else (round(c["mtd"] / days_in_month) if days_in_month else 0)
+            rows.append({"name": nm, "ftd": ftd_val, "mtd": c["mtd"], "ytd": c["ytd"]})
+            tot["ftd"] += ftd_val; tot["mtd"] += c["mtd"]; tot["ytd"] += c["ytd"]
+            pmtd_tot += c["pmtd"]
+        stages.append({"key": st["key"], "name": st["name"], "hex": st["hex"], "rows": rows, "totals": tot})
+        prev_stage_totals[st["key"]] = pmtd_tot
 
     tt = (res.get("totals") or [{}])[0] or {}
-    total = {"ftd": tt.get("ftd", 0), "mtd": tt.get("mtd", 0), "ytd": tt.get("ytd", 0)}
+    total_mtd = tt.get("mtd", 0)
+    total = {
+        "ftd": tt.get("ftd", 0) if is_current else (round(total_mtd / days_in_month) if days_in_month else 0),
+        "mtd": total_mtd,
+        "ytd": tt.get("ytd", 0),
+    }
 
-    def tag_counts(name: str) -> dict:
-        return dict(norm_counts.get(_norm(name), {"ftd": 0, "mtd": 0, "ytd": 0}))
+    max_mo = int(cur_month[5:7]) if y == int(cur_month[:4]) else 12
+    months = [{"value": f"{y:04d}-{i:02d}", "label": f"{_MONTH_ABBR[i - 1]} {y}",
+               "current": f"{y:04d}-{i:02d}" == cur_month} for i in range(1, max_mo + 1)]
 
-    def build(names: list):
-        rows, tot = [], {"ftd": 0, "mtd": 0, "ytd": 0}
-        for nm in names:
-            c = tag_counts(nm)
-            rows.append({"label": nm, **c})
-            for k in tot:
-                tot[k] += c[k]
-        return rows, tot
-
-    sections = []
-    v_rows, v_tot = build(VALID_LEAD_TAGS)
-    sections.append({"key": "valid", "title": "VALID LEADS", "color": "yellow",
-                     "subtitle": "Appt callback + OPD Booked + OPD Done + Valid NI",
-                     "rows": v_rows, "totals": v_tot})
-    for st in _STAGE_ORDER:
-        rows, tot = build(disp_map.get(st, []))
-        sections.append({"key": _norm(st), "title": _STAGE_TITLES.get(st, st.upper()),
-                         "color": _STAGE_COLORS.get(st, "grey"), "rows": rows, "totals": tot})
-
-    def ratio(num, den):
-        return {"num": num, "den": den, "pct": round(100 * num / den) if den else 0}
-
-    b, d, r, s = (tag_counts("OPD Booked")["mtd"], tag_counts("OPD Done")["mtd"],
-                  tag_counts("Registration Done")["mtd"], tag_counts("Treatment Started")["mtd"])
-    conversion = [
-        {"label": "Valid → OPD Booked", **ratio(b, v_tot["mtd"])},
-        {"label": "OPD Booked → OPD Done", **ratio(d, b)},
-        {"label": "OPD Done → Registration", **ratio(r, d)},
-        {"label": "Registration → Stimulation Start", **ratio(s, r)},
-    ]
-
-    out = {"total": total, "today": today, "month_start": month_start, "year_start": year_start,
-           "sections": sections, "conversion": conversion}
+    out = {
+        "month": month, "is_current": is_current, "today": today,
+        "days_in_month": days_in_month, "elapsed_days": max(elapsed_days, 1),
+        "day_label": "FTD" if is_current else "Avg/Day",
+        "month_label": "MTD" if is_current else "Month",
+        "months": months,
+        "prev_month": ({"label": prev_label, "days": prev_days, "stage_totals": prev_stage_totals}
+                       if prev_label else None),
+        "stages": stages,
+        "total": total,
+    }
     _kpi_cache[ck] = (now, out)
     return out

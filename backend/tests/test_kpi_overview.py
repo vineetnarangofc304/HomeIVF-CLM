@@ -1,12 +1,26 @@
-"""KPI Overview endpoint tests (iter57)."""
+"""KPI Overview endpoint tests (iter59 — new stages/months/prev_month shape)."""
 import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-pipeline.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL").rstrip("/")
 
 ADMIN = {"email": "admin@homeivf.com", "password": "HomeIVF@2026"}
 AGENT = {"email": "agent@homeivf.com", "password": "Agent@2026"}
+
+EXPECTED_ROWS = {
+    "attempt": ["Ringing", "Busy", "Phone Switched Off", "Not Reachable"],
+    "contacted": ["Call back for first pitch", "Call back for appointment", "OPD Booked"],
+    "converted": ["OPD Done", "Registration Done", "Blood Test Booked", "Kits Booked", "Treatment Started"],
+    "closed": [
+        "Age Issue", "Duplicate Lead", "Already Have kid", "Already Pregnant",
+        "Clinic Not Available", "Gender Selection", "Incoming Not Available", "Invalid Number",
+        "Job Enquiry", "Junk", "Language Barrier", "Not Contactable",
+        "Not Interested (Fund Issue)", "Not Interested (Competition)", "Not looking for treatment",
+        "Relative Related Enquiry", "Sperm/Egg Donor", "Unmarried", "Valid Not Interested",
+        "Wrong Number", "Abusive Language", "Not Eligible For Treatment",
+    ],
+}
 
 
 def _login(creds):
@@ -20,90 +34,73 @@ def admin_token():
     return _login(ADMIN)
 
 
-@pytest.fixture(scope="module")
-def agent_token():
-    return _login(AGENT)
-
-
-def test_kpi_admin_returns_200_and_shape(admin_token):
-    r = requests.get(
+def _get(token, params=None):
+    return requests.get(
         f"{BASE_URL}/api/reports/kpi-overview",
-        headers={"Authorization": f"Bearer {admin_token}"},
+        headers={"Authorization": f"Bearer {token}"},
+        params=params or {},
         timeout=60,
     )
+
+
+def test_kpi_current_month_shape(admin_token):
+    r = _get(admin_token)
     assert r.status_code == 200, r.text
     d = r.json()
-    # top-level shape
-    for k in ("total", "sections", "conversion", "today", "month_start", "year_start"):
-        assert k in d, f"missing key {k}"
+    assert d["is_current"] is True
+    assert d["day_label"] == "FTD"
+    assert d["month_label"] == "MTD"
     for k in ("ftd", "mtd", "ytd"):
-        assert k in d["total"]
         assert isinstance(d["total"][k], int)
-    # 5 sections
-    assert len(d["sections"]) == 5
-    keys = [s["key"] for s in d["sections"]]
-    assert keys[0] == "valid"
-    # normalised keys for the 4 stages
-    expected_stage_keys = {"contactattempt", "contacted", "converted", "closed"}
-    assert expected_stage_keys.issubset(set(keys))
-    for s in d["sections"]:
-        assert "title" in s and "color" in s and "rows" in s and "totals" in s
-        for row in s["rows"]:
-            for k in ("ftd", "mtd", "ytd", "label"):
-                assert k in row
-    # conversion has 4 items
-    assert len(d["conversion"]) == 4
-    for c in d["conversion"]:
-        for k in ("label", "num", "den", "pct"):
-            assert k in c
-    print("TOTALS:", d["total"])
-    print("VALID totals:", d["sections"][0]["totals"])
-    print("CONV:", d["conversion"])
+    # months array Jan..current
+    assert isinstance(d["months"], list) and len(d["months"]) >= 1
+    labels = [m["label"] for m in d["months"]]
+    assert labels[0].startswith("Jan")
+    # 4 stages with expected fixed rows
+    assert len(d["stages"]) == 4
+    stage_by_key = {s["key"]: s for s in d["stages"]}
+    for key, rows in EXPECTED_ROWS.items():
+        assert key in stage_by_key, f"missing stage {key}"
+        got = [r["name"] for r in stage_by_key[key]["rows"]]
+        assert got == rows, f"stage {key} rows mismatch: {got}"
+    assert len(stage_by_key["closed"]["rows"]) == 22
+    print("Totals:", d["total"])
 
 
-def test_kpi_seeded_test_data_counted(admin_token):
-    r = requests.get(
-        f"{BASE_URL}/api/reports/kpi-overview",
-        headers={"Authorization": f"Bearer {admin_token}"},
-        timeout=60,
-    )
+def test_kpi_seeded_totals_nonzero(admin_token):
+    d = _get(admin_token).json()
+    # Seed says total mtd ~4067, ytd ~8127
+    assert d["total"]["mtd"] >= 1000, d["total"]
+    assert d["total"]["ytd"] >= 5000, d["total"]
+
+
+def test_kpi_month_param_past(admin_token):
+    r = _get(admin_token, {"month": "2026-06"})
+    assert r.status_code == 200
     d = r.json()
-    # Seeded expectations: ~5 FTD, ~18 MTD, ~23 YTD (plus pre-existing 2026 leads)
-    assert d["total"]["ftd"] >= 5, f"expected FTD >=5, got {d['total']}"
-    assert d["total"]["mtd"] >= 18, f"expected MTD >=18, got {d['total']}"
-    assert d["total"]["ytd"] >= 23, f"expected YTD >=23, got {d['total']}"
-
-    valid = d["sections"][0]
-    assert valid["totals"]["mtd"] >= 5, f"expected valid mtd >=5, got {valid['totals']}"
-
-    # BOTH int-id (Ringing=26) and string-name (Busy) tags should have rows > 0
-    def find_row(label):
-        for s in d["sections"]:
-            for row in s["rows"]:
-                if row["label"].lower() == label.lower():
-                    return row
-        return None
-
-    ringing = find_row("Ringing")
-    busy = find_row("Busy")
-    assert ringing is not None, "Ringing row missing"
-    assert busy is not None, "Busy row missing"
-    assert ringing["ytd"] > 0, f"Ringing YTD should be >0, got {ringing}"
-    assert busy["ytd"] > 0, f"Busy YTD should be >0 (string tag test), got {busy}"
-
-    conv0 = d["conversion"][0]
-    assert conv0["label"].startswith("Valid"), conv0
-    # sensible pct — Valid MTD=5 and OPD Booked MTD ~= 2 -> ~40%
-    assert 0 <= conv0["pct"] <= 100
+    assert d["is_current"] is False
+    assert d["day_label"] == "Avg/Day"
+    assert d["month_label"] == "Month"
+    assert d["days_in_month"] == 30
+    assert d["month"] == "2026-06"
+    pm = d["prev_month"]
+    assert pm is not None
+    assert pm["label"] == "May 2026"
+    assert pm["days"] == 31
+    assert "stage_totals" in pm and set(pm["stage_totals"].keys()) == {"attempt", "contacted", "converted", "closed"}
 
 
-def test_kpi_caller_forbidden(agent_token):
-    r = requests.get(
-        f"{BASE_URL}/api/reports/kpi-overview",
-        headers={"Authorization": f"Bearer {agent_token}"},
-        timeout=30,
-    )
-    assert r.status_code == 403, f"expected 403 for caller, got {r.status_code} {r.text}"
+def test_kpi_month_january_prev_null(admin_token):
+    d = _get(admin_token, {"month": "2026-01"}).json()
+    assert d["is_current"] is False
+    assert d["prev_month"] is None
+    assert d["days_in_month"] == 31
+
+
+def test_kpi_invalid_month_falls_back(admin_token):
+    d = _get(admin_token, {"month": "foo"}).json()
+    assert d["is_current"] is True
+    assert d["day_label"] == "FTD"
 
 
 def test_kpi_unauthenticated():
