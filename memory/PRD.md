@@ -1,6 +1,19 @@
 # HomeIVF CRM — PRD
 
 
+## Feature (2026-07-18) — KPI "Lead Pulse" Performance Dashboard REBUILT to client-approved design — VERIFIED (iteration_59: backend 6/6, frontend 100%)
+- Full rebuild of `/kpi` to match the client's approved reference HTML ("Lead Pulse"). Single page: live clock header, **Month/Year filter**, dark FTD/MTD/YTD chip, 4 KPI boxes (Today Total Leads, OPD Booked, OPD Done, Registration), **Pipeline Pulse** 100%-stacked bars (FTD/MTD/YTD), **Valid Leads** card (single total row + formula), 4 stage tables showing ALL fixed dispositions (Contact Attempt 4, Contacted 3, Converted 5, Closed 22 — zero rows always shown), Conversion Metrics (MTD green / YTD amber, cumulative step ratios), Conversion funnel (FTD/MTD/YTD toggle, cumulative), and 3 Chart.js charts (Stage-mix donut, Top-10 closed reasons, Daily-pace grouped bar).
+- **Month filter:** past month re-renders with FTD→"Avg/Day", MTD→"Month", amber closed-month banner, YTD = Jan 1..end of selected month; pace chart switches to month-vs-previous-month. Current month = live (auto-refresh 5 min).
+- **Backend:** `GET /api/reports/kpi-overview?month=YYYY-MM` — single `$facet` over `create_date_ist` (IST), fixed KPI_STAGES list, matches tags stored as int-ids OR strings, returns stages/rows/totals + months + prev_month. Cached 120s. `%` computed client-side against period TOTAL leads; pulse normalized to sum of 4 stages.
+- **Frontend:** `KpiOverview.jsx` (chart.js/auto) + scoped `LeadPulse.css` (all rules under `.leadpulse`), fonts Sora + Albert Sans.
+- **⚠️ NEEDS PRODUCTION REDEPLOY.** (Superseded the earlier iteration_57 KPI version.)
+
+## Pending client requests (2026-07-18) — NOT yet built:
+- **Case change 1 (access model REVERSAL):** all callers can now VIEW + EDIT all leads (undo the iteration_58 edit-lock), BUT the original auto-assigned caller field is immutable; add a visible per-lead activity/audit log (who/what/old→new/when).
+- **Case 2 (caller status + routing + attendance):** functional status dropdown (Available/On Call/3 breaks/Meeting/Offline), presence-based round-robin assignment (only Available callers, default Offline daily, queue when all offline then assign older+new), break timers, admin day/month attendance panel + filters.
+
+
+
 ## Feature (2026-07-17) — Record-level access (Case 1) + Duplicate/My-Leads filters (Case 2) — VERIFIED (iteration_58: backend 16/16, frontend 10/10)
 - **Case 1 — View-all / edit-only-if-assigned:** callers can now VIEW every lead (search any phone, open any record to see prior handling) but may only MUTATE a lead assigned to them. Enforced server-side by `core/security.ensure_lead_edit(lead, user)` → 403 `"Access Denied — this lead is assigned to another caller…"`. Applied to ALL lead-mutating endpoints: leads.py (update, lost, restore, promote, send_whatsapp, send_email, followups add/update/status/delete, caller-activities), chatter.py (notes, activities create/done/cancel), calls.py (click-to-dial + set-disposition), attachments.py (upload/delete). `build_query` no longer owner-scopes callers. Admins & managers unrestricted. Dashboard/Reports/Follow-ups/Call-logs remain personal (own data) — unchanged.
 - **Case 1 — UI (LeadDetail.jsx):** `canEdit = role!=='caller' || lead.user_id===user.id`. Non-owner callers see a `readonly-banner` and any action opens an `access-denied-modal`. FieldCard/QACard/CustomFieldsCard/FollowUpSection/CallerActivities receive `canEdit`+`onDenied`; header buttons + note/tag/stage/upload gated. Assigned caller edits normally. NavGuard mandatory-field trap only fires after a real edit, so view-only callers navigate freely.
