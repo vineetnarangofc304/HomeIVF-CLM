@@ -1,6 +1,14 @@
 # HomeIVF CRM — PRD
 
 
+## Fix (2026-07-19) — KPI "Lead Pulse" DATA correctness (option B) — VERIFIED (preview, exact vs raw DB)
+- **Symptom:** user (on PRODUCTION) reported every KPI number tile wrong/near-zero. **Root cause:** the disposition/stage tiles were counted from the lead `tags` array, but only 2 of ~120k leads have any tags — the real pipeline data lives in **`lead_stage`** (~24k each: New/Unassigned, Contact Attempt, Contacted, Converted, Closed). `stage_id` is random noise (uncorrelated), so unusable. Also the month picker only listed the current calendar year, hiding 2024–2025 data.
+- **Fix (`/reports/kpi-overview`), user choice = option B:** (1) added a `by_stage` facet; **stage TOTALS now come from `lead_stage`** (accurate for full migrated history) instead of summing empty tag rows; per-disposition ROWS stay tag-fed (fill in as callers set dispositions going forward). (2) Added a **"New / Unassigned"** stage (hex #94A3B8) + unmapped/blank `lead_stage` values roll into it, so stage totals **reconcile exactly to the grand total**. (3) `prev_stage_totals` (pace chart) now uses lead_stage pmtd. (4) Month dropdown = rolling **24-month** window (newest first), so multi-year history is selectable.
+- **Verified exact vs raw DB (Jun 2025):** grand 5,811; New 1,189 / Attempt 1,172 / Contacted 1,171 / Converted 1,163 / Closed 1,116 — sum = 5,811 (reconciles); YTD 34,761 reconciles; current-month path also reconciles (ftd/mtd/ytd). Screenshot confirms pulse 5-way split + funnel Engaged=2,334 (=Contacted+Converted).
+- **Expected under option B:** per-disposition rows (OPD Booked, Ringing…), Valid Leads and step conversion % remain 0 for untagged/migrated history and populate as callers set dispositions. On production current-month (leads worked live) these fill in.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** — fix is in preview only. Files: `backend/routes/reports.py` (KPI_STAGES + KPI_STAGE_LEADSTAGE, by_stage facet, stage_total(), months window).
+
+
 ## Perf (2026-07-19) — Dashboard + KPI report speed optimization — VERIFIED (preview)
 - **Symptom:** user reports Dashboard/KPI "very very slow" (on freshly-deployed PRODUCTION; preview measured already fast). 
 - **Root fixes (code, help both envs after redeploy):** (1) **Dashboard caching + in-flight coalescing** — `/reports/dashboard` fired 8 count_documents + 4 aggregations on EVERY load with NO cache (KPI already had a 120s cache). Refactored into a thin cached wrapper (`_dash_cache`, 45s TTL, keyed by scope+range+IST-day so it auto-invalidates daily) + `_compute_dashboard()`; concurrent identical requests share ONE computation. (2) **Two targeted compound indexes** on leads: `{active,pipeline,create_date_ist,lead_stage}` (admin scope) and `{active,user_id,pipeline,create_date_ist}` (caller scope) so cold/uncached report loads are index-first instead of paging the ~240MB collection. 

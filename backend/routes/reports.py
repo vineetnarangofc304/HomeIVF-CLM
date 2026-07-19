@@ -369,6 +369,7 @@ _KPI_TTL = 120
 # are matched to catalog tags by a normalised key so both int-id and string tag
 # storage resolve correctly.
 KPI_STAGES = [
+    {"key": "new", "name": "New / Unassigned", "hex": "#94A3B8", "rows": []},
     {"key": "attempt", "name": "Contact Attempt", "hex": "#E7A23C",
      "rows": ["Ringing", "Busy", "Phone Switched Off", "Not Reachable"]},
     {"key": "contacted", "name": "Contacted", "hex": "#2F6DE0",
@@ -383,6 +384,18 @@ KPI_STAGES = [
               "Relative Related Enquiry", "Sperm/Egg Donor", "Unmarried", "Valid Not Interested",
               "Wrong Number", "Abusive Language", "Not Eligible For Treatment"]},
 ]
+
+# Stage TOTALS are counted from the lead's current `lead_stage` (the field that actually
+# holds the migrated pipeline data), NOT from summing disposition tag rows. Maps each KPI
+# stage to the lead_stage value(s) it represents. Unknown/blank stages roll up into "new".
+KPI_STAGE_LEADSTAGE = {
+    "new": ["New / Unassigned", None, "", False],
+    "attempt": ["Contact Attempt"],
+    "contacted": ["Contacted"],
+    "converted": ["Converted"],
+    "closed": ["Closed"],
+}
+_MAPPED_LEADSTAGES = {v for vals in KPI_STAGE_LEADSTAGE.values() for v in vals}
 _MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 
@@ -444,10 +457,34 @@ async def kpi_overview(month: Optional[str] = None, user: dict = Depends(require
         {"$match": match},
         {"$facet": {
             "by_tag": [{"$unwind": "$tags"}, {"$group": {"_id": "$tags", **sums}}],
+            "by_stage": [{"$group": {"_id": "$lead_stage", **sums}}],
             "totals": [{"$group": {"_id": None, **sums}}],
         }},
     ], allowDiskUse=True, maxTimeMS=25000).to_list(1)
-    res = res[0] if res else {"by_tag": [], "totals": []}
+    res = res[0] if res else {"by_tag": [], "by_stage": [], "totals": []}
+
+    # Stage totals sourced from lead_stage (real pipeline data). Any lead_stage value that
+    # isn't explicitly mapped (blank/unknown) rolls into the "new" bucket so every lead is
+    # accounted for and the stage totals reconcile exactly to the grand total.
+    stage_counts: dict = {}
+    for r in res.get("by_stage", []):
+        key = r.get("_id")
+        bucket = key if key in _MAPPED_LEADSTAGES else "__unmapped__"
+        acc = stage_counts.setdefault(bucket, {"ftd": 0, "mtd": 0, "ytd": 0, "pmtd": 0})
+        for f in ("ftd", "mtd", "ytd", "pmtd"):
+            acc[f] += r.get(f, 0)
+
+    def stage_total(key: str) -> dict:
+        acc = {"ftd": 0, "mtd": 0, "ytd": 0, "pmtd": 0}
+        vals = list(KPI_STAGE_LEADSTAGE[key])
+        if key == "new":
+            vals.append("__unmapped__")
+        for v in vals:
+            sc = stage_counts.get(v)
+            if sc:
+                for f in ("ftd", "mtd", "ytd", "pmtd"):
+                    acc[f] += sc.get(f, 0)
+        return acc
 
     # tags are stored as int catalog ids (migrated) or string names (some paths) —
     # normalise both to a canonical key and merge.
@@ -470,17 +507,22 @@ async def kpi_overview(month: Optional[str] = None, user: dict = Depends(require
     stages = []
     prev_stage_totals = {}
     for st in KPI_STAGES:
-        rows, tot = [], {"ftd": 0, "mtd": 0, "ytd": 0}
-        pmtd_tot = 0
+        rows = []
         for nm in st["rows"]:
             c = counts(nm)
+            # Per-disposition rows come from tags (fill in as callers set dispositions).
             # Past-month "day" column is the month's per-day average.
             ftd_val = c["ftd"] if is_current else (round(c["mtd"] / days_in_month) if days_in_month else 0)
             rows.append({"name": nm, "ftd": ftd_val, "mtd": c["mtd"], "ytd": c["ytd"]})
-            tot["ftd"] += ftd_val; tot["mtd"] += c["mtd"]; tot["ytd"] += c["ytd"]
-            pmtd_tot += c["pmtd"]
+        # Stage total from lead_stage (accurate for the full migrated history).
+        sc = stage_total(st["key"])
+        tot = {
+            "ftd": sc["ftd"] if is_current else (round(sc["mtd"] / days_in_month) if days_in_month else 0),
+            "mtd": sc["mtd"],
+            "ytd": sc["ytd"],
+        }
         stages.append({"key": st["key"], "name": st["name"], "hex": st["hex"], "rows": rows, "totals": tot})
-        prev_stage_totals[st["key"]] = pmtd_tot
+        prev_stage_totals[st["key"]] = sc["pmtd"]
 
     tt = (res.get("totals") or [{}])[0] or {}
     total_mtd = tt.get("mtd", 0)
@@ -490,9 +532,19 @@ async def kpi_overview(month: Optional[str] = None, user: dict = Depends(require
         "ytd": tt.get("ytd", 0),
     }
 
-    max_mo = int(cur_month[5:7]) if y == int(cur_month[:4]) else 12
-    months = [{"value": f"{y:04d}-{i:02d}", "label": f"{_MONTH_ABBR[i - 1]} {y}",
-               "current": f"{y:04d}-{i:02d}" == cur_month} for i in range(1, max_mo + 1)]
+    # Month picker options: a rolling 24-month window ending at the real current month
+    # (newest first) so multi-year history (e.g. 2024–2025) is selectable, not just the
+    # current calendar year. The selected month is always guaranteed to be in the list.
+    months = []
+    yy, mm = int(cur_month[:4]), int(cur_month[5:7])
+    for _ in range(24):
+        val = f"{yy:04d}-{mm:02d}"
+        months.append({"value": val, "label": f"{_MONTH_ABBR[mm - 1]} {yy}", "current": val == cur_month})
+        mm -= 1
+        if mm == 0:
+            mm, yy = 12, yy - 1
+    if not any(m["value"] == month for m in months):
+        months.append({"value": month, "label": f"{_MONTH_ABBR[mo - 1]} {y}", "current": False})
 
     out = {
         "month": month, "is_current": is_current, "today": today,
