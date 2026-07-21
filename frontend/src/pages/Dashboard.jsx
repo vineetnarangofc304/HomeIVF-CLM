@@ -73,8 +73,9 @@ export default function Dashboard() {
   };
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [range.from, range.to]);
 
-  const today = kpis?.today;
-  const monthStart = kpis?.month_start;
+  const meta = kpis || panels || {};
+  const today = meta.today;
+  const monthStart = meta.month_start;
   const hasRange = range.from || range.to;
   const chartData = (panels?.by_day || []).map((d) => ({ day: (d._id || "").slice(5), fullDay: d._id, count: d.count }));
 

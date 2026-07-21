@@ -75,7 +75,7 @@ def _verify_signature(app_secret: str, body: bytes, header: Optional[str]) -> bo
     return hmac.compare_digest(expected, sig)
 
 
-async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None):
+async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None, run_autos=True):
     mapping = settings.get("field_mapping") or {}
     custom_defs = await db.custom_fields.find({"active": True}, {"_id": 0}).to_list(300)
     custom_keys = {d["key"] for d in custom_defs}
@@ -190,7 +190,8 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
     await log_message(lid, f"Lead captured via {source_label} (Facebook Page lead form)")
     if dup["is_duplicate"]:
         await log_message(lid, f"⚠️ Possible duplicate — same phone as lead #{dup['duplicate_of']}", subtype="comment")
-    await run_automations("on_create", doc)
+    if run_autos:
+        await run_automations("on_create", doc)
     doc.pop("_id", None)
     return doc
 
@@ -223,7 +224,6 @@ async def fb_webhook(request: Request):
             extra={"received_signature": (sig_header or "")[:24]},
         )
         raise HTTPException(status_code=401, detail="Invalid signature")
-    import json
     try:
         payload = json.loads(body.decode())
     except Exception:
@@ -275,6 +275,16 @@ async def fb_webhook(request: Request):
                     except Exception:
                         pass
                 if lead.get("field_data"):
+                    # Idempotency: Meta uses at-least-once delivery and retries, so the same
+                    # leadgen event can arrive multiple times. Skip if we already created this
+                    # lead (dedupe by facebook_leadgen_id) — otherwise the prospect is inserted
+                    # repeatedly, re-assigned, and re-fires on-create automations.
+                    lgid = lead.get("id") or leadgen_id
+                    if lgid and await db.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}):
+                        await _log_webhook("skipped",
+                                           f"Duplicate delivery — a lead for leadgen_id {lgid} already exists; ignored.",
+                                           leadgen_id, extra={"facebook_leadgen_id": lgid})
+                        continue
                     new_lead = await _map_and_create_lead(lead["field_data"], s, lead)
                     fkeys = [f.get("name") for f in lead.get("field_data", [])]
                     await _log_webhook("created",
@@ -363,6 +373,12 @@ class FbBackfillBody(BaseModel):
     dry_run: bool = False          # when true: report what WOULD be recovered, create nothing
 
 
+# Single-worker guards for the backfill: a lock serializes the check-and-start, and the task
+# registry lets a stale run be cancelled before a replacement launches (no overlapping workers).
+_backfill_lock = asyncio.Lock()
+_backfill_tasks: dict = {}
+
+
 async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_leads: int, dry_run: bool):
     """Background worker — fetches each form's recent leads and recreates any missing ones.
     Progress + final counts are written to db.fb_backfill_jobs (the UI polls the status route)."""
@@ -421,12 +437,12 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                             continue
                         if not lead.get("field_data"):
                             continue
-                        # Safety net: also skip if an ACTIVE lead already exists with the same
-                        # phone. Guards against creating duplicates of leads that reached the CRM
-                        # through another path or predate leadgen_id storage — a backfill should
-                        # only recover genuinely MISSING leads, never duplicate existing ones.
+                        # Safety net: also skip if a lead already exists with the same phone —
+                        # including INACTIVE (closed/lost) leads, so a backfill never resurrects a
+                        # previously-closed contact or duplicates a lead that reached the CRM via
+                        # another path / predates leadgen_id storage. Recovers only genuinely MISSING leads.
                         pd = _extract_phone_digits(lead.get("field_data"))
-                        if pd and await db.leads.find_one({"phone_digits": pd, "active": True}, {"_id": 1}):
+                        if pd and await db.leads.find_one({"phone_digits": pd}, {"_id": 1}):
                             r["already_present"] += 1
                             continue
                         if dry_run:
@@ -437,8 +453,11 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                                "ad_name": lead.get("ad_name"), "campaign_id": lead.get("campaign_id"),
                                "adset_id": lead.get("adset_id"), "ad_id": lead.get("ad_id")}
                         try:
+                            # Suppress on-create automations for a bulk recovery — a backfill must
+                            # not blast welcome WhatsApp/email to (possibly old) recovered contacts.
                             await _map_and_create_lead(lead["field_data"], s, raw,
-                                                       source_label="Meta backfill (recovered)", created_at=ct)
+                                                       source_label="Meta backfill (recovered)",
+                                                       created_at=ct, run_autos=False)
                             r["recovered"] += 1
                         except Exception as e:
                             r["errors"].append(f"lead {lgid}: {str(e)[:120]}")
@@ -465,31 +484,42 @@ async def fb_backfill(body: FbBackfillBody, user: dict = Depends(require_roles("
     s = await _fb_settings()
     if not s.get("page_access_token"):
         raise HTTPException(status_code=400, detail="Facebook not configured (missing Page Access Token)")
-    running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1, "updated_at": 1})
-    if running:
-        # A run that hasn't reported progress in >3 min is stale — the worker died mid-run
-        # (e.g. a deploy/restart). Mark it interrupted so a new run isn't blocked forever.
-        stale = True
-        last = running.get("updated_at")
-        if last:
-            try:
-                age = (datetime.now(timezone.utc)
-                       - datetime.strptime(last, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)).total_seconds()
-                stale = age > 180
-            except Exception:
-                stale = True
-        if not stale:
-            raise HTTPException(status_code=409, detail="A backfill is already running — please wait for it to finish")
-        await db.fb_backfill_jobs.update_one(
-            {"job_id": running["job_id"]},
-            {"$set": {"status": "error", "updated_at": now_utc_str()},
-             "$push": {"errors": "Interrupted — the previous run stopped reporting (backend restart or timeout)."}})
-    job_id = f"bf_{int(datetime.now(timezone.utc).timestamp())}"
-    await db.fb_backfill_jobs.insert_one({
-        "job_id": job_id, "status": "running", "forms": 0, "fetched": 0, "already_present": 0,
-        "recovered": 0, "would_recover": 0, "dry_run": body.dry_run, "since_days": body.since_days,
-        "errors": [], "started_at": now_utc_str(), "updated_at": now_utc_str(), "by": user["name"]})
-    asyncio.create_task(_run_backfill(job_id, s, body.since_days, body.form_id, body.max_leads, body.dry_run))
+    # Serialize the check-and-start so two near-simultaneous requests can't both pass the
+    # "is a job running?" check and each launch a worker (single-worker async → the awaits
+    # between find_one and insert_one would otherwise interleave). Task registry lets us
+    # cancel a stale worker before relabeling its job.
+    async with _backfill_lock:
+        running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1, "updated_at": 1})
+        if running:
+            # A run that hasn't reported progress in >3 min is stale — the worker died mid-run
+            # (e.g. a deploy/restart). The live worker heartbeats every page (a few seconds), so
+            # a genuine run is never wrongly flagged. Mark stale ones interrupted + cancel any
+            # lingering task so a new run isn't blocked forever and two workers never overlap.
+            stale = True
+            last = running.get("updated_at")
+            if last:
+                try:
+                    age = (datetime.now(timezone.utc)
+                           - datetime.strptime(last, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)).total_seconds()
+                    stale = age > 180
+                except Exception:
+                    stale = True
+            if not stale:
+                raise HTTPException(status_code=409, detail="A backfill is already running — please wait for it to finish")
+            old_task = _backfill_tasks.pop(running["job_id"], None)
+            if old_task and not old_task.done():
+                old_task.cancel()
+            await db.fb_backfill_jobs.update_one(
+                {"job_id": running["job_id"]},
+                {"$set": {"status": "error", "updated_at": now_utc_str()},
+                 "$push": {"errors": "Interrupted — the previous run stopped reporting (backend restart or timeout)."}})
+        job_id = f"bf_{int(datetime.now(timezone.utc).timestamp())}"
+        await db.fb_backfill_jobs.insert_one({
+            "job_id": job_id, "status": "running", "forms": 0, "fetched": 0, "already_present": 0,
+            "recovered": 0, "would_recover": 0, "dry_run": body.dry_run, "since_days": body.since_days,
+            "errors": [], "started_at": now_utc_str(), "updated_at": now_utc_str(), "by": user["name"]})
+        _backfill_tasks[job_id] = asyncio.create_task(
+            _run_backfill(job_id, s, body.since_days, body.form_id, body.max_leads, body.dry_run))
     return {"job_id": job_id, "status": "running"}
 
 

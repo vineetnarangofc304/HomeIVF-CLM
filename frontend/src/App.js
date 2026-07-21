@@ -40,12 +40,33 @@ function Protected({ children }) {
 }
 
 // Role-based landing: callers open straight into Leads (their workspace); admins & managers
-// get the Dashboard. The Dashboard stays reachable from the left menu for everyone.
+// get the Dashboard. The target is picked from the routes the user can actually open (by
+// permission), so if an admin has disabled a role's Dashboard/Leads permission the user lands
+// on their first permitted page instead of bouncing in a Guard→"/"→Guard redirect loop.
+const LANDING_PATHS = {
+  dashboard: "/dashboard", leads: "/leads", followups: "/followups",
+  call_center: "/call-center", whatsapp: "/whatsapp", reports: "/reports",
+  marketing: "/marketing", templates: "/templates",
+};
 function RoleLanding() {
-  const { user } = useAuth();
+  const { user, can } = useAuth();
   if (user === null) return <FullSpinner />;
   if (user === false) return <Navigate to="/login" replace />;
-  return <Navigate to={user.role === "caller" ? "/leads" : "/dashboard"} replace />;
+  const order = user.role === "caller"
+    ? ["leads", "dashboard", "followups", "call_center", "whatsapp", "templates"]
+    : ["dashboard", "leads", "reports", "followups", "call_center", "whatsapp", "marketing", "templates"];
+  const perm = order.find((p) => can(p));
+  if (!perm) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50 p-6 text-center" data-testid="no-access-landing">
+        <div>
+          <p className="font-display text-lg font-extrabold text-slate-800">No pages available</p>
+          <p className="mt-1 text-sm text-slate-500">Your account has no accessible sections. Please contact your administrator.</p>
+        </div>
+      </div>
+    );
+  }
+  return <Navigate to={LANDING_PATHS[perm]} replace />;
 }
 
 function Guard({ perm, children }) {
