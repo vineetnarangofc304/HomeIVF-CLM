@@ -1,6 +1,15 @@
 # HomeIVF CRM — PRD
 
 
+## Perf + UX (2026-07-21c) — Leads as caller landing page + Dashboard made lighter/faster — VERIFIED (preview, testing_agent iteration_61 12/13 + self-test)
+- **User report:** "Dashboard takes a lot of time to open — make Leads the default." User choices: (b) ONLY callers land on Leads; admins/managers keep the Dashboard; Dashboard stays in the left menu for everyone; also optimize the dashboard itself (URGENT, seen on PRODUCTION).
+- **Role-based landing (`App.js`, `Layout.jsx`):** new `RoleLanding` at `/` redirects by role — **caller → `/leads`**, admin/manager → `/dashboard`. Dashboard moved to its own route `/dashboard` (Guard perm `dashboard`) and the left-menu "Dashboard" item now points there, so it stays one click away for ALL roles (callers can still open it). Login + already-authed entry both go to `/` which role-routes. No redirect loops.
+- **Dashboard code-split:** `Dashboard` is now `React.lazy` (it pulls in recharts). Since callers land on Leads, that heavy chunk is no longer parsed on the initial app load → the Leads landing is lighter for the 24 callers.
+- **Dashboard API split for progressive render (`reports.py` `/dashboard?section=kpis|panels|all`, default all):** `kpis` = the 8 index-covered counts (6 KPI cards + range header), `panels` = the 4 heavy aggregations (funnel / 14-day chart / leaderboard / top dispositions). `Dashboard.jsx` fetches BOTH in PARALLEL and renders each the moment it arrives (KPI + panel skeletons in between) instead of one blocking spinner behind the slowest scan. Cache key now includes `section`.
+- **Measured (preview, 120k):** kpis 0.12–0.26s, panels ~0.29s. Verified all 3 roles land correctly (caller→leads, admin/manager→dashboard), caller-scoped dashboard shows scoped KPIs (5,270 vs 119,813 admin), date-range filter + Clear button work, no console errors.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** to take effect on the live site. Files: `frontend/src/App.js`, `frontend/src/components/Layout.jsx`, `frontend/src/pages/Dashboard.jsx`, `backend/routes/reports.py`.
+
+
 ## Verify + Hardening (2026-07-21b) — Meta Leads Backfill (background job) + offline fallback — VERIFIED (preview, self-tested curl+DB+UI)
 - **Verified the previously-built (untested) items:** (1) `POST /admin/facebook/backfill` returns immediately (~0.11s, non-blocking `asyncio` task) and writes progress to `db.fb_backfill_jobs`; `GET /admin/facebook/backfill/status` polls it. Full lifecycle idle→running→**done** confirmed against the REAL HomeIVF Meta account (page 273380505860843, 15 live forms; ~650 leads/day volume). (2) 409 "already running" guard works. (3) Offline→any-caller fallback: with all 23 callers Offline a new Meta/web lead is ASSIGNED to an active caller (round-robin `pick_any_caller`), NOT queued (queue only if ZERO active callers). (4) Presence routing: with one caller Available the lead goes to them. (5) Background queue-drain: a parked lead auto-assigns the moment a caller marks Available (status change stays ~0.09s, drain runs in background).
 - **3 hardening fixes added this session (backend only):**
