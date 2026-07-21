@@ -6,7 +6,7 @@ import { API, apiErr, fmtDate } from "../lib/api";
 import { useAuth, useCatalogs, useCatalogMaps } from "../context/AuthContext";
 import { Spinner, TagChip } from "../components/Bits";
 
-const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Attendance", "Telephony", "Facebook", "WhatsApp", "Email", "Duplicates"];
+const TABS = ["Users", "Tags", "Dropdowns", "Custom Fields", "Webhooks", "Automations", "Assignment", "Attendance", "Telephony", "Facebook", "WhatsApp", "Email", "Duplicates", "System Health"];
 
 export default function Admin() {
   const { user } = useAuth();
@@ -43,6 +43,126 @@ export default function Admin() {
         {tab === "WhatsApp" && <WhatsAppTab isAdmin={user.role === "admin"} />}
         {tab === "Email" && <EmailTab isAdmin={user.role === "admin"} />}
         {tab === "Duplicates" && <DuplicatesTab />}
+        {tab === "System Health" && <SystemHealthTab />}
+      </div>
+    </div>
+  );
+}
+
+function SystemHealthTab() {
+  const [summary, setSummary] = useState(null);
+  const [logs, setLogs] = useState(null);
+  const [kind, setKind] = useState("");
+  const [expanded, setExpanded] = useState(null);
+
+  const load = () => {
+    Promise.all([
+      API.get("/admin/error-logs/summary"),
+      API.get("/admin/error-logs", { params: kind ? { kind, limit: 150 } : { limit: 150 } }),
+    ]).then(([s, l]) => { setSummary(s.data); setLogs(l.data.logs); })
+      .catch((e) => toast.error(apiErr(e)));
+  };
+  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); /* eslint-disable-next-line */ }, [kind]);
+
+  const clearLogs = async () => {
+    if (!window.confirm("Clear all captured error/slow logs? This cannot be undone.")) return;
+    try { await API.delete("/admin/error-logs"); toast.success("Logs cleared"); load(); }
+    catch (e) { toast.error(apiErr(e)); }
+  };
+
+  const statusCls = (s) => (s >= 500 ? "bg-rose-50 text-rose-600" : "bg-amber-50 text-amber-600");
+
+  const Card = ({ label, value, tone }) => (
+    <div className="hivf-card p-4" data-testid={`health-card-${label.toLowerCase().replace(/\s/g, "-")}`}>
+      <p className={`font-display text-2xl font-extrabold ${tone}`}>{value ?? "—"}</p>
+      <p className="mt-0.5 text-xs font-semibold uppercase tracking-wider text-slate-500">{label}</p>
+    </div>
+  );
+
+  return (
+    <div className="space-y-5" data-testid="system-health-tab">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="font-display text-lg font-extrabold text-slate-900">System Health</h3>
+          <p className="text-sm text-slate-500">Server-side 5xx errors & slow requests, captured live (auto-refreshes every 15s, kept 7 days)</p>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="health-refresh"><ArrowsClockwise size={14} className="mr-1 inline" />Refresh</button>
+          <button onClick={clearLogs} className="hivf-btn-secondary !py-1.5 text-xs text-rose-600" data-testid="health-clear"><Trash size={14} className="mr-1 inline" />Clear</button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+        <Card label="Errors last 1h" value={summary?.errors_1h} tone={summary?.errors_1h ? "text-rose-600" : "text-emerald-600"} />
+        <Card label="Errors last 24h" value={summary?.errors_24h} tone={summary?.errors_24h ? "text-rose-600" : "text-emerald-600"} />
+        <Card label="Slow (>8s) last 24h" value={summary?.slow_24h} tone={summary?.slow_24h ? "text-amber-600" : "text-emerald-600"} />
+      </div>
+
+      {summary?.top_paths?.length > 0 && (
+        <div className="hivf-card p-4" data-testid="health-top-paths">
+          <h4 className="mb-2 text-sm font-bold text-slate-700">Top failing endpoints (24h)</h4>
+          <div className="space-y-1.5">
+            {summary.top_paths.map((t, i) => (
+              <div key={i} className="flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className={`rounded px-1.5 py-0.5 text-xs font-bold ${statusCls(t.status)}`}>{t.status}</span>
+                  <code className="text-slate-700">{t.path}</code>
+                </span>
+                <span className="text-xs text-slate-500">{t.count}× · last {t.last}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="flex gap-2">
+        {[["", "All"], ["error", "Errors only"], ["slow", "Slow only"]].map(([v, lbl]) => (
+          <button key={v} onClick={() => setKind(v)} data-testid={`health-filter-${v || "all"}`}
+            className={`rounded-full border px-3 py-1 text-xs font-bold transition-colors ${kind === v ? "border-[#4A90E2] bg-[#4A90E2]/10 text-[#357ABD]" : "border-slate-200 bg-white text-slate-500"}`}>
+            {lbl}
+          </button>
+        ))}
+      </div>
+
+      <div className="hivf-card overflow-hidden">
+        {logs === null ? (
+          <div className="p-6"><Spinner /></div>
+        ) : logs.length === 0 ? (
+          <div className="p-8 text-center text-sm text-slate-500" data-testid="health-empty">No errors or slow requests captured 🎉</div>
+        ) : (
+          <table className="w-full text-sm" data-testid="health-log-table">
+            <thead>
+              <tr className="border-b border-slate-100 text-left text-[11px] uppercase tracking-wider text-slate-400">
+                <th className="px-3 py-2">Time (IST)</th><th className="px-3 py-2">Status</th>
+                <th className="px-3 py-2">Endpoint</th><th className="px-3 py-2 text-right">Duration</th>
+                <th className="px-3 py-2">User</th><th className="px-3 py-2">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {logs.map((l, i) => (
+                <React.Fragment key={i}>
+                  <tr className="border-b border-slate-50 last:border-0 hover:bg-slate-50/60 cursor-pointer"
+                    data-testid={`health-log-row-${i}`}
+                    onClick={() => setExpanded(expanded === i ? null : (l.traceback ? i : null))}>
+                    <td className="px-3 py-2 whitespace-nowrap text-xs text-slate-500">{l.ts_ist || l.ts}</td>
+                    <td className="px-3 py-2"><span className={`rounded px-1.5 py-0.5 text-xs font-bold ${statusCls(l.status)}`}>{l.status}</span></td>
+                    <td className="px-3 py-2"><span className="text-xs font-semibold text-slate-400">{l.method}</span> <code className="text-slate-700">{l.path}</code></td>
+                    <td className="px-3 py-2 text-right text-xs text-slate-600">{(l.duration_ms / 1000).toFixed(2)}s</td>
+                    <td className="px-3 py-2 text-xs text-slate-600">{l.user_name || (l.user_id ? `#${l.user_id}` : "—")}</td>
+                    <td className="px-3 py-2 text-xs text-rose-600">{l.error_type ? `${l.error_type}: ${l.error || ""}`.slice(0, 60) : "—"}</td>
+                  </tr>
+                  {expanded === i && l.traceback && (
+                    <tr data-testid={`health-log-trace-${i}`}>
+                      <td colSpan={6} className="bg-slate-900 px-4 py-3">
+                        <pre className="max-h-72 overflow-auto whitespace-pre-wrap text-[11px] leading-relaxed text-slate-200">{l.traceback}</pre>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );

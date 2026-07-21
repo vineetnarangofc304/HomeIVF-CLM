@@ -7,13 +7,17 @@ load_dotenv()
 import logging
 import asyncio
 import re
+import time as _time
+import traceback as _traceback
+from datetime import datetime, timezone
 
-from fastapi import FastAPI
+import jwt as _jwt
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from core.db import db
-from core.security import hash_password, verify_password
-from core.utils import now_utc_str, ensure_catalog
+from core.security import hash_password, verify_password, get_jwt_secret
+from core.utils import now_utc_str, to_ist_str, ensure_catalog
 from routes import admin as admin_routes
 from routes import auth as auth_routes
 from routes import calls as call_routes
@@ -40,6 +44,62 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="HomeIVF CRM API")
+
+# ---- Lightweight request logger: capture 5xx + slow requests to `error_logs` so the exact
+# failing endpoint is visible from inside the app (Admin → System Health) without DevTools.
+# Registered BEFORE CORS so CORS stays the outermost middleware. Logging is fire-and-forget
+# (create_task) so it never adds latency, and is fully wrapped in try/except so it can never
+# itself cause a failure.
+_SLOW_MS = 8000
+_SKIP_LOG_PATHS = {"/api/health", "/api/admin/error-logs", "/api/admin/error-logs/summary"}
+
+
+async def _record_issue(method, path, query, status, dur_ms, uid, err_type, err_msg, tb):
+    try:
+        now = now_utc_str()
+        await db.error_logs.insert_one({
+            "created_dt": datetime.now(timezone.utc),  # BSON date → TTL auto-purge (7 days)
+            "ts": now, "ts_ist": to_ist_str(now),
+            "kind": "error" if (status or 0) >= 500 else "slow",
+            "method": method, "path": path, "query": (query or "")[:300],
+            "status": status, "duration_ms": int(dur_ms), "user_id": uid,
+            "error_type": err_type, "error": (err_msg or "")[:600], "traceback": (tb or "")[:4000],
+        })
+    except Exception:
+        pass
+
+
+def _uid_from_request(request: Request):
+    try:
+        auth = request.headers.get("authorization", "")
+        if auth.startswith("Bearer "):
+            payload = _jwt.decode(auth[7:], get_jwt_secret(), algorithms=["HS256"])
+            return int(payload["sub"]) if payload.get("sub") else None
+    except Exception:
+        return None
+    return None
+
+
+@app.middleware("http")
+async def _request_logger(request: Request, call_next):
+    if request.method == "OPTIONS" or request.url.path in _SKIP_LOG_PATHS:
+        return await call_next(request)
+    start = _time.monotonic()
+    try:
+        response = await call_next(request)
+    except Exception as e:
+        dur = (_time.monotonic() - start) * 1000
+        asyncio.create_task(_record_issue(
+            request.method, request.url.path, str(request.url.query), 500, dur,
+            _uid_from_request(request), type(e).__name__, str(e), _traceback.format_exc()))
+        raise
+    dur = (_time.monotonic() - start) * 1000
+    if response.status_code >= 500 or dur >= _SLOW_MS:
+        asyncio.create_task(_record_issue(
+            request.method, request.url.path, str(request.url.query), response.status_code, dur,
+            _uid_from_request(request), None, None, None))
+    return response
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -204,6 +264,12 @@ INDEX_SPECS = [
     ("status_logs", [("date", 1)], {}),
     ("status_logs", [("user_id", 1), ("start", -1)], {}),
     ("lead_queue", [("lead_id", 1)], {}),
+    # Server-side request logging (Admin → System Health). TTL auto-purges after 7 days so the
+    # collection stays tiny; secondary indexes make the recent-list + summary queries fast.
+    ("error_logs", "created_dt", {"expireAfterSeconds": 604800}),
+    ("error_logs", [("ts", -1)], {}),
+    ("error_logs", [("kind", 1), ("ts", -1)], {}),
+    ("error_logs", [("status", 1), ("ts", -1)], {}),
 ]
 
 

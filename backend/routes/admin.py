@@ -108,6 +108,47 @@ async def outbound_queue(user: dict = Depends(require_roles("admin", "manager"))
     return items
 
 
+# ---------- System Health: server-side error/slow request logs (Admin → System Health) ----------
+@router.get("/error-logs/summary")
+async def error_logs_summary(user: dict = Depends(require_roles("admin"))):
+    now = datetime.now(timezone.utc)
+    h1 = (now - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    h24 = (now - timedelta(hours=24)).strftime("%Y-%m-%d %H:%M:%S")
+    errors_1h, errors_24h, slow_24h, top_paths = await asyncio.gather(
+        db.error_logs.count_documents({"kind": "error", "ts": {"$gte": h1}}),
+        db.error_logs.count_documents({"kind": "error", "ts": {"$gte": h24}}),
+        db.error_logs.count_documents({"kind": "slow", "ts": {"$gte": h24}}),
+        db.error_logs.aggregate([
+            {"$match": {"kind": "error", "ts": {"$gte": h24}}},
+            {"$group": {"_id": {"path": "$path", "status": "$status"},
+                        "count": {"$sum": 1}, "last": {"$max": "$ts"}}},
+            {"$sort": {"count": -1}}, {"$limit": 10},
+        ]).to_list(10),
+    )
+    top = [{"path": t["_id"]["path"], "status": t["_id"]["status"],
+            "count": t["count"], "last": t["last"]} for t in top_paths]
+    return {"errors_1h": errors_1h, "errors_24h": errors_24h, "slow_24h": slow_24h, "top_paths": top}
+
+
+@router.get("/error-logs")
+async def error_logs(limit: int = 100, kind: Optional[str] = None,
+                     user: dict = Depends(require_roles("admin"))):
+    q = {}
+    if kind in ("error", "slow"):
+        q["kind"] = kind
+    logs = await db.error_logs.find(q, {"_id": 0}).sort("ts", -1).limit(min(limit, 300)).to_list(300)
+    users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+    for l in logs:
+        l["user_name"] = users.get(l.get("user_id"))
+    return {"logs": logs}
+
+
+@router.delete("/error-logs")
+async def clear_error_logs(user: dict = Depends(require_roles("admin"))):
+    res = await db.error_logs.delete_many({})
+    return {"deleted": res.deleted_count}
+
+
 # ---------- Case 1: Duplicate lead cleanup (scan preview + confirm delete) ----------
 def _dup_scan_worker(date_from, date_to, scan_id, source=None):
     """Find leads that share a phone number, keeping the OLDEST per phone and flagging

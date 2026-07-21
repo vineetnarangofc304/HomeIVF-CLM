@@ -1,6 +1,15 @@
 # HomeIVF CRM — PRD
 
 
+## Feature (2026-07-21f) — Server-side request logging → Admin "System Health" tab — DONE (preview, verified end-to-end)
+- **Why:** so production 5xx errors are visible from INSIDE the app (which endpoint + traceback) without needing browser DevTools — directly supports diagnosing the frequent production 500s.
+- **Backend middleware (`server.py`, registered BEFORE CORS so CORS stays outermost):** captures every 5xx response AND unhandled exception (with full traceback) AND any request slower than 8s, writing to a new `error_logs` collection. Fire-and-forget (`asyncio.create_task`) so it adds no latency; fully try/except-wrapped so it can never itself fail. Captures method, path, query, status, duration_ms, user_id (decoded from JWT, no DB hit), error_type, error, traceback, IST timestamp.
+- **Retention:** TTL index on `created_dt` (BSON date) auto-purges after 7 days; secondary indexes on ts/kind/status keep the list + summary queries fast.
+- **Admin API (`routes/admin.py`, admin-only):** `GET /admin/error-logs/summary` (errors 1h/24h, slow 24h, top failing endpoints grouped by path+status), `GET /admin/error-logs?kind=error|slow&limit=` (recent list with resolved user names), `DELETE /admin/error-logs` (clear).
+- **Frontend (`Admin.jsx` → new "System Health" tab):** summary cards, "Top failing endpoints (24h)", All/Errors/Slow filter, live table (auto-refresh 15s) with color-coded status + click-to-expand traceback. Refresh + Clear buttons.
+- **Verified:** injected a temporary boom route → real 500 captured with 3079-char traceback, correct path/method/user; summary + list + UI all render (screenshot); boom route removed (404) and test logs cleared. **⚠️ NEEDS PRODUCTION REDEPLOY** — after redeploy, when a 500 recurs, open Admin → System Health to see the exact failing endpoint + traceback.
+
+
 ## Production 500s investigation + resilience hardening (2026-07-21e) — code confirmed resilient, load-reduction changes applied (needs post-deploy verification)
 - **User report:** frequent HTTP 500 on PRODUCTION — on login, Leads, Dashboard, "everywhere/randomly". Platform-managed MongoDB. Redeployed ~6h ago, still 500ing.
 - **Diagnosis:** Preview is HEALTHY under load — a burst of **72 concurrent requests (24 logins + 24 Leads + 24 Dashboard) returned ALL 200, zero 500s** (~3s wall). So it is NOT a code bug; the 500s are the classic pool-exhaustion / DB-saturation cascade specific to the production deployment (managed DB latency + 24-caller polling + ~650/day Meta webhook writes). deployment_agent could not fetch prod runtime logs; its Gmail-OAuth/Admin.jsx flags are false positives (verified NO hardcoded URLs; frontend uses REACT_APP_BACKEND_URL; API base correct).
