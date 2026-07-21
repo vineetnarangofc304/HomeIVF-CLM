@@ -343,6 +343,19 @@ def _meta_time_to_utc(ct: str):
         return None
 
 
+def _extract_phone_digits(field_data) -> Optional[str]:
+    """Pull the last-10 phone digits out of a Meta lead's field_data (for de-dup)."""
+    for f in field_data or []:
+        key = re.sub(r"[^a-z0-9]+", "_", str(f.get("name", "")).strip().lower()).strip("_")
+        if "phone" in key or "mobile" in key or "contact_number" in key or "whatsapp" in key:
+            vals = f.get("values") or []
+            v = str(vals[0]).strip() if vals else ""
+            d = re.sub(r"\D", "", v)[-10:]
+            if len(d) >= 8:
+                return d
+    return None
+
+
 class FbBackfillBody(BaseModel):
     since_days: int = 7            # look-back window
     form_id: Optional[str] = None  # a specific form; else scan all of the Page's forms
@@ -408,6 +421,14 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                             continue
                         if not lead.get("field_data"):
                             continue
+                        # Safety net: also skip if an ACTIVE lead already exists with the same
+                        # phone. Guards against creating duplicates of leads that reached the CRM
+                        # through another path or predate leadgen_id storage — a backfill should
+                        # only recover genuinely MISSING leads, never duplicate existing ones.
+                        pd = _extract_phone_digits(lead.get("field_data"))
+                        if pd and await db.leads.find_one({"phone_digits": pd, "active": True}, {"_id": 1}):
+                            r["already_present"] += 1
+                            continue
                         if dry_run:
                             r["would_recover"] += 1
                             continue
@@ -444,9 +465,25 @@ async def fb_backfill(body: FbBackfillBody, user: dict = Depends(require_roles("
     s = await _fb_settings()
     if not s.get("page_access_token"):
         raise HTTPException(status_code=400, detail="Facebook not configured (missing Page Access Token)")
-    running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1})
+    running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1, "updated_at": 1})
     if running:
-        raise HTTPException(status_code=409, detail="A backfill is already running — please wait for it to finish")
+        # A run that hasn't reported progress in >3 min is stale — the worker died mid-run
+        # (e.g. a deploy/restart). Mark it interrupted so a new run isn't blocked forever.
+        stale = True
+        last = running.get("updated_at")
+        if last:
+            try:
+                age = (datetime.now(timezone.utc)
+                       - datetime.strptime(last, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)).total_seconds()
+                stale = age > 180
+            except Exception:
+                stale = True
+        if not stale:
+            raise HTTPException(status_code=409, detail="A backfill is already running — please wait for it to finish")
+        await db.fb_backfill_jobs.update_one(
+            {"job_id": running["job_id"]},
+            {"$set": {"status": "error", "updated_at": now_utc_str()},
+             "$push": {"errors": "Interrupted — the previous run stopped reporting (backend restart or timeout)."}})
     job_id = f"bf_{int(datetime.now(timezone.utc).timestamp())}"
     await db.fb_backfill_jobs.insert_one({
         "job_id": job_id, "status": "running", "forms": 0, "fetched": 0, "already_present": 0,

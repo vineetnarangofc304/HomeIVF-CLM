@@ -98,6 +98,10 @@ INDEX_SPECS = [
     ("leads", "tags", {}),
     ("leads", "lead_stage", {}),
     ("leads", "phone_digits", {}),
+    # Meta backfill de-dupes by facebook_leadgen_id (find_one per fetched lead). Without an
+    # index that is a full ~120k collscan PER lead → holds DB connections / pool-exhaustion
+    # risk during a recovery run. Sparse: only Facebook leads carry this field.
+    ("leads", "facebook_leadgen_id", {"sparse": True}),
     ("leads", "follow_up_date", {}),
     ("leads", "active", {}),
     ("leads", [("active", 1), ("create_date", -1)], {}),
