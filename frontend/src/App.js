@@ -1,4 +1,4 @@
-import React from "react";
+import React, { Suspense } from "react";
 import "./App.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "sonner";
@@ -6,7 +6,6 @@ import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NavGuardProvider } from "./context/NavGuardContext";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
-import Dashboard from "./pages/Dashboard";
 import Leads from "./pages/Leads";
 import LeadDetail from "./pages/LeadDetail";
 import FollowUps from "./pages/FollowUps";
@@ -23,16 +22,30 @@ import Marketing from "./pages/Marketing";
 import AiInsights from "./pages/AiInsights";
 import KpiOverview from "./pages/KpiOverview";
 
+// Code-split the Dashboard (it pulls in recharts). Callers now land on Leads, so this
+// heavy chunk is no longer parsed on the initial app load for everyone.
+const Dashboard = React.lazy(() => import("./pages/Dashboard"));
+
+const FullSpinner = () => (
+  <div className="flex h-screen items-center justify-center bg-slate-50">
+    <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4A90E2] border-t-transparent" />
+  </div>
+);
+
 function Protected({ children }) {
   const { user } = useAuth();
-  if (user === null)
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4A90E2] border-t-transparent" />
-      </div>
-    );
+  if (user === null) return <FullSpinner />;
   if (user === false) return <Navigate to="/login" replace />;
   return <Layout>{children}</Layout>;
+}
+
+// Role-based landing: callers open straight into Leads (their workspace); admins & managers
+// get the Dashboard. The Dashboard stays reachable from the left menu for everyone.
+function RoleLanding() {
+  const { user } = useAuth();
+  if (user === null) return <FullSpinner />;
+  if (user === false) return <Navigate to="/login" replace />;
+  return <Navigate to={user.role === "caller" ? "/leads" : "/dashboard"} replace />;
 }
 
 function Guard({ perm, children }) {
@@ -47,10 +60,12 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <NavGuardProvider>
+        <Suspense fallback={<FullSpinner />}>
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/screen-pop" element={<ScreenPop />} />
-          <Route path="/" element={<Protected><Dashboard /></Protected>} />
+          <Route path="/" element={<RoleLanding />} />
+          <Route path="/dashboard" element={<Guard perm="dashboard"><Dashboard /></Guard>} />
           <Route path="/leads" element={<Guard perm="leads"><Leads /></Guard>} />
           <Route path="/leads/:id" element={<Guard perm="leads"><LeadDetail /></Guard>} />
           <Route path="/followups" element={<Guard perm="followups"><FollowUps /></Guard>} />
@@ -66,6 +81,7 @@ function App() {
           <Route path="/marketing" element={<Guard perm="marketing"><Marketing /></Guard>} />
           <Route path="/admin" element={<Guard perm="admin"><Admin /></Guard>} />
         </Routes>
+        </Suspense>
         </NavGuardProvider>
       </BrowserRouter>
       <Toaster position="top-right" richColors />

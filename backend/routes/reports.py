@@ -231,19 +231,26 @@ _DASH_TTL = 45
 
 
 @router.get("/dashboard")
-async def dashboard(date_from: str = None, date_to: str = None, user: dict = Depends(get_current_user)):
-    # Cache + coalesce: the dashboard fires 8 counts + 4 aggregations per load and had NO
-    # cache (unlike KPI), so a burst of caller loads repeated the same heavy scans. Key by
-    # (scope, range, IST-day) → auto-invalidates daily; 45s TTL; concurrent identical
-    # requests share ONE computation (in-flight coalescing) instead of N duplicate scans.
+async def dashboard(date_from: str = None, date_to: str = None, section: str = "all",
+                    user: dict = Depends(get_current_user)):
+    # Cache + coalesce. The dashboard is split into two sections so the page paints fast:
+    #   section=kpis   → the 8 index-covered counts (the 6 KPI cards + range header) — sub-second
+    #   section=panels → the 4 heavy aggregations (funnel / 14-day chart / leaderboard / tags)
+    #   section=all    → everything (back-compat)
+    # The frontend fetches kpis+panels in PARALLEL and renders each the moment it arrives,
+    # so a slow panel scan no longer blocks the whole dashboard behind one spinner.
+    # Key by (scope, range, IST-day, section) → auto-invalidates daily; 45s TTL; concurrent
+    # identical requests share ONE computation (in-flight coalescing).
+    if section not in ("all", "kpis", "panels"):
+        section = "all"
     scope = user["id"] if user.get("role") == "caller" else "all"
-    ck = f"{scope}:{date_from or '-'}:{date_to or '-'}:{today_ist()}"
+    ck = f"{scope}:{date_from or '-'}:{date_to or '-'}:{today_ist()}:{section}"
     hit = _dash_cache.get(ck)
     if hit and time.time() - hit[0] < _DASH_TTL:
         return hit[1]
     if ck in _dash_inflight:
         return await _dash_inflight[ck]
-    task = asyncio.ensure_future(_compute_dashboard(date_from, date_to, user))
+    task = asyncio.ensure_future(_compute_dashboard(date_from, date_to, user, section))
     _dash_inflight[ck] = task
     try:
         result = await task
@@ -255,7 +262,8 @@ async def dashboard(date_from: str = None, date_to: str = None, user: dict = Dep
     return result
 
 
-async def _compute_dashboard(date_from: str = None, date_to: str = None, user: dict = None):
+async def _compute_dashboard(date_from: str = None, date_to: str = None, user: dict = None,
+                             section: str = "all"):
     # Scope to the "Lead in Pipeline" working set (exclude raw, un-promoted Ozonetel
     # call-leads which carry pipeline=False) so the dashboard Today count + Funnel
     # match the "Lead in Pipeline" export for the same date range (Case 4 mismatch fix).
@@ -272,86 +280,97 @@ async def _compute_dashboard(date_from: str = None, date_to: str = None, user: d
     rng = {"create_date_ist": {"$gte": range_start, "$lte": range_end + " 23:59:59"}}
     range_match = {**base, **rng}
 
-    # Default (no range) preserves all-time funnel; a chosen range scopes everything.
-    stage_match = range_match if has_range else base
-    board_match = rng if has_range else {"create_date_ist": {"$gte": month + "-01"}}
-    tag_match = range_match if has_range else {**base, "create_date_ist": {"$gte": month + "-01"}}
-    # by_day default view only renders the last 14 buckets, so bound the scan to a recent
-    # window instead of grouping the entire (100k+) active collection every load.
-    if has_range:
-        by_day_match, by_day_limit = range_match, 60
-    else:
-        recent = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=30)).strftime("%Y-%m-%d")
-        by_day_match, by_day_limit = {**base, "create_date_ist": {"$gte": recent}}, 14
+    out = {"today": today, "month_start": month + "-01",
+           "range_start": range_start, "range_end": range_end}
+    want_kpis = section in ("all", "kpis")
+    want_panels = section in ("all", "panels")
 
-    # These reads are all independent. Run them concurrently instead of awaiting ~14
-    # sequential round-trips to Atlas one at a time (the root cause of the 8-18s load).
-    (leads_today, leads_mtd, total_leads, converted_mtd, followups_today, followups_overdue,
-     leads_range, converted_range, by_stage, by_day, leaderboard, top_tags,
-     users_list, tag_list) = await asyncio.gather(
-        db.leads.count_documents({**base, "create_date_ist": {"$gte": today}}),
-        db.leads.count_documents({**base, "create_date_ist": {"$gte": month + "-01"}}),
-        db.leads.count_documents(base),
-        db.leads.count_documents({**base, "lead_stage": "Converted", "create_date_ist": {"$gte": month + "-01"}}),
-        db.leads.count_documents({**base, "follow_up_date": today}),
-        db.leads.count_documents({**base, "follow_up_date": {"$lt": today, "$gt": ""}}),
-        db.leads.count_documents(range_match),
-        db.leads.count_documents({**range_match, "lead_stage": "Converted"}),
-        db.leads.aggregate([
-            {"$match": stage_match},
-            {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}},
-        ], allowDiskUse=True, maxTimeMS=20000).to_list(20),
-        db.leads.aggregate([
-            {"$match": by_day_match},
-            {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
-            {"$sort": {"_id": -1}}, {"$limit": by_day_limit},
-        ], allowDiskUse=True, maxTimeMS=20000).to_list(60),
-        db.leads.aggregate([
-            {"$match": {**base, **board_match}},
-            {"$group": {"_id": "$user_id", "count": {"$sum": 1},
-                        "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
-            {"$sort": {"count": -1}}, {"$limit": 10},
-        ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
-        db.leads.aggregate([
-            {"$match": tag_match},
-            {"$unwind": "$tags"},
-            {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
-            {"$sort": {"count": -1}}, {"$limit": 10},
-        ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
-        db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
-        db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
-    )
+    # ---- Fast section: index-covered counts (KPI cards + range header) ----
+    if want_kpis:
+        (leads_today, leads_mtd, total_leads, converted_mtd, followups_today,
+         followups_overdue, leads_range, converted_range) = await asyncio.gather(
+            db.leads.count_documents({**base, "create_date_ist": {"$gte": today}}),
+            db.leads.count_documents({**base, "create_date_ist": {"$gte": month + "-01"}}),
+            db.leads.count_documents(base),
+            db.leads.count_documents({**base, "lead_stage": "Converted", "create_date_ist": {"$gte": month + "-01"}}),
+            db.leads.count_documents({**base, "follow_up_date": today}),
+            db.leads.count_documents({**base, "follow_up_date": {"$lt": today, "$gt": ""}}),
+            db.leads.count_documents(range_match),
+            db.leads.count_documents({**range_match, "lead_stage": "Converted"}),
+        )
+        out.update({
+            "leads_today": leads_today, "leads_mtd": leads_mtd, "total_leads": total_leads,
+            "converted_mtd": converted_mtd, "followups_today": followups_today,
+            "followups_overdue": followups_overdue,
+            "leads_range": leads_range, "converted_range": converted_range,
+        })
 
-    # Merge the null/False/"" stage buckets into a single "New / Unassigned" row so
-    # the funnel shows one accurate row (and the frontend never gets duplicate React
-    # keys from two identically-labelled rows).
-    merged = {}
-    for s in by_stage:
-        key = "New / Unassigned" if s["_id"] in (None, False, "") else s["_id"]
-        merged[key] = merged.get(key, 0) + s["count"]
-    by_stage = sorted(
-        [{"_id": k, "count": v} for k, v in merged.items()],
-        key=lambda x: x["count"], reverse=True,
-    )
-    by_day.reverse()
+    # ---- Heavy section: aggregations (funnel / 14-day chart / leaderboard / tags) ----
+    if want_panels:
+        # Default (no range) preserves all-time funnel; a chosen range scopes everything.
+        stage_match = range_match if has_range else base
+        board_match = rng if has_range else {"create_date_ist": {"$gte": month + "-01"}}
+        tag_match = range_match if has_range else {**base, "create_date_ist": {"$gte": month + "-01"}}
+        # by_day default view only renders the last 14 buckets, so bound the scan to a recent
+        # window instead of grouping the entire (100k+) active collection every load.
+        if has_range:
+            by_day_match, by_day_limit = range_match, 60
+        else:
+            recent = (datetime.strptime(today, "%Y-%m-%d") - timedelta(days=30)).strftime("%Y-%m-%d")
+            by_day_match, by_day_limit = {**base, "create_date_ist": {"$gte": recent}}, 14
 
-    users = {u["id"]: u["name"] for u in users_list}
-    for l in leaderboard:
-        l["name"] = users.get(l["_id"], "Unassigned")
+        (by_stage, by_day, leaderboard, top_tags, users_list, tag_list) = await asyncio.gather(
+            db.leads.aggregate([
+                {"$match": stage_match},
+                {"$group": {"_id": "$lead_stage", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}},
+            ], allowDiskUse=True, maxTimeMS=20000).to_list(20),
+            db.leads.aggregate([
+                {"$match": by_day_match},
+                {"$group": {"_id": {"$substrCP": ["$create_date_ist", 0, 10]}, "count": {"$sum": 1}}},
+                {"$sort": {"_id": -1}}, {"$limit": by_day_limit},
+            ], allowDiskUse=True, maxTimeMS=20000).to_list(60),
+            db.leads.aggregate([
+                {"$match": {**base, **board_match}},
+                {"$group": {"_id": "$user_id", "count": {"$sum": 1},
+                            "converted": {"$sum": {"$cond": [{"$eq": ["$lead_stage", "Converted"]}, 1, 0]}}}},
+                {"$sort": {"count": -1}}, {"$limit": 10},
+            ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
+            db.leads.aggregate([
+                {"$match": tag_match},
+                {"$unwind": "$tags"},
+                {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+                {"$sort": {"count": -1}}, {"$limit": 10},
+            ], allowDiskUse=True, maxTimeMS=20000).to_list(10),
+            db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
+            db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500),
+        )
 
-    tag_names = {t["id"]: t["name"] for t in tag_list}
-    for t in top_tags:
-        t["name"] = tag_names.get(t["_id"], str(t["_id"]))
+        # Merge the null/False/"" stage buckets into a single "New / Unassigned" row so
+        # the funnel shows one accurate row (and the frontend never gets duplicate React
+        # keys from two identically-labelled rows).
+        merged = {}
+        for s in by_stage:
+            key = "New / Unassigned" if s["_id"] in (None, False, "") else s["_id"]
+            merged[key] = merged.get(key, 0) + s["count"]
+        by_stage = sorted(
+            [{"_id": k, "count": v} for k, v in merged.items()],
+            key=lambda x: x["count"], reverse=True,
+        )
+        by_day.reverse()
 
-    return {
-        "leads_today": leads_today, "leads_mtd": leads_mtd, "total_leads": total_leads,
-        "converted_mtd": converted_mtd, "followups_today": followups_today,
-        "followups_overdue": followups_overdue, "by_stage": by_stage, "by_day": by_day,
-        "leaderboard": leaderboard, "top_tags": top_tags, "today": today, "month_start": month + "-01",
-        "range_start": range_start, "range_end": range_end,
-        "leads_range": leads_range, "converted_range": converted_range,
-    }
+        users = {u["id"]: u["name"] for u in users_list}
+        for l in leaderboard:
+            l["name"] = users.get(l["_id"], "Unassigned")
+
+        tag_names = {t["id"]: t["name"] for t in tag_list}
+        for t in top_tags:
+            t["name"] = tag_names.get(t["_id"], str(t["_id"]))
+
+        out.update({"by_stage": by_stage, "by_day": by_day,
+                    "leaderboard": leaderboard, "top_tags": top_tags})
+
+    return out
 
 
 # --- KPI Performance Overview ("Lead Pulse") ---------------------------------

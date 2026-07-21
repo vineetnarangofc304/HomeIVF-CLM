@@ -12,7 +12,7 @@ import FollowUpReminder from "./FollowUpReminder";
 import AgentStatusSwitcher from "./AgentStatusSwitcher";
 
 const NAV = [
-  { to: "/", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard", perm: "dashboard" },
+  { to: "/dashboard", label: "Dashboard", icon: SquaresFour, testid: "nav-dashboard", perm: "dashboard" },
   { to: "/leads", label: "Leads", icon: UsersThree, testid: "nav-leads", perm: "leads" },
   { to: "/followups", label: "Follow-ups", icon: ClockCountdown, testid: "nav-followups", perm: "followups" },
   { to: "/call-center", label: "Call Center", icon: PhoneCall, testid: "nav-call-center", perm: "call_center" },
