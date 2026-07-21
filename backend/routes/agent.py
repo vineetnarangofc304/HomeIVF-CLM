@@ -1,5 +1,6 @@
 """Agent break/status system (§5) + Agent Live Status + break reports."""
 import re
+import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -35,7 +36,8 @@ async def set_status(body: StatusBody, user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=400, detail="Invalid status")
     now = now_utc_str()
     # close the currently-open status log
-    open_log = await db.status_logs.find_one({"user_id": user["id"], "end": None}, sort=[("start", -1)])
+    open_log = await db.status_logs.find_one(
+        {"user_id": user["id"], "end": None}, sort=[("start", -1)], max_time_ms=8000)
     if open_log:
         await db.status_logs.update_one(
             {"id": open_log["id"]},
@@ -49,12 +51,13 @@ async def set_status(body: StatusBody, user: dict = Depends(get_current_user)):
         "date": now[:10],
     })
     await db.users.update_one({"id": user["id"]}, {"$set": {"status": status, "status_since": now}})
-    # Case 2 — becoming Available/On Call pulls any queued leads (arrived while everyone
-    # was offline) and assigns them round-robin across the callers now available.
-    assigned = 0
+    # Case 2 — becoming Available/On Call pulls queued leads. Runs in the BACKGROUND
+    # (single-flight, bounded) so the status change returns instantly and a large queue
+    # can never make this request hang / hold a DB connection (previously caused the
+    # 24-caller morning rush to exhaust the pool → 500s).
     if status in {"Available", "On Call"}:
-        assigned = await drain_lead_queue()
-    return {"ok": True, "status": status, "since": now, "assigned_from_queue": assigned}
+        asyncio.create_task(drain_lead_queue())
+    return {"ok": True, "status": status, "since": now}
 
 
 class AdminStatusBody(BaseModel):
@@ -74,7 +77,8 @@ async def admin_set_status(body: AdminStatusBody, user: dict = Depends(require_r
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
     now = now_utc_str()
-    open_log = await db.status_logs.find_one({"user_id": body.user_id, "end": None}, sort=[("start", -1)])
+    open_log = await db.status_logs.find_one(
+        {"user_id": body.user_id, "end": None}, sort=[("start", -1)], max_time_ms=8000)
     if open_log:
         await db.status_logs.update_one(
             {"id": open_log["id"]},
@@ -87,10 +91,9 @@ async def admin_set_status(body: AdminStatusBody, user: dict = Depends(require_r
         "date": now[:10], "set_by_admin": user["name"],
     })
     await db.users.update_one({"id": body.user_id}, {"$set": {"status": status, "status_since": now}})
-    assigned = 0
     if status in {"Available", "On Call"}:
-        assigned = await drain_lead_queue()
-    return {"ok": True, "user_id": body.user_id, "status": status, "by": user["name"], "assigned_from_queue": assigned}
+        asyncio.create_task(drain_lead_queue())
+    return {"ok": True, "user_id": body.user_id, "status": status, "by": user["name"]}
 
 
 @router.get("/me")

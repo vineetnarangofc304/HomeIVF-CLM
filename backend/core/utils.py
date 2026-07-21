@@ -139,37 +139,58 @@ async def queue_lead_for_assignment(lead_id: int):
     )
 
 
+_drain_running = False
+
+
 async def drain_lead_queue():
-    """Assign every queued lead (arrived while all callers were offline) round-robin
-    across the callers who are CURRENTLY available. Called when a caller becomes
-    Available/On Call. Older queued leads go out first (FIFO)."""
-    callers = await _presence_callers()
-    available = [c["id"] for c in callers if (c.get("status") or "Offline") in AVAILABLE_STATUSES]
-    if not available:
-        return 0
-    queued = await db.lead_queue.find({}, {"_id": 0}).sort("lead_id", 1).to_list(10000)
-    assigned = 0
-    for item in queued:
-        lead_id = item["lead_id"]
-        lead = await db.leads.find_one(
-            {"id": lead_id}, {"_id": 0, "id": 1, "active": 1, "user_id": 1, "phone_digits": 1, "original_user_id": 1})
-        if not lead or not lead.get("active") or lead.get("user_id"):
-            await db.lead_queue.delete_one({"lead_id": lead_id})
-            continue
-        cid = available[assigned % len(available)]
-        # Atomic guard: only assign if still unassigned. Prevents a double-assign race
-        # when two callers flip to Available at the same instant (24-caller production).
-        res = await db.leads.update_one(
-            {"id": lead_id, "$or": [{"user_id": None}, {"user_id": {"$exists": False}}]},
-            {"$set": {"user_id": cid, "original_user_id": lead.get("original_user_id") or cid,
-                      "write_date": now_utc_str()}})
-        await db.lead_queue.delete_one({"lead_id": lead_id})
-        if res.modified_count == 0:
-            continue  # another concurrent drain already claimed this lead
-        await sync_channel_owner(lead.get("phone_digits"), cid)
-        await log_message(lead_id, "Auto-assigned from the waiting queue (a caller became Available)")
-        assigned += 1
-    return assigned
+    """Assign queued leads (arrived while all callers were offline) round-robin across the
+    callers who are CURRENTLY available (FIFO). SINGLE-FLIGHT (only one drain runs at a time
+    across the whole pod) + BOUNDED batches + per-query timeouts, so the morning "mark
+    Available" rush by 24 callers can't stampede the DB / exhaust the connection pool."""
+    global _drain_running
+    if _drain_running:
+        return 0  # a drain is already processing the queue; the running pass covers new arrivals
+    _drain_running = True
+    total = 0
+    try:
+        for _ in range(50):  # up to 50 * 200 = 10k leads per trigger, then yield
+            callers = await _presence_callers()
+            available = [c["id"] for c in callers if (c.get("status") or "Offline") in AVAILABLE_STATUSES]
+            if not available:
+                break
+            batch = await db.lead_queue.find({}, {"_id": 0}).sort("lead_id", 1).limit(200).max_time_ms(8000).to_list(200)
+            if not batch:
+                break
+            for i, item in enumerate(batch):
+                lead_id = item["lead_id"]
+                try:
+                    lead = await db.leads.find_one(
+                        {"id": lead_id},
+                        {"_id": 0, "id": 1, "active": 1, "user_id": 1, "phone_digits": 1, "original_user_id": 1},
+                        max_time_ms=8000)
+                    if not lead or not lead.get("active") or lead.get("user_id"):
+                        await db.lead_queue.delete_one({"lead_id": lead_id})
+                        continue
+                    cid = available[total % len(available)]
+                    # Atomic guard: only assign if still unassigned (prevents double-assign).
+                    res = await db.leads.update_one(
+                        {"id": lead_id, "$or": [{"user_id": None}, {"user_id": {"$exists": False}}]},
+                        {"$set": {"user_id": cid, "original_user_id": lead.get("original_user_id") or cid,
+                                  "write_date": now_utc_str()}})
+                    await db.lead_queue.delete_one({"lead_id": lead_id})
+                    if res.modified_count == 0:
+                        continue
+                    await sync_channel_owner(lead.get("phone_digits"), cid)
+                    await log_message(lead_id, "Auto-assigned from the waiting queue (a caller became Available)")
+                    total += 1
+                except Exception:
+                    # never let one bad lead abort the whole drain (runs as a background task)
+                    continue
+            if len(batch) < 200:
+                break
+    finally:
+        _drain_running = False
+    return total
 
 
 def _secs_since_utc(start: str) -> int:
@@ -189,7 +210,8 @@ async def reset_stale_statuses():
     if guard and guard.get("last_reset_date") == today:
         return 0
     now = now_utc_str()
-    async for lg in db.status_logs.find({"end": None}, {"_id": 0, "id": 1, "start": 1}):
+    async for lg in db.status_logs.find(
+            {"end": None}, {"_id": 0, "id": 1, "start": 1}).limit(20000).max_time_ms(15000):
         await db.status_logs.update_one(
             {"id": lg["id"]}, {"$set": {"end": now, "duration_sec": _secs_since_utc(lg["start"])}})
     res = await db.users.update_many(

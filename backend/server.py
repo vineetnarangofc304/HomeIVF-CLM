@@ -191,6 +191,15 @@ INDEX_SPECS = [
     ("call_events", "ucid", {}),
     ("call_events", "lead_id", {}),
     ("call_events", "user_id", {}),
+    # Case 2 — presence/attendance collections were UNINDEXED, so every status change,
+    # /agent/live poll, attendance query and the daily reset ran a full collscan on a
+    # growing status_logs collection → connection-pool exhaustion → 30s-timeout 500s on
+    # login and all DB-touching endpoints. These make every status_logs access index-first.
+    ("status_logs", [("user_id", 1), ("end", 1)], {}),
+    ("status_logs", [("end", 1)], {}),
+    ("status_logs", [("date", 1)], {}),
+    ("status_logs", [("user_id", 1), ("start", -1)], {}),
+    ("lead_queue", [("lead_id", 1)], {}),
 ]
 
 

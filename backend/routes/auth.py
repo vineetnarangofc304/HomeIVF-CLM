@@ -33,14 +33,14 @@ async def login(body: LoginBody, request: Request, response: Response):
     ip = request.client.host if request.client else "unknown"
     identifier = f"{ip}:{email}"
 
-    attempt = await db.login_attempts.find_one({"identifier": identifier})
+    attempt = await db.login_attempts.find_one({"identifier": identifier}, max_time_ms=5000)
     if attempt and attempt.get("count", 0) >= LOCKOUT_ATTEMPTS:
         locked_until = attempt.get("locked_until")
         if locked_until and datetime.now(timezone.utc).isoformat() < locked_until:
             raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in 15 minutes.")
         await db.login_attempts.delete_one({"identifier": identifier})
 
-    user = await db.users.find_one({"email": email})
+    user = await db.users.find_one({"email": email}, max_time_ms=5000)
     if not user or not await verify_password_async(body.password, user.get("password_hash", "")):
         doc = await db.login_attempts.find_one_and_update(
             {"identifier": identifier}, {"$inc": {"count": 1}}, upsert=True, return_document=True,
