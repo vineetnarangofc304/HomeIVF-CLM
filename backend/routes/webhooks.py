@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog, pick_available_caller, queue_lead_for_assignment
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog, pick_available_caller, pick_any_caller, queue_lead_for_assignment
 from routes.catalogs import bust_catalogs
 
 router = APIRouter(tags=["webhooks"])
@@ -94,15 +94,15 @@ async def webhook_lead(token: str, request: Request):
     user_id = None
     queue_it = False
     if hook.get("assign_round_robin"):
-        # Case 2 — presence-based round-robin: route only to callers who are currently
-        # Available/On Call. If a manual assignment list is configured, prefer those ids.
+        # Presence-based round-robin: prefer callers who are Available/On Call. If NObody is
+        # available, fall back to round-robin across ALL active callers so the lead is never
+        # left invisible/unassigned. Only queue if there are no active callers at all.
         settings = await db.settings.find_one({"key": "assignment"})
         prefer = settings["user_ids"] if (settings and settings.get("enabled") and settings.get("user_ids")) else None
         user_id = await pick_available_caller(prefer)
         if user_id is None:
-            # Nobody available right now → queue the lead; it is auto-assigned the moment
-            # a caller becomes Available/On Call (FIFO, older leads first).
-            queue_it = True
+            user_id = await pick_any_caller(prefer)
+            queue_it = user_id is None
 
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",

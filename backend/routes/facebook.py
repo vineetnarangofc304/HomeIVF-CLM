@@ -10,8 +10,11 @@ Config lives in settings key="facebook" (managed in Admin → Facebook). Built
 ready-to-connect: until creds are entered, the webhook simply 503s gracefully.
 """
 import re
+import json
 import hmac
 import hashlib
+import asyncio
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import httpx
@@ -21,7 +24,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm, pick_available_caller, queue_lead_for_assignment
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm, pick_available_caller, pick_any_caller, queue_lead_for_assignment
 
 router = APIRouter(tags=["facebook"])
 
@@ -72,7 +75,7 @@ def _verify_signature(app_secret: str, body: bytes, header: Optional[str]) -> bo
     return hmac.compare_digest(expected, sig)
 
 
-async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads"):
+async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None):
     mapping = settings.get("field_mapping") or {}
     custom_defs = await db.custom_fields.find({"active": True}, {"_id": 0}).to_list(300)
     custom_keys = {d["key"] for d in custom_defs}
@@ -140,12 +143,17 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         if derived:
             data["contact_name"] = derived
             data["name"] = derived
-    # Case 2 — presence-based round-robin: route only to callers who are currently
-    # Available/On Call. Prefer a configured assignment list if one is enabled.
+    # Presence-based round-robin: prefer Available/On Call callers; if none are available,
+    # fall back to ALL active callers so a Meta lead is never left invisible/unassigned.
     assign = await db.settings.find_one({"key": "assignment"})
     prefer = assign["user_ids"] if (assign and assign.get("enabled") and assign.get("user_ids")) else None
     user_id = await pick_available_caller(prefer)
+    if user_id is None:
+        user_id = await pick_any_caller(prefer)
     queue_it = user_id is None
+
+    now = now_utc_str()
+    created = created_at or now
 
     doc = {
         "id": lid, "active": True, "stage_id": 1, "type": "lead", "priority": "0",
@@ -164,7 +172,7 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         "fb_form_name": raw.get("form_name"),
         "user_id": user_id,
         "original_user_id": user_id,
-        "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
+        "create_date": created, "create_date_ist": to_ist_str(created), "write_date": now,
         "custom": extras, "facebook_lead": True,
         "facebook_leadgen_id": raw.get("leadgen_id") or raw.get("id"),
         "facebook_form_id": raw.get("form_id"),
@@ -322,6 +330,137 @@ async def fb_test_lead(body: FbTestBody, user: dict = Depends(require_roles("adm
         source_label="Facebook Lead Ads (test)",
     )
     return {"ok": True, "lead_id": lead["id"], "lead": lead}
+
+
+# ---- Admin: one-time backfill / recover missing Meta leads from the Graph API ----
+def _meta_time_to_utc(ct: str):
+    """'2026-07-21T10:30:00+0000' → '2026-07-21 10:30:00' (UTC) for create_date parity."""
+    if not ct:
+        return None
+    try:
+        return datetime.strptime(ct, "%Y-%m-%dT%H:%M:%S%z").astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return None
+
+
+class FbBackfillBody(BaseModel):
+    since_days: int = 7            # look-back window
+    form_id: Optional[str] = None  # a specific form; else scan all of the Page's forms
+    max_leads: int = 5000          # hard safety cap
+    dry_run: bool = False          # when true: report what WOULD be recovered, create nothing
+
+
+async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_leads: int, dry_run: bool):
+    """Background worker — fetches each form's recent leads and recreates any missing ones.
+    Progress + final counts are written to db.fb_backfill_jobs (the UI polls the status route)."""
+    token = s.get("page_access_token")
+    version = s.get("graph_api_version") or GRAPH_VERSION
+    cutoff = datetime.now(timezone.utc) - timedelta(days=max(1, since_days))
+    fields = "id,created_time,field_data,ad_id,ad_name,adset_id,adset_name,campaign_id,campaign_name,form_id,platform,is_organic"
+    r = {"forms": 0, "fetched": 0, "already_present": 0, "recovered": 0,
+         "would_recover": 0, "dry_run": dry_run, "since_days": since_days, "errors": []}
+
+    async def save(status):
+        await db.fb_backfill_jobs.update_one(
+            {"job_id": job_id}, {"$set": {**r, "status": status, "updated_at": now_utc_str()}})
+
+    try:
+        async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=10.0)) as client:
+            form_ids = [form_id] if form_id else []
+            if not form_ids and s.get("page_id"):
+                fr = await client.get(f"https://graph.facebook.com/{version}/{s['page_id']}/leadgen_forms",
+                                      params={"access_token": token, "fields": "id,name", "limit": 200})
+                jf = fr.json()
+                if "error" in jf:
+                    r["errors"].append(f"list forms: {jf['error'].get('message')}")
+                    await save("error"); return
+                form_ids = [f["id"] for f in (jf.get("data") or [])]
+            if not form_ids:
+                r["errors"].append("No form_id and no Page ID configured")
+                await save("error"); return
+
+            for fid in form_ids:
+                r["forms"] += 1
+                url = f"https://graph.facebook.com/{version}/{fid}/leads"
+                params = {"access_token": token, "fields": fields, "limit": 100}
+                pages, stop = 0, False
+                # Meta returns leads newest-first → stop as soon as we cross the look-back
+                # window (client-side cutoff; the server-side time filter is unreliable here).
+                while url and not stop and r["fetched"] < max_leads and pages < 200:
+                    try:
+                        resp = await client.get(url, params=params)
+                        jr = resp.json()
+                    except Exception as e:
+                        r["errors"].append(f"form {fid}: {str(e)[:120]}")
+                        break
+                    if "error" in jr:
+                        r["errors"].append(f"form {fid}: {jr['error'].get('message')}")
+                        break
+                    for lead in (jr.get("data") or []):
+                        ct = _meta_time_to_utc(lead.get("created_time"))
+                        if ct and datetime.strptime(ct, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc) < cutoff:
+                            stop = True
+                            break
+                        r["fetched"] += 1
+                        lgid = lead.get("id")
+                        if lgid and await db.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}):
+                            r["already_present"] += 1
+                            continue
+                        if not lead.get("field_data"):
+                            continue
+                        if dry_run:
+                            r["would_recover"] += 1
+                            continue
+                        raw = {"leadgen_id": lgid, "form_id": lead.get("form_id") or fid,
+                               "campaign_name": lead.get("campaign_name"), "adset_name": lead.get("adset_name"),
+                               "ad_name": lead.get("ad_name"), "campaign_id": lead.get("campaign_id"),
+                               "adset_id": lead.get("adset_id"), "ad_id": lead.get("ad_id")}
+                        try:
+                            await _map_and_create_lead(lead["field_data"], s, raw,
+                                                       source_label="Meta backfill (recovered)", created_at=ct)
+                            r["recovered"] += 1
+                        except Exception as e:
+                            r["errors"].append(f"lead {lgid}: {str(e)[:120]}")
+                    if stop:
+                        break
+                    url = (jr.get("paging") or {}).get("next")
+                    params = None
+                    pages += 1
+                    await save("running")  # live progress per page
+        await save("done")
+        await _log_webhook("backfill",
+                           f"Backfill {'(dry-run) ' if dry_run else ''}done — "
+                           f"{r['would_recover'] if dry_run else r['recovered']} / {r['fetched']} over {r['forms']} form(s)")
+    except Exception as e:
+        r["errors"].append(str(e)[:200])
+        await save("error")
+
+
+@router.post("/admin/facebook/backfill")
+async def fb_backfill(body: FbBackfillBody, user: dict = Depends(require_roles("admin"))):
+    """Recover Meta Lead Ads leads that never reached the CRM (e.g. dropped during an outage).
+    Runs in the BACKGROUND (real Meta volume can be hundreds/day) and returns immediately;
+    poll GET /admin/facebook/backfill/status for progress + final counts."""
+    s = await _fb_settings()
+    if not s.get("page_access_token"):
+        raise HTTPException(status_code=400, detail="Facebook not configured (missing Page Access Token)")
+    running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1})
+    if running:
+        raise HTTPException(status_code=409, detail="A backfill is already running — please wait for it to finish")
+    job_id = f"bf_{int(datetime.now(timezone.utc).timestamp())}"
+    await db.fb_backfill_jobs.insert_one({
+        "job_id": job_id, "status": "running", "forms": 0, "fetched": 0, "already_present": 0,
+        "recovered": 0, "would_recover": 0, "dry_run": body.dry_run, "since_days": body.since_days,
+        "errors": [], "started_at": now_utc_str(), "updated_at": now_utc_str(), "by": user["name"]})
+    asyncio.create_task(_run_backfill(job_id, s, body.since_days, body.form_id, body.max_leads, body.dry_run))
+    return {"job_id": job_id, "status": "running"}
+
+
+@router.get("/admin/facebook/backfill/status")
+async def fb_backfill_status(user: dict = Depends(require_roles("admin", "manager"))):
+    job = await db.fb_backfill_jobs.find_one({}, {"_id": 0}, sort=[("started_at", -1)])
+    return job or {"status": "idle"}
+
 
 
 # ---- Admin: subscribe the Page to leadgen (one-time, needs valid creds) ----

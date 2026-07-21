@@ -1178,6 +1178,9 @@ function FacebookTab({ isAdmin }) {
   const [diag, setDiag] = useState(null);
   const [diagBusy, setDiagBusy] = useState(false);
   const [recentLeads, setRecentLeads] = useState(null);
+  const [backfillDays, setBackfillDays] = useState(7);
+  const [backfillBusy, setBackfillBusy] = useState(false);
+  const [backfillResult, setBackfillResult] = useState(null);
   const callbackUrl = `${process.env.REACT_APP_BACKEND_URL}/api/webhooks/facebook`;
   const customFields = (catalogs?.custom_fields || []).filter((f) => f.active !== false);
 
@@ -1238,6 +1241,27 @@ function FacebookTab({ isAdmin }) {
       toast.success(`Test lead #${data.lead_id} created — open it to verify mapping`);
       load();
     } catch (err) { toast.error(apiErr(err)); }
+  };
+
+  const runBackfill = async (dryRun) => {
+    setBackfillBusy(true); setBackfillResult(null);
+    try {
+      await API.post("/admin/facebook/backfill", { since_days: Number(backfillDays) || 7, dry_run: dryRun });
+      toast.success(dryRun ? "Preview started — scanning Meta…" : "Recovery started — pulling leads from Meta…");
+      // Poll the background job until it finishes.
+      const poll = setInterval(async () => {
+        try {
+          const { data } = await API.get("/admin/facebook/backfill/status");
+          setBackfillResult(data);
+          if (data.status !== "running") {
+            clearInterval(poll); setBackfillBusy(false);
+            if (data.status === "error") toast.error(`Backfill failed: ${(data.errors || [])[0] || "unknown error"}`);
+            else if (data.dry_run) toast.success(`Preview done: ${data.would_recover} lead(s) can be recovered`);
+            else { toast.success(`Recovered ${data.recovered} missing Meta lead(s)`); load(); }
+          }
+        } catch (e) { clearInterval(poll); setBackfillBusy(false); toast.error(apiErr(e)); }
+      }, 2500);
+    } catch (err) { setBackfillBusy(false); toast.error(apiErr(err)); }
   };
 
   if (!cfg) return <Spinner />;
@@ -1373,6 +1397,46 @@ function FacebookTab({ isAdmin }) {
           )}
         </div>
       </div>
+
+      <div className="hivf-card p-4" data-testid="fb-backfill-card">
+        <h3 className="font-display text-sm font-extrabold text-slate-800">Recover missing Meta leads</h3>
+        <p className="mt-1 text-xs text-slate-500">Pulls leads straight from your Meta Lead Ads forms via the Graph API and re-creates any that never reached the CRM (e.g. dropped during an outage). Already-present leads are skipped; original submission time is preserved. Run <b>Preview</b> first to see how many would be recovered.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <label className="text-xs font-semibold text-slate-500">Look back</label>
+          <select className="hivf-select !py-1 !w-auto" value={backfillDays} onChange={(e) => setBackfillDays(e.target.value)} data-testid="fb-backfill-days">
+            <option value={1}>Last 24 hours</option>
+            <option value={3}>Last 3 days</option>
+            <option value={7}>Last 7 days</option>
+            <option value={30}>Last 30 days</option>
+            <option value={90}>Last 90 days</option>
+          </select>
+          <button onClick={() => runBackfill(true)} disabled={backfillBusy} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="fb-backfill-preview">
+            {backfillBusy ? "Working…" : "Preview"}
+          </button>
+          {isAdmin && (
+            <button onClick={() => runBackfill(false)} disabled={backfillBusy} className="hivf-btn !py-1.5 text-xs" data-testid="fb-backfill-run">
+              {backfillBusy ? "Working…" : "Recover now"}
+            </button>
+          )}
+        </div>
+        {backfillResult && (
+          <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/60 p-3 text-xs" data-testid="fb-backfill-result">
+            <div className="mb-1.5 font-bold text-slate-600">
+              {backfillResult.status === "running" ? "⏳ Scanning Meta… (live)" : backfillResult.status === "error" ? "❌ Failed" : backfillResult.dry_run ? "✓ Preview complete" : "✓ Recovery complete"}
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              <span>Forms scanned: <b>{backfillResult.forms}</b></span>
+              <span>Leads scanned: <b>{backfillResult.fetched}</b></span>
+              <span>Already in CRM: <b>{backfillResult.already_present}</b></span>
+              <span className="text-emerald-600">{backfillResult.dry_run ? "Would recover" : "Recovered"}: <b>{backfillResult.dry_run ? backfillResult.would_recover : backfillResult.recovered}</b></span>
+            </div>
+            {backfillResult.errors?.length > 0 && (
+              <p className="mt-2 text-rose-500">{backfillResult.errors.length} error(s): {backfillResult.errors.slice(0, 3).join("; ")}</p>
+            )}
+          </div>
+        )}
+      </div>
+
 
       <div className="hivf-card p-4">
         <h3 className="font-display text-sm font-extrabold text-slate-800">Field Mapping</h3>

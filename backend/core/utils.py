@@ -129,6 +129,17 @@ async def pick_available_caller(prefer_ids=None):
     return available[(ptr - 1) % len(available)]
 
 
+async def pick_any_caller(prefer_ids=None):
+    """Fallback when NOBODY is Available/On Call: round-robin across ALL active callers so a
+    new lead is never left invisible/unassigned. Returns None only if no active caller exists."""
+    callers = await _presence_callers(prefer_ids)
+    ids = [c["id"] for c in callers]
+    if not ids:
+        return None
+    ptr = await next_id("any_assign_pointer")
+    return ids[(ptr - 1) % len(ids)]
+
+
 async def queue_lead_for_assignment(lead_id: int):
     """No caller was available when this lead arrived — park it (FIFO) so it is
     auto-assigned the moment a caller becomes Available/On Call."""
