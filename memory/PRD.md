@@ -1,6 +1,17 @@
 # HomeIVF CRM — PRD
 
 
+## Production 500s investigation + resilience hardening (2026-07-21e) — code confirmed resilient, load-reduction changes applied (needs post-deploy verification)
+- **User report:** frequent HTTP 500 on PRODUCTION — on login, Leads, Dashboard, "everywhere/randomly". Platform-managed MongoDB. Redeployed ~6h ago, still 500ing.
+- **Diagnosis:** Preview is HEALTHY under load — a burst of **72 concurrent requests (24 logins + 24 Leads + 24 Dashboard) returned ALL 200, zero 500s** (~3s wall). So it is NOT a code bug; the 500s are the classic pool-exhaustion / DB-saturation cascade specific to the production deployment (managed DB latency + 24-caller polling + ~650/day Meta webhook writes). deployment_agent could not fetch prod runtime logs; its Gmail-OAuth/Admin.jsx flags are false positives (verified NO hardcoded URLs; frontend uses REACT_APP_BACKEND_URL; API base correct).
+- **Resilience changes applied (reduce prod DB pressure; safe, need redeploy):**
+  - `server.py` startup: enlarged default thread pool to 48 workers — bcrypt (login) is CPU-bound and offloaded via `asyncio.to_thread`; the morning 24-caller login rush was queueing on the small default executor. (bcrypt releases the GIL so more threads help on multi-CPU prod.)
+  - `core/security.py`: `get_current_user` now caches the per-request user lookup (20s TTL, `invalidate_user_cache()` on user edit/delete in `routes/users.py`) — removes a `users.find_one` on every authenticated request across all the polling endpoints → fewer pooled-connection checkouts under load.
+  - (Plus already-in-preview: Meta duplicate-webhook fix = fewer redundant writes/automations; dashboard section-split = lighter/faster.)
+- **DB config confirmed sound** (`core/db.py`): maxPoolSize=100, minPoolSize=10, serverSelectionTimeoutMS=8000, per-query max_time_ms in routes.
+- **NOT resolved/verified:** cannot confirm production fix without the live error or logs. **Next:** after this redeploy, if 500s persist → get the exact failing request + Response body from browser DevTools Network tab, or engage Emergent Support to pull production logs; also evaluate whether the platform-managed DB tier is sized for 120k docs + 24 concurrent users + high webhook write volume.
+
+
 ## Code Review fixes (2026-07-21d) — 2 HIGH + 2 MEDIUM + 2 LOW from functional review — DONE (preview, regression-tested)
 - **HIGH — Meta webhook created DUPLICATE leads on redelivery (pre-existing bug):** Meta uses at-least-once delivery/retries, but `fb_webhook` never deduped — the same leadgen event inserted the prospect repeatedly, re-assigned a caller, and re-fired on-create automations (a likely contributor to the user's "40 mismatch"). **Fix:** `fb_webhook` now skips (logs "Duplicate delivery") if a lead with that `facebook_leadgen_id` already exists. Idempotent. (`routes/facebook.py`)
 - **HIGH — role-landing redirect loop/lockout:** the new `RoleLanding` sent all non-callers to `/dashboard` unconditionally; if an admin disabled the `dashboard` perm for managers (editable), Guard→"/"→RoleLanding→"/dashboard" looped into a blank screen. **Fix:** `RoleLanding` now lands on the user's FIRST PERMITTED route (role-preferred order) and shows a "No pages available" page if none — no loop. (`frontend/src/App.js`)
