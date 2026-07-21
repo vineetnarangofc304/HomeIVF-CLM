@@ -309,6 +309,17 @@ async def _status_reset_loop():
 
 @app.on_event("startup")
 async def startup():
+    # Enlarge the default thread pool. bcrypt (login / password verify) is CPU-bound (~250ms)
+    # and is offloaded via asyncio.to_thread → the DEFAULT executor (only ~min(32,cpu+4) threads).
+    # At the morning rush 24 callers log in near-simultaneously; with too few threads the bcrypt
+    # calls queue and stall the whole worker. A larger pool lets them run concurrently (bcrypt
+    # releases the GIL) so logins don't pile up into gateway-timeout 500s.
+    import concurrent.futures
+    try:
+        asyncio.get_running_loop().set_default_executor(
+            concurrent.futures.ThreadPoolExecutor(max_workers=48, thread_name_prefix="pool"))
+    except Exception as e:
+        logger.error(f"executor setup failed: {e}")
     try:
         from core.storage import init_storage
         await init_storage()

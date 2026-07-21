@@ -77,6 +77,8 @@ async def update_user(user_id: int, body: UserUpdate, admin: dict = Depends(requ
         updates["ozonetel_phone_name"] = body.ozonetel_phone_name.strip() or None
     if updates:
         await db.users.update_one({"id": user_id}, {"$set": updates})
+        from core.security import invalidate_user_cache
+        invalidate_user_cache(user_id)
     out = await db.users.find_one({"id": user_id}, {"_id": 0, "password_hash": 0})
     return out
 
@@ -97,4 +99,6 @@ async def delete_user(user_id: int, user: dict = Depends(require_permission("man
         raise HTTPException(status_code=400,
             detail=f"This user has {assigned} active leads assigned. Reassign them first, or deactivate the user instead.")
     await db.users.delete_one({"id": user_id})
+    from core.security import invalidate_user_cache
+    invalidate_user_cache(user_id)
     return {"ok": True}

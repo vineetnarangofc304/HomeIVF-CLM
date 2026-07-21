@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 from datetime import datetime, timezone, timedelta
 
 import bcrypt
@@ -9,6 +10,21 @@ from fastapi import HTTPException, Request
 from core.db import db
 
 JWT_ALGORITHM = "HS256"
+
+# get_current_user runs on EVERY authenticated request, and 24 callers poll several endpoints
+# (agent/me, reminders, unread-summary, calls/active …) continuously — that was a users.find_one
+# per request. Cache the user doc briefly so most requests skip that DB round-trip (fewer pooled
+# connection checkouts → less pool pressure under load). Short TTL so a deactivation/role change
+# still takes effect within seconds; invalidate_user_cache() clears it on user edits.
+_user_cache: dict = {}
+_USER_CACHE_TTL = 20.0
+
+
+def invalidate_user_cache(user_id: int = None) -> None:
+    if user_id is None:
+        _user_cache.clear()
+    else:
+        _user_cache.pop(int(user_id), None)
 
 
 def get_jwt_secret() -> str:
@@ -83,7 +99,18 @@ async def get_current_user(request: Request) -> dict:
         payload = jwt.decode(token, get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         if payload.get("type") != "access":
             raise HTTPException(status_code=401, detail="Invalid token type")
-        user = await db.users.find_one({"id": int(payload["sub"])}, {"_id": 0, "password_hash": 0})
+        uid = int(payload["sub"])
+        now = time.monotonic()
+        hit = _user_cache.get(uid)
+        if hit and now - hit[0] < _USER_CACHE_TTL:
+            user = dict(hit[1])
+        else:
+            user = await db.users.find_one({"id": uid}, {"_id": 0, "password_hash": 0}, max_time_ms=5000)
+            if not user or not user.get("active", True):
+                raise HTTPException(status_code=401, detail="User not found or inactive")
+            if len(_user_cache) > 2000:
+                _user_cache.clear()
+            _user_cache[uid] = (now, dict(user))
         if not user or not user.get("active", True):
             raise HTTPException(status_code=401, detail="User not found or inactive")
         from core.permissions import effective_permissions
