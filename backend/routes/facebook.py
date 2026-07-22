@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel
 
-from core.db import db
+from core.db import db, db_analytics
 from core.security import require_roles
 from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm, pick_available_caller, pick_any_caller, queue_lead_for_assignment
 
@@ -432,7 +432,7 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                             break
                         r["fetched"] += 1
                         lgid = lead.get("id")
-                        if lgid and await db.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}):
+                        if lgid and await db_analytics.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}):
                             r["already_present"] += 1
                             continue
                         if not lead.get("field_data"):
@@ -442,7 +442,7 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                         # previously-closed contact or duplicates a lead that reached the CRM via
                         # another path / predates leadgen_id storage. Recovers only genuinely MISSING leads.
                         pd = _extract_phone_digits(lead.get("field_data"))
-                        if pd and await db.leads.find_one({"phone_digits": pd}, {"_id": 1}):
+                        if pd and await db_analytics.leads.find_one({"phone_digits": pd}, {"_id": 1}):
                             r["already_present"] += 1
                             continue
                         if dry_run:

@@ -15,7 +15,7 @@ import jwt as _jwt
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from core.db import db
+from core.db import db, db_analytics
 from core.security import hash_password, verify_password, get_jwt_secret
 from core.utils import now_utc_str, to_ist_str, ensure_catalog
 from routes import admin as admin_routes
@@ -315,6 +315,9 @@ async def _ensure_indexes():
     """Build indexes in the background so a slow/large-collection build never blocks
     startup (which previously stalled the whole app on production). Each build is
     isolated: one failure (e.g. a duplicate-key on a unique index) won't abort the rest."""
+    # Run this entire heavy startup routine (index builds + one-time 120k backfills) on the
+    # ANALYTICS pool so it never consumes the interactive connections callers/login need.
+    db = db_analytics
     for coll, keys, kwargs in INDEX_SPECS:
         try:
             await db[coll].create_index(keys, **kwargs)

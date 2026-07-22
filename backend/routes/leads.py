@@ -11,7 +11,7 @@ from pymongo.errors import PyMongoError
 IST = timezone(timedelta(hours=5, minutes=30))
 from pydantic import BaseModel
 
-from core.db import db
+from core.db import db, db_analytics
 from core.security import get_current_user, require_roles, ensure_lead_edit
 from core.utils import log_message, log_audit, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, today_ist, check_duplicate, record_wa_outbound, search_norm, sync_channel_owner
 from core import whatsapp_cloud as wac
@@ -131,8 +131,14 @@ def build_query(
         q["follow_up_date"] = {"$gt": today}
     elif follow_up == "set":
         q["follow_up_date"] = {"$gt": ""}
-    # Callers can VIEW all leads; edit rights are restricted to the assigned caller
-    # and enforced per-mutation (ensure_lead_edit). So no owner scoping on the list.
+    # Callers are auto-scoped to ONLY their own allocated leads. This matches the operational
+    # rule (a caller works only their own book) AND is the biggest performance win: a caller's
+    # ~5k set is a ~4ms indexed query, vs. scanning the full ~120k collection on every list/poll
+    # (which is what 24 callers were doing on each load → the main source of DB pressure).
+    # Admins/managers still see everything. Direct lead access (get_lead by id / screen-pop) is
+    # unaffected, so a transferred/incoming lead can still be opened even if not in their list.
+    if current_user and current_user.get("role") == "caller":
+        q["user_id"] = current_user["id"]
     return q
 
 
@@ -222,7 +228,9 @@ async def _cached_group(group_by: str, q: dict, pipeline: list):
 
     async def _do():
         try:
-            rows = await db.leads.aggregate(pipeline, allowDiskUse=True, maxTimeMS=15000).to_list(200)
+            # Heavy full-set aggregation → run on the analytics pool so it never starves the
+            # interactive connections callers use for their Leads list / lead detail.
+            rows = await db_analytics.leads.aggregate(pipeline, allowDiskUse=True, maxTimeMS=15000).to_list(200)
             val = [{"key": r["_id"], "count": r["count"]} for r in rows]
         except PyMongoError:
             return None

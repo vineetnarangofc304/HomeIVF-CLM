@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple, UsersThree } from "@phosphor-icons/react";
 import { API, apiErr, fmtDay, fmtDate } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { TagChip, StageBadge, Spinner, EmptyState } from "../components/Bits";
@@ -265,11 +265,10 @@ export default function Leads() {
             className="hivf-input !w-60"
           />
           {user.role === "caller" && (
-            <button data-testid="my-leads-toggle"
-              onClick={() => setParam("user_id", params.get("user_id") === String(user.id) ? "" : String(user.id))}
-              className={`rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${params.get("user_id") === String(user.id) ? "border-[#4A90E2] bg-[#4A90E2] text-white" : "border-slate-200 bg-white text-slate-500 hover:border-[#4A90E2] hover:text-[#357ABD]"}`}>
-              My Leads
-            </button>
+            <span data-testid="my-leads-indicator"
+              className="inline-flex items-center gap-1.5 rounded-full border border-[#4A90E2]/30 bg-[#4A90E2]/10 px-3 py-1.5 text-sm font-bold text-[#357ABD]">
+              <UsersThree size={15} weight="duotone" /> Your leads
+            </span>
           )}
           <select data-testid="filter-lead-stage" className="hivf-select" value={params.get("lead_stage") || ""} onChange={(e) => setParam("lead_stage", e.target.value)}>
             <option value="">Lead Stage: All</option>

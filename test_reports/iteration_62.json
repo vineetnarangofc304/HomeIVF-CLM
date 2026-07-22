@@ -1,0 +1,22 @@
+{
+  "summary": "Full regression for two-pool DB + caller scoping (iteration 62). Backend: 11/11 pytest tests pass. Caller scoping enforced: caller sees ~5270 leads (all user_id=1001), cannot override via ?user_id=20, group_counts scoped, own-lead detail loads, notes/activity endpoints accept posts, search stays within scope. Admin unscoped: sees 119,813 total, can filter by any caller. Analytics pool endpoints (dashboard KPIs + panels) return 200 for admin. Frontend: caller lands on /leads with 'Your leads' pill (data-testid=my-leads-indicator) visible, footer shows '5,270 leads · page 1 of 106', every visible Caller column reads 'Test Agent', caller-filter dropdown is HIDDEN for caller, Kanban and Ozonetel tabs load without errors. Admin lands on /dashboard (dashboard-page renders), Leads page shows '1,19,813 leads · page 1 of 2,397', 'Caller: All' filter dropdown (data-testid=filter-caller) present and enumerates all callers, no 'Your leads' pill for admin. No console errors of concern (only expected 401s from unauthenticated pre-login requests).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter62_caller_scoping.py",
+    "/app/test_reports/pytest/iter62.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Two-pool split (db interactive maxPool=80 / db_analytics maxPool=20) achieves the intended isolation: caller endpoints and admin analytics endpoints both respond successfully in the same session, confirming pools operate independently.",
+    "Server-side caller scoping in build_query() correctly ignores client-supplied user_id when role=='caller' — verified with explicit ?user_id=20 override attempt (still returns only 5270 own leads).",
+    "UI correctly hides caller filter dropdown and shows static 'Your leads' pill for callers, and shows the filter for admins — clean role gating."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter62_caller_scoping.py"],
+  "success_rate": {"backend": "100% (11/11)", "frontend": "100% (all checks passed)"},
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026, agent@homeivf.com/Agent@2026",
+  "seed_data_creation": "None (tests are read-only except best-effort note/activity POST on caller's own lead which are non-destructive)",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Two-pool DB + caller-scoping regression complete. Test file test_iter62_caller_scoping.py is reusable and self-discovers group_counts/dashboard endpoint variants."
+}

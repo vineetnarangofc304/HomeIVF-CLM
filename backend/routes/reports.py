@@ -8,7 +8,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
-from core.db import db
+from core.db import db_analytics as db
 from core.security import get_current_user, require_permission
 from core.utils import today_ist
 
