@@ -1,6 +1,17 @@
 # HomeIVF CRM — PRD
 
 
+## P0 PRODUCTION OUTAGE (2026-07-22) — total outage / Cloudflare 520 — root-caused to the error-logger; FIXED in preview (needs redeploy)
+- **Symptom:** production (custom domain crm.homeivfmarketing.com via Cloudflare → emergent origin) fully down. Login showed Cloudflare "**origin returned an empty response / malformed HTTP headers**" (Error 520). Nobody could log in; blank screen; live ops stopped.
+- **Root cause (high confidence):** the request-logging middleware shipped the turn before (BaseHTTPMiddleware + an UNBOUNDED `asyncio.create_task` DB insert on every 5xx). Production was already in a 500-storm (DB saturation). Each 500 spawned another error_logs insert into the already-saturated pool → hundreds of piled-up background tasks + held connections → worker memory/connection exhaustion → the origin returned empty responses → Cloudflare 520 (total collapse). The diagnostic meant to FIND the 500s AMPLIFIED them into an outage. Preview (same code, healthy DB) never reproduced it because there was no storm to amplify.
+- **Fix (`server.py`):**
+  1. Rewrote the logger as a **pure-ASGI middleware** (`RequestLogMiddleware`) that only observes the response status via the `send` stream — it never buffers/rewrites the body, so it cannot produce empty/malformed responses or add latency (BaseHTTPMiddleware removed).
+  2. **Load-shedding guards:** at most 5 concurrent log writes (`_LOG_MAX_INFLIGHT`), extras dropped; each write hard-timeouts at 1.5s (`asyncio.wait_for`) so it releases its pooled connection fast. The logger can NEVER add meaningful pressure during a storm again.
+  3. CORS kept outermost (verified: even 500 responses carry `access-control-allow-origin`).
+- **Verified (preview):** health stable; login clean 200 (correct content-length + CORS + cookies); a forced 500 returns a clean well-formed error response WITH CORS and is captured with full traceback; 72-request concurrency burst = all 200, none malformed. Boom route removed; test logs cleared.
+- **ACTION:** user must **REDEPLOY** — this restarts the crashed origin AND ships the amplification-proof logger. If it is STILL down after redeploy, the cause is production infra/domain (Cloudflare origin/cert/platform) → Emergent Support. Underlying 500-storm (DB saturation under 24-caller + high-webhook load) still needs capacity work separately.
+
+
 ## Feature (2026-07-21f) — Server-side request logging → Admin "System Health" tab — DONE (preview, verified end-to-end)
 - **Why:** so production 5xx errors are visible from INSIDE the app (which endpoint + traceback) without needing browser DevTools — directly supports diagnosing the frequent production 500s.
 - **Backend middleware (`server.py`, registered BEFORE CORS so CORS stays outermost):** captures every 5xx response AND unhandled exception (with full traceback) AND any request slower than 8s, writing to a new `error_logs` collection. Fire-and-forget (`asyncio.create_task`) so it adds no latency; fully try/except-wrapped so it can never itself fail. Captures method, path, query, status, duration_ms, user_id (decoded from JWT, no DB hit), error_type, error, traceback, IST timestamp.

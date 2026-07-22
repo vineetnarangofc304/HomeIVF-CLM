@@ -52,55 +52,93 @@ app = FastAPI(title="HomeIVF CRM API")
 # itself cause a failure.
 _SLOW_MS = 8000
 _SKIP_LOG_PATHS = {"/api/health", "/api/admin/error-logs", "/api/admin/error-logs/summary"}
+# HARD safety limits so this DIAGNOSTIC can never amplify an incident. Under a 5xx storm the
+# naive version spawned one unbounded background DB insert per failing request — into an
+# already-saturated pool — piling up tasks/connections until the worker died (empty origin
+# response → Cloudflare 520). We now (a) cap concurrent log writes and shed the rest, and
+# (b) hard-timeout each write so it releases its connection fast instead of hanging.
+_log_inflight = 0
+_LOG_MAX_INFLIGHT = 5
+_LOG_WRITE_TIMEOUT = 1.5
 
 
 async def _record_issue(method, path, query, status, dur_ms, uid, err_type, err_msg, tb):
+    global _log_inflight
+    if _log_inflight >= _LOG_MAX_INFLIGHT:
+        return  # load-shed: diagnostics must NEVER add pressure during a storm
+    _log_inflight += 1
     try:
         now = now_utc_str()
-        await db.error_logs.insert_one({
+        await asyncio.wait_for(db.error_logs.insert_one({
             "created_dt": datetime.now(timezone.utc),  # BSON date → TTL auto-purge (7 days)
             "ts": now, "ts_ist": to_ist_str(now),
             "kind": "error" if (status or 0) >= 500 else "slow",
             "method": method, "path": path, "query": (query or "")[:300],
             "status": status, "duration_ms": int(dur_ms), "user_id": uid,
             "error_type": err_type, "error": (err_msg or "")[:600], "traceback": (tb or "")[:4000],
-        })
+        }), timeout=_LOG_WRITE_TIMEOUT)
     except Exception:
         pass
+    finally:
+        _log_inflight -= 1
 
 
-def _uid_from_request(request: Request):
+def _uid_from_scope(scope):
     try:
-        auth = request.headers.get("authorization", "")
-        if auth.startswith("Bearer "):
-            payload = _jwt.decode(auth[7:], get_jwt_secret(), algorithms=["HS256"])
-            return int(payload["sub"]) if payload.get("sub") else None
+        for k, v in scope.get("headers", []):
+            if k == b"authorization":
+                auth = v.decode()
+                if auth.startswith("Bearer "):
+                    payload = _jwt.decode(auth[7:], get_jwt_secret(), algorithms=["HS256"])
+                    return int(payload["sub"]) if payload.get("sub") else None
     except Exception:
         return None
     return None
 
 
-@app.middleware("http")
-async def _request_logger(request: Request, call_next):
-    if request.method == "OPTIONS" or request.url.path in _SKIP_LOG_PATHS:
-        return await call_next(request)
-    start = _time.monotonic()
-    try:
-        response = await call_next(request)
-    except Exception as e:
+class RequestLogMiddleware:
+    """Pure-ASGI logger — it ONLY observes the response status via the `send` stream and never
+    buffers/rewrites the body, so (unlike BaseHTTPMiddleware) it cannot produce empty/malformed
+    responses or add latency. Captures 5xx + slow requests into `error_logs` for Admin → System
+    Health, with the load-shedding guards above so it can never amplify an incident."""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http":
+            return await self.app(scope, receive, send)
+        method = scope.get("method", "")
+        path = scope.get("path", "")
+        if method == "OPTIONS" or path in _SKIP_LOG_PATHS:
+            return await self.app(scope, receive, send)
+        start = _time.monotonic()
+        status = {"code": 500}
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status["code"] = message.get("status", 500)
+            await send(message)
+
+        query = (scope.get("query_string") or b"").decode("latin-1")[:300]
+        try:
+            await self.app(scope, receive, send_wrapper)
+        except Exception as e:
+            dur = (_time.monotonic() - start) * 1000
+            if _log_inflight < _LOG_MAX_INFLIGHT:
+                asyncio.create_task(_record_issue(
+                    method, path, query, 500, dur, _uid_from_scope(scope),
+                    type(e).__name__, str(e), _traceback.format_exc()))
+            raise
         dur = (_time.monotonic() - start) * 1000
-        asyncio.create_task(_record_issue(
-            request.method, request.url.path, str(request.url.query), 500, dur,
-            _uid_from_request(request), type(e).__name__, str(e), _traceback.format_exc()))
-        raise
-    dur = (_time.monotonic() - start) * 1000
-    if response.status_code >= 500 or dur >= _SLOW_MS:
-        asyncio.create_task(_record_issue(
-            request.method, request.url.path, str(request.url.query), response.status_code, dur,
-            _uid_from_request(request), None, None, None))
-    return response
+        if (status["code"] >= 500 or dur >= _SLOW_MS) and _log_inflight < _LOG_MAX_INFLIGHT:
+            asyncio.create_task(_record_issue(
+                method, path, query, status["code"], dur, _uid_from_scope(scope), None, None, None))
 
 
+# NOTE: add_middleware prepends → the LAST added is OUTERMOST. Add the logger first, then CORS,
+# so CORS stays outermost and every response (incl. errors) still gets CORS headers.
+app.add_middleware(RequestLogMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origin_regex=".*",
