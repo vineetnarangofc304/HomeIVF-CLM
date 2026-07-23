@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple, UsersThree } from "@phosphor-icons/react";
+import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple } from "@phosphor-icons/react";
 import { API, apiErr, fmtDay, fmtDate } from "../lib/api";
 import { useAuth, useCatalogMaps } from "../context/AuthContext";
 import { TagChip, StageBadge, Spinner, EmptyState } from "../components/Bits";
@@ -243,14 +243,35 @@ export default function Leads() {
 
   return (
     <div className="flex h-full flex-col" data-testid="leads-page">
-      {/* Case 2 — Lead Management buckets */}
-      <div className="flex gap-1 border-b border-slate-200 bg-white px-5 pt-3">
-        {[["pipeline", "Lead in Pipeline"], ["ozonetel", "Ozonetel Lead"]].map(([k, label]) => (
-          <button key={k} data-testid={`bucket-${k}`} onClick={() => setParam("bucket", k)}
-            className={`rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition-colors ${bucket === k ? "border-[#4A90E2] text-[#357ABD]" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
-            {label}
-          </button>
-        ))}
+      {/* Lead buckets + (for callers) My-leads / All-leads scope tabs */}
+      <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-white px-5 pt-3">
+        {(user.role === "caller"
+          ? [
+              { key: "pipeline-mine", label: "Leads in Pipeline (My leads)", bkt: "pipeline", scp: "" },
+              { key: "pipeline-all", label: "Leads in Pipeline (All)", bkt: "pipeline", scp: "all" },
+              { key: "ozonetel", label: "Ozonetel Lead", bkt: "ozonetel", scp: "" },
+            ]
+          : [
+              { key: "pipeline", label: "Lead in Pipeline", bkt: "pipeline", scp: "" },
+              { key: "ozonetel", label: "Ozonetel Lead", bkt: "ozonetel", scp: "" },
+            ]
+        ).map((t) => {
+          const curScope = params.get("scope") === "all" ? "all" : "";
+          const activeTab = bucket === t.bkt && curScope === t.scp;
+          return (
+            <button key={t.key} data-testid={`bucket-${t.key}`}
+              onClick={() => {
+                const next = new URLSearchParams(params);
+                next.set("bucket", t.bkt);
+                if (t.scp) next.set("scope", t.scp); else next.delete("scope");
+                next.delete("page");
+                setParams(next);
+              }}
+              className={`rounded-t-lg border-b-2 px-4 py-2 text-sm font-bold transition-colors ${activeTab ? "border-[#4A90E2] text-[#357ABD]" : "border-transparent text-slate-400 hover:text-slate-600"}`}>
+              {t.label}
+            </button>
+          );
+        })}
       </div>
       {/* Toolbar */}
       <div className="border-b border-slate-200 bg-white px-5 py-3">
@@ -264,19 +285,11 @@ export default function Leads() {
             placeholder="Search name / phone / email…"
             className="hivf-input !w-60"
           />
-          {user.role === "caller" && (() => {
-            const showingAll = params.get("scope") === "all";
-            return (
-              <button
-                data-testid="my-leads-toggle"
-                onClick={() => setParam("scope", showingAll ? "" : "all")}
-                title={showingAll ? "Showing ALL leads (every caller) — click to see only your own book" : "Showing your own leads — click to view ALL leads"}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${showingAll ? "border-[#4A90E2] bg-[#4A90E2] text-white hover:bg-[#357ABD]" : "border-[#4A90E2]/30 bg-[#4A90E2]/10 text-[#357ABD] hover:bg-[#4A90E2]/20"}`}
-              >
-                <UsersThree size={15} weight="duotone" /> {showingAll ? "All leads" : "My leads"}
-              </button>
-            );
-          })()}
+          {user.role === "caller" && (
+            <span data-testid="scope-hint" className="text-xs font-medium text-slate-400">
+              {params.get("scope") === "all" ? "Viewing all callers' leads" : "Viewing your leads · search finds any lead"}
+            </span>
+          )}
           <select data-testid="filter-lead-stage" className="hivf-select" value={params.get("lead_stage") || ""} onChange={(e) => setParam("lead_stage", e.target.value)}>
             <option value="">Lead Stage: All</option>
             {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}

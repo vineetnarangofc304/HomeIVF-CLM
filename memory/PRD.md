@@ -7,7 +7,7 @@
   1. **Global SEARCH** — unscoped, spans BOTH pipeline + raw-Ozonetel buckets (bucket filter only applies when NOT searching). A caller finds ANY customer by number/name.
   2. **Colleague filter** — `?user_id=<id>` shows a specific colleague's whole book (e.g. Kanika's while she's on leave).
   3. **"All leads" toggle** — `?scope=all` shows everyone's leads on demand (heavier, opt-in per caller, not the constant default).
-- **Frontend (`Leads.jsx`):** `my-leads-toggle` is scope-based — default "My leads" (own book), click → "All leads" (`?scope=all`). `scope` added to filterParams.
+- **Frontend (`Leads.jsx`):** the caller lead-bucket row now has explicit TABS (user-requested UX): **"Leads in Pipeline (My leads)"** (default, own book), **"Leads in Pipeline (All)"** (`?scope=all`, every caller's leads), and **"Ozonetel Lead"**. Admin/manager keep "Lead in Pipeline" / "Ozonetel Lead". `scope` is carried in filterParams; a hint line clarifies the active scope and that search finds any lead. (Replaced the earlier single My/All toggle button.)
 - **Unchanged & re-verified:** original_user_id LOCK (PATCH strips user_id for callers + always original_user_id), assignee-select disabled + lock line, full Activity Log of cross-caller edits.
 - **Verified:** testing_agent iter67 = backend 100% / frontend 100%. Curl: default 5,144 / scope=all 119,813 / search 5770614172→lead 600027 / user_id=5→5,073 / group_counts 0.14s.
 - **⚠️ NEEDS PRODUCTION REDEPLOY immediately** to restore service. **If the client still wants all-leads as the CONSTANT default for every caller, that requires a larger production DB tier** (the current tier can't serve 24 callers × 120k by default) → evaluate via Emergent Support.
