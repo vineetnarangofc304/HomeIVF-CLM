@@ -19,7 +19,7 @@ import requests
 
 BASE_URL = os.environ.get(
     "REACT_APP_BACKEND_URL",
-    "https://ivf-pipeline.preview.emergentagent.com",
+    "https://homeivf-crm-1.preview.emergentagent.com",
 ).rstrip("/")
 ADMIN_EMAIL = "admin@homeivf.com"
 ADMIN_PASS = "HomeIVF@2026"

@@ -14,7 +14,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = "https://ivf-pipeline.preview.emergentagent.com"
+BASE_URL = "https://homeivf-crm-1.preview.emergentagent.com"
 ADMIN = {"email": "admin@homeivf.com", "password": "HomeIVF@2026"}
 TEMPLATE_ID = 4
 AUTOMATION_ID = 1
