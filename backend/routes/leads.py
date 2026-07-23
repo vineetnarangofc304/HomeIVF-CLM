@@ -304,7 +304,7 @@ async def group_counts(
 
 @router.get("/{lead_id}")
 async def get_lead(lead_id: int, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=8000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
@@ -418,7 +418,7 @@ async def _track_changes(lead, updates, user):
 
 @router.patch("/{lead_id}")
 async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=8000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     updates = {k: v for k, v in body.updates.items() if k in EDITABLE_FIELDS}
@@ -445,7 +445,7 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     updates["write_date"] = now_utc_str()
     updates["write_uid"] = user["id"]
     await db.leads.update_one({"id": lead_id}, {"$set": updates})
-    new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0})
+    new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=8000)
     if "user_id" in updates:
         await sync_channel_owner(new_lead.get("phone_digits"), updates["user_id"])
     stage_changed = ("stage_id" in updates and updates["stage_id"] != lead.get("stage_id")) or \
@@ -861,14 +861,19 @@ async def followups_reminders(user: dict = Depends(get_current_user)):
     now_min = now.hour * 60 + now.minute
     # Owner-specific (Case 2): remind ONLY the user who created the follow-up — not the
     # whole team, and not admins unless they created it.
-    items = await db.follow_ups.find(
-        {"follow_up_date": day, "follow_up_time": {"$nin": [None, ""]},
-         "created_by": user["id"],
-         "status": {"$nin": ["Completed", "Cancelled"]}}, {"_id": 0}).to_list(1000)
-    lead_ids = list({it["lead_id"] for it in items})
-    leads = {l["id"]: l for l in await db.leads.find(
-        {"id": {"$in": lead_ids}},
-        {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1}).to_list(2000)}
+    # Fail-fast: polled every 60s by all callers. Abort on DB slowness and return no reminders
+    # so the poll never holds its pooled connection during a slow spell (pool-exhaustion guard).
+    try:
+        items = await db.follow_ups.find(
+            {"follow_up_date": day, "follow_up_time": {"$nin": [None, ""]},
+             "created_by": user["id"],
+             "status": {"$nin": ["Completed", "Cancelled"]}}, {"_id": 0}, max_time_ms=5000).to_list(1000)
+        lead_ids = list({it["lead_id"] for it in items})
+        leads = {l["id"]: l for l in await db.leads.find(
+            {"id": {"$in": lead_ids}},
+            {"_id": 0, "id": 1, "contact_name": 1, "name": 1, "phone": 1}, max_time_ms=5000).to_list(2000)}
+    except PyMongoError:
+        return {"now": now.strftime("%H:%M"), "reminders": []}
     out = []
     for it in items:
         lead = leads.get(it["lead_id"])

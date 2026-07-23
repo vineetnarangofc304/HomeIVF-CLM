@@ -28,7 +28,11 @@ client = AsyncIOMotorClient(
     waitQueueTimeoutMS=5000,
     serverSelectionTimeoutMS=8000,
     connectTimeoutMS=10000,
-    socketTimeoutMS=45000,
+    # Hard cap on how long ANY interactive op may hold its pooled connection. If Atlas is
+    # transiently slow, the op aborts at 15s and RELEASES the connection instead of hanging
+    # up to 45s — this is what stops a slow DB from cascading into pool exhaustion → the
+    # 30s-NetworkTimeout storm on every endpoint. Per-query .max_time_ms() aborts even faster.
+    socketTimeoutMS=15000,
     retryReads=True,
     retryWrites=True,
 )

@@ -30,7 +30,7 @@ export default function WaNotifier() {
       } catch { /* ignore */ }
     };
     poll();
-    const t = setInterval(poll, 15000);
+    const t = setInterval(poll, 30000);
     return () => { alive = false; clearInterval(t); };
   }, [navigate]);
 

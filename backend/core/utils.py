@@ -88,8 +88,8 @@ async def check_duplicate(phone_digits: str, exclude_id: int = None) -> dict:
     q = {"phone_digits": phone_digits, "active": True}
     if exclude_id is not None:
         q["id"] = {"$ne": exclude_id}
-    existing = await db.leads.find_one(q, {"_id": 0, "id": 1}, sort=[("id", 1)])
-    count = await db.leads.count_documents(q)
+    existing = await db.leads.find_one(q, {"_id": 0, "id": 1}, sort=[("id", 1)], max_time_ms=5000)
+    count = await db.leads.count_documents(q, maxTimeMS=5000)
     return {"is_duplicate": bool(existing), "duplicate_of": existing["id"] if existing else None,
             "duplicate_count": count}
 

@@ -9,6 +9,7 @@ from typing import Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request
+from pymongo.errors import PyMongoError
 from pydantic import BaseModel
 
 from core.db import db
@@ -186,12 +187,18 @@ async def active_call(user: dict = Depends(get_current_user)):
     if user.get("ozonetel_phone_name"):
         ors.append({"agent_phone_name": user["ozonetel_phone_name"]})
     q = {"direction": "incoming", "created_at": {"$gte": cutoff}, "$or": ors}
-    call = await db.call_events.find_one(q, {"_id": 0}, sort=[("created_at", -1)])
-    if not call:
+    # Fail-fast: this endpoint is polled every ~10s by all 24 callers. If Atlas is slow, abort
+    # in 3s and return "no active call" so the poll releases its connection instead of hanging
+    # 15-45s and exhausting the pool (the NetworkTimeout-storm root cause).
+    try:
+        call = await db.call_events.find_one(q, {"_id": 0}, sort=[("created_at", -1)], max_time_ms=3000)
+        if not call:
+            return {"active": None}
+        lead = None
+        if call.get("lead_id"):
+            lead = await db.leads.find_one({"id": call["lead_id"]}, LEAD_SUMMARY, max_time_ms=3000)
+    except PyMongoError:
         return {"active": None}
-    lead = None
-    if call.get("lead_id"):
-        lead = await db.leads.find_one({"id": call["lead_id"]}, LEAD_SUMMARY)
     return {"active": call, "lead": lead}
 
 

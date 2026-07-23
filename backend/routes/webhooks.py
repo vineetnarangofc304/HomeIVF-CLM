@@ -36,7 +36,7 @@ FIELD_ALIASES = {
 
 @router.post("/webhook/lead/{token}")
 async def webhook_lead(token: str, request: Request):
-    hook = await db.webhooks.find_one({"token": token, "active": True})
+    hook = await db.webhooks.find_one({"token": token, "active": True}, max_time_ms=3000)
     if not hook:
         raise HTTPException(status_code=404, detail="Webhook not found")
     try:

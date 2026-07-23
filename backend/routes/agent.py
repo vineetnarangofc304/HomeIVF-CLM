@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from pymongo.errors import PyMongoError
 from pydantic import BaseModel
 
 from core.db import db
@@ -98,7 +99,12 @@ async def admin_set_status(body: AdminStatusBody, user: dict = Depends(require_r
 
 @router.get("/me")
 async def my_status(user: dict = Depends(get_current_user)):
-    u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "status": 1, "status_since": 1})
+    # Fail-fast: polled every ~45s by all callers. Abort quickly on DB slowness so the poll
+    # never holds its pooled connection (pool-exhaustion guard).
+    try:
+        u = await db.users.find_one({"id": user["id"]}, {"_id": 0, "status": 1, "status_since": 1}, max_time_ms=3000)
+    except PyMongoError:
+        return {"status": "Offline", "since": None}
     return {"status": (u or {}).get("status") or "Offline", "since": (u or {}).get("status_since")}
 
 

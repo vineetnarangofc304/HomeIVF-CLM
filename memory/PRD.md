@@ -1,5 +1,18 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-07-23) — Production NetworkTimeout storm (lead edits + everything failing) — ROOT-CAUSED & FIXED in preview (needs REDEPLOY)
+- **User report:** on PRODUCTION, lead editing "not working"; edit + locked-original-caller "was working but got disturbed with recent change." Screenshots = Admin → System Health showing 82 errors/1h, 981/24h, 2068 slow/24h; every row `NetworkTimeout: customer-apps-shard-00-02.o9d3cj.mongodb.net` at ~30-32s across ALL endpoints (calls/active 342×, whatsapp/unread-summary 168×, agent/me 99×, followups/reminders 77×, webhook/lead 69×, /leads 504 67×, webhooks/facebook 25×, webhooks/whatsapp 22×, calls/ozonetel/cdr 14×, whatsapp/channels 7×, and PATCH /leads/{id}).
+- **Verified NOT a permissions bug:** edit + ownership-lock CODE is intact & correct — `GET /leads/{id}` lets any caller open any lead; `PATCH` strips `user_id` for callers and always strips immutable `original_user_id`. Confirmed via curl in preview: caller edited `city` OK; hijack attempt `user_id=20`/`original_user_id=20` both stripped (stayed 1001). Editing fails on prod ONLY because `PATCH` times out against the saturated Atlas DB.
+- **Root cause (troubleshoot_agent, high confidence):** the hot POLLING endpoints (`/calls/active` 5s, `/whatsapp/unread-summary` 15s, `/agent/me` 30s, `/followups/reminders` 60s) × 24 callers had **NO per-query `max_time_ms`**. When Atlas is transiently slow, each poll hung up to `socketTimeoutMS=45000` holding its pooled connection → the 80-conn interactive pool exhausted → ALL new requests (edits, login, webhooks) then `NetworkTimeout` (~30s = waitQueue+socket). Preview never reproduces (local Mongo is instant). This is the same class that recurred 9+ times — prior fixes treated symptoms, not the missing fail-fast.
+- **Fix (preview, code):**
+  1. `core/db.py`: interactive `socketTimeoutMS` 45000 → **15000** (caps worst-case connection hold).
+  2. Fail-fast `max_time_ms` on all hot polls + graceful fallback so a slow DB returns an empty/neutral result (releasing the connection) instead of hanging: `/calls/active` (3s→`{active:null}`), `/whatsapp/unread-summary` (4s→zeros), `/agent/me` (3s→Offline), `/followups/reminders` (5s→[]). Also `max_time_ms` on `get_lead` (8s), `update_lead` find_ones (8s), `check_duplicate` (5s), webhook hook lookup (3s). (`/leads` list + `group_counts` already had it.)
+  3. Frontend polling trimmed to cut baseline QPS ~40-50%: calls/active 5s→8s, unread-summary 15s→30s, agent/me 30s→45s.
+- **Effect:** converts a total NetworkTimeout collapse into graceful, fast-failing degradation — transient DB slowness can no longer cascade into a full outage. **Verified preview:** all 4 hot endpoints 200; login 200; edit+lock correct.
+- **⚠️ ACTION:** user must **REDEPLOY** to push this to prod. If widespread SLOWNESS persists after redeploy (not cascading timeouts), the Atlas tier is undersized for 120k leads + 24 callers + webhook volume → engage Emergent Support to review/upgrade the DB tier (CPU/IOPS/connections). Preview on identical code is 100% healthy = the delta is prod DB capacity.
+
+
+
 
 ## P0 PRODUCTION OUTAGE (2026-07-22) — total outage / Cloudflare 520 — root-caused to the error-logger; FIXED in preview (needs redeploy)
 - **Symptom:** production (custom domain crm.homeivfmarketing.com via Cloudflare → emergent origin) fully down. Login showed Cloudflare "**origin returned an empty response / malformed HTTP headers**" (Error 520). Nobody could log in; blank screen; live ops stopped.

@@ -5,6 +5,7 @@ from typing import Optional
 import jwt
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Request, Header
 from fastapi.responses import Response
+from pymongo.errors import PyMongoError
 from pydantic import BaseModel
 
 from core.db import db
@@ -101,13 +102,18 @@ async def unread_summary(user: dict = Depends(get_current_user)):
     scope = {"unread_count": {"$gt": 0}}
     if user.get("role") == "caller":
         scope["owner_id"] = user["id"]
-    total = await db.wa_channels.aggregate([
-        {"$match": scope},
-        {"$group": {"_id": None, "n": {"$sum": "$unread_count"}, "chats": {"$sum": 1}}},
-    ]).to_list(1)
-    total_unread = total[0]["n"] if total else 0
-    chats = total[0]["chats"] if total else 0
-    recent = await db.wa_channels.find(scope, {"_id": 0, "id": 1, "name": 1, "last_message_date": 1, "unread_count": 1}).sort("last_message_date", -1).limit(8).to_list(8)
+    # Fail-fast: polled every ~30s by all callers. If Atlas is slow, abort quickly and return
+    # zeros so the poll releases its pooled connection instead of piling up (pool-exhaustion guard).
+    try:
+        total = await db.wa_channels.aggregate([
+            {"$match": scope},
+            {"$group": {"_id": None, "n": {"$sum": "$unread_count"}, "chats": {"$sum": 1}}},
+        ], maxTimeMS=4000).to_list(1)
+        total_unread = total[0]["n"] if total else 0
+        chats = total[0]["chats"] if total else 0
+        recent = await db.wa_channels.find(scope, {"_id": 0, "id": 1, "name": 1, "last_message_date": 1, "unread_count": 1}).sort("last_message_date", -1).limit(8).max_time_ms(4000).to_list(8)
+    except PyMongoError:
+        return {"total_unread": 0, "unread_chats": 0, "recent": []}
     return {"total_unread": total_unread, "unread_chats": chats, "recent": recent}
 
 

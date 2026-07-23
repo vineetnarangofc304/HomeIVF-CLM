@@ -17,7 +17,7 @@ export default function AgentStatusSwitcher() {
     const load = () => API.get("/agent/me").then(({ data }) => setStatus(data.status || "Offline")).catch(() => {});
     load();
     // Poll so an admin-forced status change (e.g. forced Offline) reflects here promptly.
-    const t = setInterval(load, 30000);
+    const t = setInterval(load, 45000);
     return () => clearInterval(t);
   }, []);
 

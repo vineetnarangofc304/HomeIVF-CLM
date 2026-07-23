@@ -34,7 +34,7 @@ export default function IncomingCallBanner() {
       } catch (e) { /* logged out */ }
     };
     tick();
-    const t = setInterval(tick, 5000);
+    const t = setInterval(tick, 8000);
     return () => { alive = false; clearInterval(t); };
   }, []);
 
