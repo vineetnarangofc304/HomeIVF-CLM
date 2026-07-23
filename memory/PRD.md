@@ -1,6 +1,19 @@
 # HomeIVF CRM — PRD
 
-## Case 1 FIX (2026-07-23b) — callers must VIEW ALL leads (perf-scoping regression) — FIXED & bug-agent verified (iter66), needs REDEPLOY
+## P0 (2026-07-23c) — PRODUCTION MELTDOWN from all-leads-default + RESOLUTION — FIXED & testing_agent-verified (iter67), needs REDEPLOY
+- **What happened:** the 2026-07-23b fix removed caller list-scoping so EVERY caller's default `/api/leads` queried the full ~120k collection. On the production DB (latency-prone vs preview's local Mongo), 24 concurrent callers doing that + polling held connections long enough to EXHAUST the connection pool → cascade: `GET /api/leads` 20–38s → 504, plus 500s on `/whatsapp/unread-summary`, `/agent/me`, `/followups/reminders`, `/webhooks/*`, `/calls/ozonetel/cdr`, `/leads/group_counts`. User: "CRM very slow and errors on every action" (System Health screenshots, all callers).
+- **Why preview didn't catch it:** the base list query is index-covered and 3ms in preview (explain: LIMIT→FETCH→IXSCAN `active_createdate_id`, 50 keys/50 docs). The failure is pure production DB CAPACITY under concurrency, which preview (healthy local Mongo) can't reproduce.
+- **Resolution (balance access + stability):** the caller DEFAULT list is scoped back to their OWN book (fast, ~5k index-covered) — this is a hard stability requirement. Full access to Case 1 is preserved via THREE escape hatches, all of which bypass scoping in `build_query` (`not search and scope != 'all' and not user_id`):
+  1. **Global SEARCH** — unscoped, spans BOTH pipeline + raw-Ozonetel buckets (bucket filter only applies when NOT searching). A caller finds ANY customer by number/name.
+  2. **Colleague filter** — `?user_id=<id>` shows a specific colleague's whole book (e.g. Kanika's while she's on leave).
+  3. **"All leads" toggle** — `?scope=all` shows everyone's leads on demand (heavier, opt-in per caller, not the constant default).
+- **Frontend (`Leads.jsx`):** `my-leads-toggle` is scope-based — default "My leads" (own book), click → "All leads" (`?scope=all`). `scope` added to filterParams.
+- **Unchanged & re-verified:** original_user_id LOCK (PATCH strips user_id for callers + always original_user_id), assignee-select disabled + lock line, full Activity Log of cross-caller edits.
+- **Verified:** testing_agent iter67 = backend 100% / frontend 100%. Curl: default 5,144 / scope=all 119,813 / search 5770614172→lead 600027 / user_id=5→5,073 / group_counts 0.14s.
+- **⚠️ NEEDS PRODUCTION REDEPLOY immediately** to restore service. **If the client still wants all-leads as the CONSTANT default for every caller, that requires a larger production DB tier** (the current tier can't serve 24 callers × 120k by default) → evaluate via Emergent Support.
+
+
+## Case 1 FIX (2026-07-23b) — callers must VIEW ALL leads (perf-scoping regression) — SUPERSEDED by 2026-07-23c above
 - **User report (on PRODUCTION):** Case 1 "not working like this" — a prior performance change ("show only leads assigned to the caller … to reduce load") had scoped every caller's DEFAULT Leads list to ONLY their own ~5k leads, so callers could no longer VIEW all leads. It "was working earlier perfectly." Client requirement is literally: **all callers can view ALL leads** and edit any lead; original assigned caller stays locked; visible activity log.
 - **Root cause:** `build_query` (leads.py) added `q["user_id"]=current_user["id"]` for callers whenever there was no search → default list was owner-scoped. Cross-caller access only worked via explicit SEARCH.
 - **Fix 1 (`routes/leads.py` build_query ~line 134):** REMOVED the caller owner-scoping entirely — callers now get the same UNSCOPED default list as admin/manager (verified caller total 119,813 == admin; `?user_id=<self>` filter still narrows to own 5,144). Perf is fine: the list is a LIMIT query over the sort-covering index (O(limit) walk, not a full scan) and counts are cached+coalesced (now sharing ONE key across all users). The earlier NetworkTimeout storm was the hot POLLING endpoints (already fixed with max_time_ms), not this list query.
