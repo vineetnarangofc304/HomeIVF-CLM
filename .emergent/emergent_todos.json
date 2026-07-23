@@ -1,0 +1,22 @@
+[
+  {
+    "content": "Add transient-DB-error tuple + with_db_retry helper to core/db.py",
+    "status": "completed"
+  },
+  {
+    "content": "Wrap login reads in auth.py with retry so transient pool-paused blips self-heal",
+    "status": "completed"
+  },
+  {
+    "content": "Add global PyMongoError exception handler in server.py -> 503 + Retry-After (fixes raw 500s app-wide)",
+    "status": "completed"
+  },
+  {
+    "content": "Lint + functional-verify login on dev pod",
+    "status": "completed"
+  },
+  {
+    "content": "Report root cause + durable infra recommendation (dedicated DB / pool sizing)",
+    "status": "completed"
+  }
+]

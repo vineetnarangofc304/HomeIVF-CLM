@@ -1,0 +1,314 @@
+{
+  "base_url": "https://homeivf-crm-1.preview.emergentagent.com",
+  "checks": [
+    {
+      "name": "login_admin",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "admin@homeivf.com",
+        "body": {
+          "id": 1,
+          "name": "HomeIVF Admin",
+          "email": "admin@homeivf.com",
+          "role": "admin",
+          "permissions": {
+            "dashboard": true,
+            "leads": true,
+            "followups": true,
+            "call_center": true,
+            "whatsapp": true,
+            "marketing": true,
+            "reports": true,
+            "templates": true,
+            "admin": true,
+            "leads_view_all": true,
+            "leads_edit": true,
+            "leads_reassign": true,
+            "leads_delete": true,
+            "export": true,
+            "manage_users": true,
+            "admin_write": true
+          },
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwiZW1haWwiOiJhZG1pbkBob21laXZmLmNvbSIsInJvbGUiOiJhZG1pbiIsImV4cCI6MTc4NDg5NDk1NywidHlwZSI6ImFjY2VzcyJ9.j3R3DgWdvc987oKLcJ-S2QNMp-qHD1iPpsYzFpHT3ZU"
+        }
+      }
+    },
+    {
+      "name": "login_himani",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "caller16@homeivf.com",
+        "body": {
+          "id": 8,
+          "name": "Himani Sharma",
+          "email": "caller16@homeivf.com",
+          "role": "caller",
+          "permissions": {
+            "dashboard": true,
+            "leads": true,
+            "followups": true,
+            "call_center": true,
+            "whatsapp": true,
+            "templates": true,
+            "marketing": false,
+            "reports": false,
+            "admin": false,
+            "leads_view_all": false,
+            "leads_edit": true,
+            "leads_reassign": false,
+            "leads_delete": false,
+            "export": false,
+            "manage_users": false,
+            "admin_write": false,
+            "migration": false
+          },
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI4IiwiZW1haWwiOiJjYWxsZXIxNkBob21laXZmLmNvbSIsInJvbGUiOiJjYWxsZXIiLCJleHAiOjE3ODQ4OTQ5NTcsInR5cGUiOiJhY2Nlc3MifQ._hMY8IaBBddTEhYgmNzx0RZBcFjq-roAlhgUOqstKc8"
+        }
+      }
+    },
+    {
+      "name": "login_anamika",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "caller11@homeivf.com",
+        "body": {
+          "id": 5,
+          "name": "Anamika Suman",
+          "email": "caller11@homeivf.com",
+          "role": "caller",
+          "permissions": {
+            "dashboard": true,
+            "leads": true,
+            "followups": true,
+            "call_center": true,
+            "whatsapp": true,
+            "templates": true,
+            "marketing": false,
+            "reports": false,
+            "admin": false,
+            "leads_view_all": false,
+            "leads_edit": true,
+            "leads_reassign": false,
+            "leads_delete": false,
+            "export": false,
+            "manage_users": false,
+            "admin_write": false,
+            "migration": false
+          },
+          "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI1IiwiZW1haWwiOiJjYWxsZXIxMUBob21laXZmLmNvbSIsInJvbGUiOiJjYWxsZXIiLCJleHAiOjE3ODQ4OTQ5NTcsInR5cGUiOiJhY2Nlc3MifQ.YIhqOp8igB1WoF1v58pRpcIjvJ10vOYQ55UI5WzoIJQ"
+        }
+      }
+    },
+    {
+      "name": "admin_default_all_leads_reference",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 119813,
+        "item_count": 50
+      }
+    },
+    {
+      "name": "himani_default_pipeline_all_leads_unscoped",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "caller_total": 119813,
+        "admin_total": 119813,
+        "distinct_user_ids_on_page": [
+          2,
+          5,
+          8,
+          10,
+          11,
+          14,
+          15,
+          17,
+          18,
+          20,
+          22,
+          24,
+          26,
+          30,
+          31,
+          32,
+          34,
+          1001
+        ]
+      }
+    },
+    {
+      "name": "himani_my_leads_filter_only_own",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 5144,
+        "distinct_user_ids_on_page": [
+          8
+        ]
+      }
+    },
+    {
+      "name": "himani_searches_another_callers_phone_finds_lead_600027",
+      "ok": false,
+      "details": {
+        "status": 200,
+        "total": 0,
+        "found_lead": null
+      }
+    },
+    {
+      "name": "himani_opens_anamika_lead_detail",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "id": 600027,
+        "user_id": 5,
+        "original_user_id": 5,
+        "city": "Mumbai-EDITED-BY-CALLER8",
+        "lead_stage": "Converted",
+        "tags": []
+      }
+    },
+    {
+      "name": "himani_edits_other_callers_lead_but_assignment_stripped",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "city_after": "QA City 65 1784808558",
+        "lead_stage_after": "Contacted",
+        "tags_after": [
+          1
+        ],
+        "user_id_after": 5,
+        "original_user_id_after": 5
+      }
+    },
+    {
+      "name": "himani_adds_note_on_other_callers_lead",
+      "ok": true,
+      "details": {
+        "status": 200
+      }
+    },
+    {
+      "name": "himani_adds_followup_on_other_callers_lead",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "created_by": 8
+      }
+    },
+    {
+      "name": "caller_assignment_only_patch_blocked_and_assignment_unchanged",
+      "ok": true,
+      "details": {
+        "patch_status": 400,
+        "patch_body": {
+          "detail": "No valid fields to update"
+        },
+        "user_id_after": 5,
+        "original_user_id_after": 5
+      }
+    },
+    {
+      "name": "audit_log_records_cross_caller_edits_by_himani",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "has_city": true,
+        "has_note": true,
+        "has_followup": true,
+        "recent_himani": [
+          {
+            "id": 30,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "follow_up_added",
+            "field": "Follow-up",
+            "old": null,
+            "new": null,
+            "detail": "2026-07-26 \u00b7 Follow UP \u2014 Iteration 65 cross-caller follow-up by Himani 1784808558",
+            "at": "2026-07-23 12:09:18"
+          },
+          {
+            "id": 29,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "note_added",
+            "field": "Note",
+            "old": null,
+            "new": null,
+            "detail": "Iteration 65 cross-caller note by Himani 1784808558",
+            "at": "2026-07-23 12:09:18"
+          },
+          {
+            "id": 28,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "City",
+            "old": "Mumbai-EDITED-BY-CALLER8",
+            "new": "QA City 65 1784808558",
+            "detail": null,
+            "at": "2026-07-23 12:09:18"
+          },
+          {
+            "id": 27,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "disposition_changed",
+            "field": "Disposition / Tags",
+            "old": "None",
+            "new": "1",
+            "detail": null,
+            "at": "2026-07-23 12:09:18"
+          },
+          {
+            "id": 26,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "Lead Stage",
+            "old": "Converted",
+            "new": "Contacted",
+            "detail": null,
+            "at": "2026-07-23 12:09:18"
+          },
+          {
+            "id": 25,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "City",
+            "old": "Kolkata",
+            "new": "Mumbai-EDITED-BY-CALLER8",
+            "detail": null,
+            "at": "2026-07-23 11:58:21"
+          },
+          {
+            "id": 24,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "Lead Stage",
+            "old": "Contacted",
+            "new": "Converted",
+            "detail": null,
+            "at": "2026-07-23 11:58:21"
+          }
+        ]
+      }
+    }
+  ]
+}

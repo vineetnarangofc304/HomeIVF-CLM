@@ -14,8 +14,10 @@ from datetime import datetime, timezone
 import jwt as _jwt
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from pymongo.errors import PyMongoError
 
-from core.db import db, db_analytics
+from core.db import db, db_analytics, TRANSIENT_DB_ERRORS
 from core.security import hash_password, verify_password, get_jwt_secret
 from core.utils import now_utc_str, to_ist_str, ensure_catalog
 from routes import admin as admin_routes
@@ -44,6 +46,26 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="HomeIVF CRM API")
+
+
+@app.exception_handler(PyMongoError)
+async def _db_error_handler(request: Request, exc: PyMongoError):
+    """App-wide safety net for Mongo failures. When the (shared) Atlas cluster is briefly
+    unreachable/saturated, pymongo raises connectivity errors that were previously UNCAUGHT on
+    endpoints without a local try/except — most visibly /api/auth/login — surfacing to users as
+    HTTP 500. Map the transient/connectivity ones to 503 + Retry-After (so clients back off and
+    retry instead of treating it as a hard server bug); anything else stays a clean 500."""
+    if isinstance(exc, TRANSIENT_DB_ERRORS):
+        logger.warning("Transient DB error on %s %s: %s: %s",
+                       request.method, request.url.path, type(exc).__name__, exc)
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "Service is temporarily busy. Please try again in a moment."},
+            headers={"Retry-After": "2"},
+        )
+    logger.error("Unhandled DB error on %s %s: %s: %s",
+                 request.method, request.url.path, type(exc).__name__, exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
 # ---- Lightweight request logger: capture 5xx + slow requests to `error_logs` so the exact
 # failing endpoint is visible from inside the app (Admin → System Health) without DevTools.

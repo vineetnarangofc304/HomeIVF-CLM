@@ -131,20 +131,18 @@ def build_query(
         q["follow_up_date"] = {"$gt": today}
     elif follow_up == "set":
         q["follow_up_date"] = {"$gt": ""}
-    # Callers' DEFAULT list is auto-scoped to ONLY their own allocated leads — this is the
-    # operational rule (a caller works their own book) AND the biggest performance win: a
-    # caller's ~5k set is a ~4ms indexed query vs. scanning the full ~120k collection on every
-    # list/poll (24 callers doing that was the main DB-pressure source).
+    # Case 1 (client requirement): ALL callers can VIEW ALL leads. The default list is NOT
+    # owner-scoped — a caller can browse or search ANY lead, open it, and edit it (e.g. handling
+    # an incoming call while the assigned caller, Kanika, is on leave). Reassignment is still
+    # blocked for callers and original_user_id always stays locked in PATCH. The optional
+    # `user_id` filter (the "My leads" toggle) lets a caller narrow to their own book on demand.
+    # Admins/managers were always unscoped.
     #
-    # EXCEPTION (Case 1 — client requirement): when a caller is SEARCHING (by phone or name),
-    # do NOT scope by owner. A caller must be able to look up ANY customer by number, open the
-    # lead, and edit it even when it was auto-assigned to another caller — e.g. handling an
-    # incoming call while the assigned caller (Kanika) is on leave. Search is index-covered
-    # (phone_digits exact/prefix, or *_lc name prefix), so an unscoped search stays instant.
-    # Admins/managers always see everything. Direct open by id (get_lead / screen-pop) is
-    # already unscoped, and PATCH keeps the original_user_id locked.
-    if current_user and current_user.get("role") == "caller" and not search:
-        q["user_id"] = current_user["id"]
+    # Perf note: the list is a LIMIT query over the sort-covering index (an O(limit) index walk,
+    # NOT a full-collection scan) and the counts are cached + coalesced — and now share ONE cache
+    # key across all users instead of a per-caller key — so viewing all leads is not a DB-pressure
+    # source. (The earlier production NetworkTimeout storm was the unbounded hot POLLING endpoints,
+    # already fixed with per-query max_time_ms, not this list query.)
     return q
 
 

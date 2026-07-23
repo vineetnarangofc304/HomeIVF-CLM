@@ -1,5 +1,10 @@
+import asyncio as _asyncio
 import os
+
 from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo.errors import (AutoReconnect, ConnectionFailure, ExecutionTimeout,
+                            NetworkTimeout, ServerSelectionTimeoutError,
+                            WaitQueueTimeoutError, WTimeoutError)
 
 # TWO connection pools so heavy work can NEVER starve the caller/login path.
 #
@@ -51,3 +56,33 @@ analytics_client = AsyncIOMotorClient(
     retryWrites=True,
 )
 db_analytics = analytics_client[_DB_NAME]
+
+
+# Transient / connectivity Mongo errors. When the shared Atlas cluster briefly drops (SSL
+# handshake timeout, server-selection timeout, connection storm) pymongo PAUSES the pool and
+# every in-flight op raises one of these. These were surfacing as UNCAUGHT HTTP 500s on any
+# DB-touching endpoint — most visibly /api/auth/login, whose reads had no error handling. They
+# are (a) safe to retry on the read path and (b) at the API boundary should map to 503
+# (retryable), never a scary 500. NetworkTimeout/AutoReconnect/ServerSelectionTimeoutError are
+# ConnectionFailure subclasses; WaitQueueTimeoutError/ExecutionTimeout/WTimeoutError are not,
+# so they are listed explicitly.
+TRANSIENT_DB_ERRORS = (
+    ConnectionFailure, AutoReconnect, NetworkTimeout, ServerSelectionTimeoutError,
+    WaitQueueTimeoutError, ExecutionTimeout, WTimeoutError,
+)
+
+
+async def with_db_retry(op, attempts: int = 3, delay: float = 0.4):
+    """Await op() (a zero-arg coroutine factory), retrying transient connectivity errors with a
+    short linear backoff so a brief pool-paused window self-heals WITHIN the request instead of
+    failing. Use only on idempotent reads (e.g. the login lookup). Re-raises the last error if
+    every attempt hits a transient failure, so the global handler can still turn it into a 503."""
+    last = None
+    for i in range(attempts):
+        try:
+            return await op()
+        except TRANSIENT_DB_ERRORS as e:
+            last = e
+            if i < attempts - 1:
+                await _asyncio.sleep(delay * (i + 1))
+    raise last

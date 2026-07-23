@@ -264,12 +264,19 @@ export default function Leads() {
             placeholder="Search name / phone / email…"
             className="hivf-input !w-60"
           />
-          {user.role === "caller" && (
-            <span data-testid="my-leads-indicator"
-              className="inline-flex items-center gap-1.5 rounded-full border border-[#4A90E2]/30 bg-[#4A90E2]/10 px-3 py-1.5 text-sm font-bold text-[#357ABD]">
-              <UsersThree size={15} weight="duotone" /> Your leads
-            </span>
-          )}
+          {user.role === "caller" && (() => {
+            const mine = params.get("user_id") === String(user.id);
+            return (
+              <button
+                data-testid="my-leads-toggle"
+                onClick={() => setParam("user_id", mine ? "" : String(user.id))}
+                title={mine ? "Showing only your leads — click to view all leads" : "Showing all leads — click to see only your own"}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${mine ? "border-[#4A90E2] bg-[#4A90E2] text-white hover:bg-[#357ABD]" : "border-[#4A90E2]/30 bg-[#4A90E2]/10 text-[#357ABD] hover:bg-[#4A90E2]/20"}`}
+              >
+                <UsersThree size={15} weight="duotone" /> {mine ? "My leads" : "All leads"}
+              </button>
+            );
+          })()}
           <select data-testid="filter-lead-stage" className="hivf-select" value={params.get("lead_stage") || ""} onChange={(e) => setParam("lead_stage", e.target.value)}>
             <option value="">Lead Stage: All</option>
             {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}

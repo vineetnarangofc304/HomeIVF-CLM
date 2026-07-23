@@ -1,0 +1,52 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "Client requirement: all callers can view ALL leads and update all lead fields; the original assigned caller (first auto-assigned) must stay fixed and cannot be changed by any caller; a caller must be able to search a customer by number, open the lead, update disposition/notes/follow-up and handle the call even when it's assigned to another caller (e.g. Kanika on leave -> Nishant handles it) but cannot change the original assigned caller. In short: a caller's default Leads list was scoped to ONLY their own assigned leads, so they could no longer VIEW all leads.",
+  "summary": "No relevant testing skill found. Primary owner-scoping regression is fixed: Himani's default Leads page/API shows 119,813 leads, matching admin, with multiple caller names, and the My leads toggle narrows to 5,144 own leads. Cross-caller open/edit/notes/follow-up/assignment-lock/audit all worked. However, the required supplied phone search in the default Pipeline Leads page still fails: search=5770614172 returns 0 and lead 600027 is not visible because that lead is currently pipeline:false/ozonetel, so the full requested search-by-number flow is not fixed end-to-end.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/leads?bucket=pipeline&search=5770614172",
+        "issue": "Returns 200 with total=0 instead of lead 600027. The same phone finds lead 600027 without bucket or with bucket=ozonetel; DB shows lead 600027 has pipeline:false, so default Pipeline search excludes the required cross-caller test lead.",
+        "priority": "HIGH"
+      }
+    ],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Caller searches provided customer phone from default Leads page",
+        "issue": "As Himani, searching 5770614172 on /leads default Lead in Pipeline tab shows '0 leads / No leads found' instead of lead 600027. Control search for another caller's pipeline lead phone_digits 5730862831 returned lead 678579, confirming cross-caller search itself works for pipeline leads.",
+        "affected_selectors": ["leads-search-input", "leads-total-count", "lead-row-600027"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/iteration_65_api_test.py",
+    "/app/test_reports/iteration_65_api_results.json",
+    "/app/test_reports/iteration_65.json",
+    "/app/test_reports/bug_verification_65.json"
+  ],
+  "action_items": [
+    "Fix the default caller search path for the required lead/customer: either ensure lead 600027 is in the default Lead in Pipeline bucket, or make default phone search span the relevant buckets if that is the intended user behavior.",
+    "Retest /leads?bucket=pipeline&search=5770614172 as caller16 after the change; it must show lead 600027 assigned to Anamika Suman."
+  ],
+  "critical_code_review_comments": [
+    "build_query no longer owner-scopes caller default /leads; API evidence confirms caller total 119,813 equals admin and ?user_id=8 narrows to 5,144.",
+    "update_lead strips user_id for callers and always strips original_user_id; API and UI evidence confirm assignment stayed user_id=5/original_user_id=5 while Himani edited city/stage/tags/note/follow-up."
+  ],
+  "updated_files": [
+    "/app/tests/iteration_65_api_test.py",
+    "/app/test_reports/iteration_65_api_results.json",
+    "/app/test_reports/iteration_65.json",
+    "/app/test_reports/bug_verification_65.json"
+  ],
+  "success_rate": {"backend": "92%", "frontend": "86%"},
+  "seed_data_creation": "No new seed records created. Test modified existing lead 600027 city/stage/tags and added a Himani note/follow-up/audit entries for verification.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use preview https://homeivf-crm-1.preview.emergentagent.com. Caller Himani caller16@homeivf.com/TestPass@2026. API proof: admin and Himani default pipeline totals both 119813; My leads total 5144. Required failing check: Himani GET /api/leads?bucket=pipeline&search=5770614172 returns total 0; GET /api/leads?search=5770614172 returns lead 600027 because it is pipeline:false/ozonetel. UI proof mirrors this. Assignment lock and audit for lead 600027 passed.",
+  "rca_of_the_issue": "The original owner-scoping regression appears corrected. Remaining failure is bucket-scoping/test-data mismatch for the required phone search: default Leads uses bucket=pipeline (q.pipeline {$ne:false}), while lead 600027 has pipeline:false, so it is excluded despite being viewable/editable directly and searchable in the Ozonetel/no-bucket paths. No APIs were mocked."
+}
