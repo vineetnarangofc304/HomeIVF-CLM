@@ -51,17 +51,21 @@ def build_query(
     current_user=None,
 ):
     q = {}
-    if bucket == "ozonetel":
-        # Raw (un-promoted) Ozonetel leads carry pipeline=False — uses the same indexed
-        # {active,pipeline,create_date,id} plan as the pipeline tab (was an unindexed scan).
-        q["pipeline"] = False
-    elif bucket == "pipeline":
-        # Indexed & sort-friendly: everything EXCEPT raw (un-promoted) Ozonetel leads,
-        # which carry pipeline=False. Leads without the field (pre-backfill) still match
-        # via $ne, so nothing vanishes during the one-time backfill window. This replaces
-        # the old $or/$ne filter that couldn't use the sort-covering index → blocking
-        # in-memory SORT over ~100k docs → slow / 500 ("Sort exceeded memory limit").
-        q["pipeline"] = {"$ne": False}
+    # When SEARCHING (Case 1 — find ANY customer by number/name), do NOT restrict to a single
+    # bucket: a caller must be able to pull up a customer whether they are a pipeline lead OR a
+    # raw (un-promoted) Ozonetel lead. The bucket tabs only scope the DEFAULT (non-search) list.
+    if not search:
+        if bucket == "ozonetel":
+            # Raw (un-promoted) Ozonetel leads carry pipeline=False — uses the same indexed
+            # {active,pipeline,create_date,id} plan as the pipeline tab (was an unindexed scan).
+            q["pipeline"] = False
+        elif bucket == "pipeline":
+            # Indexed & sort-friendly: everything EXCEPT raw (un-promoted) Ozonetel leads,
+            # which carry pipeline=False. Leads without the field (pre-backfill) still match
+            # via $ne, so nothing vanishes during the one-time backfill window. This replaces
+            # the old $or/$ne filter that couldn't use the sort-covering index → blocking
+            # in-memory SORT over ~100k docs → slow / 500 ("Sort exceeded memory limit").
+            q["pipeline"] = {"$ne": False}
     if active == "true":
         q["active"] = True
     elif active == "false":

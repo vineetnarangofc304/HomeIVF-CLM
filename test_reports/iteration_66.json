@@ -1,0 +1,38 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "Client requirement: all callers can view ALL leads and update all lead fields; the original assigned caller (first auto-assigned) must stay fixed and cannot be changed by any caller; a caller must be able to SEARCH a customer by number, open the lead, update disposition/notes/follow-up and handle the call even when it's assigned to another caller (Kanika on leave -> Nishant handles it) but cannot change the original assigned caller. User said 'its not working like this' and clarified the default Leads list had been scoped to only their own assigned leads so they could no longer VIEW all leads.",
+  "summary": "Fixed verified in preview by focused API and UI tests as caller16/Himani. No relevant testing skill found. API confirms default caller Leads list is unscoped and matches admin (119,813), My Leads narrows to 5,144, no-search bucket counts remain pipeline=119,813 and ozonetel=200, and search now ignores bucket: bucket=pipeline&search=5770614172 returns raw Ozonetel lead 600027 owned by Anamika/user_id 5. UI confirms the default Lead in Pipeline tab search shows lead 600027, Himani can open/edit City/add note/follow-up/caller activity on Anamika's lead, assignee-select stays disabled with the original-caller lock text, user_id/original_user_id remain 5, and Activity Log shows the edits by Himani Sharma. No MOCKED APIs used.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/iteration_66_api_test.py",
+    "/app/test_reports/iteration_66_api_results.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Reviewed backend/routes/leads.py: build_query now applies bucket filters only when no search is present, so search spans pipeline and raw Ozonetel leads; caller owner-scoping remains removed; update_lead strips user_id/original_user_id for callers.",
+    "Uncommitted non-test files observed: backend/routes/leads.py modified; frontend/yarn.lock and yarn.lock untracked. These were not edited by the testing agent."
+  ],
+  "updated_files": [
+    "/app/tests/iteration_66_api_test.py",
+    "/app/test_reports/iteration_66_api_results.json",
+    "/app/test_reports/iteration_66.json",
+    "/app/test_reports/bug_verification_66.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "No new seed records were created. Tests added audit/messages/follow-up/caller-activity entries and updated test lead 600027 fields as part of the required cross-caller edit verification.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Focused retest for iteration 66 passed. API results are in /app/test_reports/iteration_66_api_results.json. UI automation also passed against preview URL https://homeivf-crm-1.preview.emergentagent.com using caller16. Test lead 600027 now has additional QA66/UI66 audit, note, follow-up, caller-activity entries and latest city/stage/tag values from tests.",
+  "rca_of_the_issue": "Previous failure was caused by applying bucket=pipeline before search, excluding raw Ozonetel leads with pipeline:false. The fix makes bucket filters apply only for non-search lists, so a phone/name/email search can find customers across both pipeline and raw Ozonetel buckets while default bucket counts stay unchanged. Verified with bucket=pipeline&search=5770614172 and broader search 'Lead 6000' returning both raw Ozonetel and pipeline rows."
+}

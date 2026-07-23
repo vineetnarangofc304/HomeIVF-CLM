@@ -1,0 +1,414 @@
+{
+  "base_url": "https://homeivf-crm-1.preview.emergentagent.com",
+  "checks": [
+    {
+      "name": "login_admin",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "admin@homeivf.com",
+        "user": {
+          "id": 1,
+          "name": "HomeIVF Admin",
+          "role": "admin"
+        }
+      }
+    },
+    {
+      "name": "login_himani",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "caller16@homeivf.com",
+        "user": {
+          "id": 8,
+          "name": "Himani Sharma",
+          "role": "caller"
+        }
+      }
+    },
+    {
+      "name": "login_anamika",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "email": "caller11@homeivf.com",
+        "user": {
+          "id": 5,
+          "name": "Anamika Suman",
+          "role": "caller"
+        }
+      }
+    },
+    {
+      "name": "admin_default_pipeline_reference_count",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 119813,
+        "items": 50
+      }
+    },
+    {
+      "name": "himani_default_pipeline_all_leads_unscoped",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "caller_total": 119813,
+        "admin_total": 119813,
+        "distinct_user_ids_first_page": [
+          2,
+          5,
+          8,
+          10,
+          11,
+          14,
+          15,
+          17,
+          18,
+          20,
+          22,
+          24,
+          26,
+          30,
+          31,
+          32,
+          34,
+          1001
+        ]
+      }
+    },
+    {
+      "name": "himani_my_leads_filter_narrows_to_own",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 5144,
+        "distinct_user_ids_first_page": [
+          8
+        ]
+      }
+    },
+    {
+      "name": "default_ozonetel_bucket_count_unchanged_no_search",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 200,
+        "items": 50
+      }
+    },
+    {
+      "name": "default_bucket_counts_expected_ranges_no_search",
+      "ok": true,
+      "details": {
+        "pipeline_total": 119813,
+        "ozonetel_total": 200
+      }
+    },
+    {
+      "name": "himani_search_5770614172_finds_raw_ozonetel_lead_from_pipeline_bucket",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 1,
+        "found_lead": {
+          "id": 600027,
+          "active": true,
+          "stage_id": 5,
+          "name": "Lead 600027",
+          "contact_name": "Lead 600027",
+          "phone": "9829221590",
+          "email_from": "lead600027@example.com",
+          "city": "UI66 City 1784809164",
+          "state_name": "Delhi",
+          "lead_stage": "Contact Attempt",
+          "tags": [
+            1,
+            293
+          ],
+          "user_id": 5,
+          "create_date": "2025-01-15 16:23:00",
+          "create_date_ist": "2025-01-15 21:53:00",
+          "source_lead": "Meta Lead Ads",
+          "priority": "0",
+          "ozonetel_lead": true,
+          "follow_up_date": "2026-07-28",
+          "follow_up_status": null,
+          "follow_up_tag": null,
+          "follow_up_time": "12:30"
+        }
+      }
+    },
+    {
+      "name": "himani_search_5770614172_finds_raw_ozonetel_lead_from_ozonetel_bucket",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 1,
+        "found_lead": {
+          "id": 600027,
+          "active": true,
+          "stage_id": 5,
+          "name": "Lead 600027",
+          "contact_name": "Lead 600027",
+          "phone": "9829221590",
+          "email_from": "lead600027@example.com",
+          "city": "UI66 City 1784809164",
+          "state_name": "Delhi",
+          "lead_stage": "Contact Attempt",
+          "tags": [
+            1,
+            293
+          ],
+          "user_id": 5,
+          "create_date": "2025-01-15 16:23:00",
+          "create_date_ist": "2025-01-15 21:53:00",
+          "source_lead": "Meta Lead Ads",
+          "priority": "0",
+          "ozonetel_lead": true,
+          "follow_up_date": "2026-07-28",
+          "follow_up_status": null,
+          "follow_up_tag": null,
+          "follow_up_time": "12:30"
+        }
+      }
+    },
+    {
+      "name": "search_spans_pipeline_and_raw_ozonetel_rows",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "total": 119,
+        "raw_ozonetel_ids_first_page": [
+          600026,
+          600035,
+          600072,
+          600018,
+          600053,
+          600061,
+          600081,
+          600085,
+          600089,
+          600019
+        ],
+        "pipeline_ids_first_page": [
+          627153,
+          603767,
+          705691,
+          662493,
+          652039,
+          703958,
+          629597,
+          698443,
+          636562
+        ]
+      }
+    },
+    {
+      "name": "himani_can_open_lead_600027_owned_by_anamika",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "id": 600027,
+        "user_id": 5,
+        "original_user_id": 5,
+        "phone": "9829221590",
+        "phone_digits": "5770614172",
+        "pipeline": false,
+        "ozonetel_lead": true
+      }
+    },
+    {
+      "name": "himani_edits_cross_caller_fields_assignment_stripped",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "city_after": "QA66 City 1784809207",
+        "lead_stage_after": "Contacted",
+        "tags_after": [
+          1,
+          293,
+          56
+        ],
+        "user_id_after": 5,
+        "original_user_id_after": 5
+      }
+    },
+    {
+      "name": "himani_adds_note_on_other_callers_lead",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "author_name": "Himani Sharma",
+        "body": "Iteration 66 cross-caller note by Himani 1784809207"
+      }
+    },
+    {
+      "name": "himani_adds_followup_on_other_callers_lead",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "created_by": 8,
+        "created_by_name": "Himani Sharma",
+        "id": 73785
+      }
+    },
+    {
+      "name": "himani_adds_caller_activity_on_other_callers_lead",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "created_by": 8,
+        "created_by_name": "Himani Sharma",
+        "id": 10
+      }
+    },
+    {
+      "name": "caller_assignment_only_patch_blocked_and_assignment_unchanged",
+      "ok": true,
+      "details": {
+        "patch_status": 400,
+        "patch_body": {
+          "detail": "No valid fields to update"
+        },
+        "user_id_after": 5,
+        "original_user_id_after": 5
+      }
+    },
+    {
+      "name": "audit_log_records_cross_caller_edits_by_himani",
+      "ok": true,
+      "details": {
+        "status": 200,
+        "has_city": true,
+        "has_stage_or_disposition": true,
+        "has_note": true,
+        "has_followup": true,
+        "has_caller_activity": true,
+        "recent_himani": [
+          {
+            "id": 47,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "caller_activity",
+            "field": "Caller activity",
+            "old": null,
+            "new": null,
+            "detail": "Iteration 66 caller activity by Himani 1784809207",
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 46,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "follow_up_added",
+            "field": "Follow-up",
+            "old": null,
+            "new": null,
+            "detail": "2026-07-27 · Follow UP 1 — Iteration 66 cross-caller follow-up by Himani 1784809207",
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 45,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "note_added",
+            "field": "Note",
+            "old": null,
+            "new": null,
+            "detail": "Iteration 66 cross-caller note by Himani 1784809207",
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 44,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "City",
+            "old": "UI66 City 1784809164",
+            "new": "QA66 City 1784809207",
+            "detail": null,
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 43,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "disposition_changed",
+            "field": "Disposition / Tags",
+            "old": "1, Abusive Language",
+            "new": "Age Issue, 1, Abusive Language",
+            "detail": null,
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 42,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "Lead Stage",
+            "old": "Contact Attempt",
+            "new": "Contacted",
+            "detail": null,
+            "at": "2026-07-23 12:20:07"
+          },
+          {
+            "id": 41,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "caller_activity",
+            "field": "Caller activity",
+            "old": null,
+            "new": null,
+            "detail": "UI66 caller activity by Himani 1784809164",
+            "at": "2026-07-23 12:19:30"
+          },
+          {
+            "id": 40,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "follow_up_added",
+            "field": "Follow-up",
+            "old": null,
+            "new": null,
+            "detail": "2026-07-28 — UI66 cross-caller follow-up by Himani 1784809164",
+            "at": "2026-07-23 12:19:28"
+          },
+          {
+            "id": 39,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "note_added",
+            "field": "Note",
+            "old": null,
+            "new": null,
+            "detail": "UI66 cross-caller note by Himani 1784809164",
+            "at": "2026-07-23 12:19:26"
+          },
+          {
+            "id": 38,
+            "lead_id": 600027,
+            "user_id": 8,
+            "user_name": "Himani Sharma",
+            "action": "field_changed",
+            "field": "City",
+            "old": "QA66 City 1784809115",
+            "new": "UI66 City 1784809164",
+            "detail": null,
+            "at": "2026-07-23 12:19:24"
+          }
+        ]
+      }
+    }
+  ]
+}
