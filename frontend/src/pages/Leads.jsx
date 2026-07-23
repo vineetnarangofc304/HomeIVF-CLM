@@ -108,7 +108,7 @@ export default function Leads() {
   const filterParams = useMemo(() => {
     const obj = {};
     ["search", "lead_stage", "tags", "user_id", "source_lead", "follow_up", "active", "date_from", "date_to",
-      "stage_id", "follow_up_tag", "campaign_name", "ads_platform", "state_name", "city", "lost_reason_id", "duplicate"].forEach((k) => {
+      "stage_id", "follow_up_tag", "campaign_name", "ads_platform", "state_name", "city", "lost_reason_id", "duplicate", "scope"].forEach((k) => {
       const v = params.get(k);
       if (v) obj[k] = v;
     });
@@ -265,15 +265,15 @@ export default function Leads() {
             className="hivf-input !w-60"
           />
           {user.role === "caller" && (() => {
-            const mine = params.get("user_id") === String(user.id);
+            const showingAll = params.get("scope") === "all";
             return (
               <button
                 data-testid="my-leads-toggle"
-                onClick={() => setParam("user_id", mine ? "" : String(user.id))}
-                title={mine ? "Showing only your leads — click to view all leads" : "Showing all leads — click to see only your own"}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${mine ? "border-[#4A90E2] bg-[#4A90E2] text-white hover:bg-[#357ABD]" : "border-[#4A90E2]/30 bg-[#4A90E2]/10 text-[#357ABD] hover:bg-[#4A90E2]/20"}`}
+                onClick={() => setParam("scope", showingAll ? "" : "all")}
+                title={showingAll ? "Showing ALL leads (every caller) — click to see only your own book" : "Showing your own leads — click to view ALL leads"}
+                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-bold transition-colors ${showingAll ? "border-[#4A90E2] bg-[#4A90E2] text-white hover:bg-[#357ABD]" : "border-[#4A90E2]/30 bg-[#4A90E2]/10 text-[#357ABD] hover:bg-[#4A90E2]/20"}`}
               >
-                <UsersThree size={15} weight="duotone" /> {mine ? "My leads" : "All leads"}
+                <UsersThree size={15} weight="duotone" /> {showingAll ? "All leads" : "My leads"}
               </button>
             );
           })()}

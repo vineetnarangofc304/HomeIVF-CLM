@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 67 verified: caller default Leads list re-scoped to own book while global search, colleague filter (?user_id=), and All-leads toggle (?scope=all) preserve full access. Original-caller lock + Activity Log unchanged. 8/8 backend pytest cases pass; UI automation confirms toggle flip and lead-detail lock/audit trail.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter67_caller_default_scope.py",
+    "/app/test_reports/pytest/iter67.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/leads.py build_query correctly gates owner-scoping with `not search and scope != 'all' and not user_id`, so scope=all/search/colleague filter all bypass scoping as designed.",
+    "update_lead strips user_id (for callers) and original_user_id (all) server-side; PATCH with user_id/original_user_id no-ops and city persists.",
+    "Search bucket-span still works: bucket=pipeline&search=5770614172 returns raw-Ozonetel lead 600027 (pipeline:false, user_id:5)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter67_caller_default_scope.py",
+    "/app/test_reports/iteration_67.json"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com/HomeIVF@2026; caller16@homeivf.com (Himani, id 8)/TestPass@2026; caller11@homeivf.com (Anamika, id 5)/TestPass@2026",
+  "seed_data_creation": "Test PATCH set lead 600027 city='Jaipur-QA67'. No new leads created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Verified totals in preview: Himani default 5,144 (page 1 of 103), scope=all 119,813 (page 1 of 2,397), user_id=5 ~5,073, admin default ~119,813. Search 5770614172 on default pipeline tab finds lead 600027 (Anamika). LeadDetail shows '🔒 Originally assigned to Anamika Suman · locked', assignee-select disabled, Activity Log tab has Himani entries including City QA66 -> Jaipur-QA67.",
+  "rca_of_the_issue": "Not a bug this iteration; regression re-scope of caller default list to avoid production connection-pool exhaustion cascade caused when default list queried the full 120k collection. Preview cannot reproduce the prod latency, but functional behavior (scoping + escape hatches + lock + audit) is verified."
+}

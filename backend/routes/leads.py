@@ -47,7 +47,7 @@ def build_query(
     search=None, stage_id=None, lead_stage=None, tags=None, user_id=None,
     source_lead=None, campaign_name=None, ads_platform=None, city=None, state_name=None,
     active="true", date_from=None, date_to=None, follow_up=None, priority=None,
-    follow_up_tag=None, lost_reason_id=None, bucket=None, duplicate=None,
+    follow_up_tag=None, lost_reason_id=None, bucket=None, duplicate=None, scope=None,
     current_user=None,
 ):
     q = {}
@@ -135,18 +135,17 @@ def build_query(
         q["follow_up_date"] = {"$gt": today}
     elif follow_up == "set":
         q["follow_up_date"] = {"$gt": ""}
-    # Case 1 (client requirement): ALL callers can VIEW ALL leads. The default list is NOT
-    # owner-scoped — a caller can browse or search ANY lead, open it, and edit it (e.g. handling
-    # an incoming call while the assigned caller, Kanika, is on leave). Reassignment is still
-    # blocked for callers and original_user_id always stays locked in PATCH. The optional
-    # `user_id` filter (the "My leads" toggle) lets a caller narrow to their own book on demand.
-    # Admins/managers were always unscoped.
-    #
-    # Perf note: the list is a LIMIT query over the sort-covering index (an O(limit) index walk,
-    # NOT a full-collection scan) and the counts are cached + coalesced — and now share ONE cache
-    # key across all users instead of a per-caller key — so viewing all leads is not a DB-pressure
-    # source. (The earlier production NetworkTimeout storm was the unbounded hot POLLING endpoints,
-    # already fixed with per-query max_time_ms, not this list query.)
+    # Case 1 access model: a caller can reach ANY lead — global SEARCH is unscoped (find any
+    # customer by number/name across all buckets), opening/editing by id is unscoped, and the
+    # "All leads" toggle (scope=all) or a colleague filter (user_id=<id>) shows other callers'
+    # leads on demand. But the DEFAULT list is scoped to the caller's OWN book. This is a hard
+    # PERFORMANCE / STABILITY requirement, not just an operational nicety: 24 callers each
+    # scanning the full ~120k collection on every list load + poll saturates the shared DB
+    # connection pool → the production 504/500 cascade (/api/leads at 30s, and every other
+    # endpoint failing behind it). A caller's ~5k own set is a tiny index-covered query.
+    if (current_user and current_user.get("role") == "caller"
+            and not search and scope != "all" and not user_id):
+        q["user_id"] = current_user["id"]
     return q
 
 
@@ -160,13 +159,14 @@ def query_params_dep(
     follow_up: Optional[str] = None, priority: Optional[str] = None,
     follow_up_tag: Optional[str] = None, lost_reason_id: Optional[str] = None,
     bucket: Optional[str] = None, duplicate: Optional[str] = None,
+    scope: Optional[str] = None,
 ):
     return dict(
         search=search, stage_id=stage_id, lead_stage=lead_stage, tags=tags, user_id=user_id,
         source_lead=source_lead, campaign_name=campaign_name, ads_platform=ads_platform,
         city=city, state_name=state_name, active=active, date_from=date_from, date_to=date_to,
         follow_up=follow_up, priority=priority, follow_up_tag=follow_up_tag, lost_reason_id=lost_reason_id,
-        bucket=bucket, duplicate=duplicate,
+        bucket=bucket, duplicate=duplicate, scope=scope,
     )
 
 
