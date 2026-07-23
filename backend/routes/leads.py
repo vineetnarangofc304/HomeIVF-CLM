@@ -131,13 +131,19 @@ def build_query(
         q["follow_up_date"] = {"$gt": today}
     elif follow_up == "set":
         q["follow_up_date"] = {"$gt": ""}
-    # Callers are auto-scoped to ONLY their own allocated leads. This matches the operational
-    # rule (a caller works only their own book) AND is the biggest performance win: a caller's
-    # ~5k set is a ~4ms indexed query, vs. scanning the full ~120k collection on every list/poll
-    # (which is what 24 callers were doing on each load → the main source of DB pressure).
-    # Admins/managers still see everything. Direct lead access (get_lead by id / screen-pop) is
-    # unaffected, so a transferred/incoming lead can still be opened even if not in their list.
-    if current_user and current_user.get("role") == "caller":
+    # Callers' DEFAULT list is auto-scoped to ONLY their own allocated leads — this is the
+    # operational rule (a caller works their own book) AND the biggest performance win: a
+    # caller's ~5k set is a ~4ms indexed query vs. scanning the full ~120k collection on every
+    # list/poll (24 callers doing that was the main DB-pressure source).
+    #
+    # EXCEPTION (Case 1 — client requirement): when a caller is SEARCHING (by phone or name),
+    # do NOT scope by owner. A caller must be able to look up ANY customer by number, open the
+    # lead, and edit it even when it was auto-assigned to another caller — e.g. handling an
+    # incoming call while the assigned caller (Kanika) is on leave. Search is index-covered
+    # (phone_digits exact/prefix, or *_lc name prefix), so an unscoped search stays instant.
+    # Admins/managers always see everything. Direct open by id (get_lead / screen-pop) is
+    # already unscoped, and PATCH keeps the original_user_id locked.
+    if current_user and current_user.get("role") == "caller" and not search:
         q["user_id"] = current_user["id"]
     return q
 

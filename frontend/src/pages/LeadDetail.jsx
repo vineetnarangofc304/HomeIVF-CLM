@@ -1307,6 +1307,7 @@ const AUDIT_META = {
   field_changed: { label: "Field edited", icon: PencilSimpleLine, cls: "bg-slate-100 text-slate-600" },
   lead_lost: { label: "Marked Lost", icon: Prohibit, cls: "bg-rose-50 text-rose-600" },
   follow_up_added: { label: "Follow-up", icon: CalendarCheck, cls: "bg-emerald-50 text-emerald-600" },
+  note_added: { label: "Note added", icon: NotePencil, cls: "bg-indigo-50 text-indigo-600" },
   caller_activity: { label: "Caller activity", icon: ChatCircleText, cls: "bg-amber-50 text-amber-600" },
   whatsapp_sent: { label: "WhatsApp sent", icon: WhatsappLogo, cls: "bg-[#25D366]/10 text-emerald-600" },
 };
