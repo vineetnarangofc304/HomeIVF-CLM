@@ -1,0 +1,26 @@
+{
+  "summary": "Iteration 63 regression: verified Case 1 edit-open + ownership lock (user_id/original_user_id), hot polling endpoints with new max_time_ms + graceful fallbacks (calls/active, whatsapp/unread-summary, agent/me, leads/followups/reminders), lowered socketTimeoutMS did not regress anything, iter62 caller scoping still holds, group_counts + audit trail working, and frontend caller/admin UX (my-leads-indicator vs filter-caller). Backend 17/17 pytest pass; frontend smoke pass for both roles.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter63_case1_and_hotpath_timeouts.py",
+    "/app/test_reports/pytest/iter63.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Console shows 4x 401 during initial page load before login redirect — polling components (IncomingCallBanner/WaNotifier/AgentStatusSwitcher) fire before auth cookie is ready. Not blocking but consider gating polls on auth-ready to reduce noise.",
+    "Audit endpoint responded 200 with array; recent field edits visible in Activity Log chatter. Ensure PATCH ownership-lock also emits an audit event when stripped keys are attempted (currently only successful field changes are logged)."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter63_case1_and_hotpath_timeouts.py"],
+  "success_rate": {"backend": "100% (17/17)", "frontend": "100%"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 ; agent@homeivf.com / Agent@2026 (caller id 1001)",
+  "seed_data_creation": "None (all city edits reverted; admin reassign restored to original user_id=1001)",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_iter63_case1_and_hotpath_timeouts.py for future regressions. It covers: auth, caller scoping (~5270), admin unscoped (~119813) + user_id filter, edit-open (caller can PATCH any lead of their own; can OPEN any lead), ownership lock (caller PATCH strips user_id + original_user_id, admin reassigns user_id but original_user_id immutable), hot polling shape verification (calls/active/whatsapp unread/agent me/followups reminders), group_counts (stage & user_id, caller+admin), audit endpoint. Frontend testids relied upon: my-leads-indicator, filter-caller.",
+  "rca of the issue": "N/A — regression clean."
+}
