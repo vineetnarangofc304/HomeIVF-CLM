@@ -1,0 +1,257 @@
+{
+  "base": "https://homeivf-crm-1.preview.emergentagent.com/api",
+  "started_at": "2026-07-24T10:52:41.158558+00:00",
+  "checks": [
+    {
+      "label": "admin login",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 492.4,
+      "user": "admin@homeivf.com"
+    },
+    {
+      "label": "caller login",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 329.2,
+      "user": "caller16@homeivf.com"
+    },
+    {
+      "label": "admin default pipeline list",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 121.1,
+      "total": 119813,
+      "item_count": 50,
+      "first_ids": [
+        500210,
+        500204,
+        500203,
+        500202,
+        500201
+      ],
+      "error": null
+    },
+    {
+      "label": "caller default own book",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 64.7,
+      "total": 5144,
+      "item_count": 50,
+      "first_ids": [
+        688475,
+        644735,
+        626599,
+        650961,
+        686523
+      ],
+      "error": null
+    },
+    {
+      "label": "caller scope=all",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 54.1,
+      "total": 119813,
+      "item_count": 50,
+      "first_ids": [
+        500210,
+        500204,
+        500203,
+        500202,
+        500201
+      ],
+      "error": null
+    },
+    {
+      "label": "admin scope=mine",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 49.5,
+      "total": 0,
+      "item_count": 0,
+      "first_ids": [],
+      "error": null
+    },
+    {
+      "label": "admin lead_stage=Contacted",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 79.4,
+      "total": 24020,
+      "item_count": 50,
+      "first_ids": [
+        500178,
+        608323,
+        619153,
+        645366,
+        611829
+      ],
+      "error": null
+    },
+    {
+      "label": "admin page=3",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 49.3,
+      "total": 119813,
+      "item_count": 50,
+      "first_ids": [
+        614076,
+        712144,
+        640427,
+        636131,
+        708423
+      ],
+      "error": null,
+      "different_from_page1": true
+    },
+    {
+      "label": "admin group_counts lead_stage",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 150.4,
+      "row_count": 6,
+      "sample": [
+        {
+          "key": "Contacted",
+          "count": 24020
+        },
+        {
+          "key": "Converted",
+          "count": 24017
+        },
+        {
+          "key": "Contact Attempt",
+          "count": 23977
+        }
+      ]
+    },
+    {
+      "label": "admin group_counts user_id",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 144.6,
+      "row_count": 25,
+      "sample": [
+        {
+          "key": 20,
+          "count": 5303
+        },
+        {
+          "key": 33,
+          "count": 5296
+        },
+        {
+          "key": 15,
+          "count": 5274
+        }
+      ]
+    },
+    {
+      "label": "caller /agent/me poll",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 51.5,
+      "body_shape": [
+        "status",
+        "since"
+      ]
+    },
+    {
+      "label": "caller /calls/active poll",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 45.8,
+      "body_shape": [
+        "active"
+      ]
+    },
+    {
+      "label": "caller /whatsapp/unread-summary poll",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 49.3,
+      "body_shape": [
+        "total_unread",
+        "unread_chats",
+        "recent"
+      ]
+    },
+    {
+      "label": "caller global search from default tab finds lead 600027",
+      "ok": true,
+      "status": 200,
+      "elapsed_ms": 45.6,
+      "total": 1,
+      "ids": [
+        600027
+      ],
+      "found_user_id": 5,
+      "found_pipeline": null
+    },
+    {
+      "label": "caller edits lead 600027 while assignment remains locked",
+      "ok": true,
+      "edit_ok": true,
+      "note_ok": true,
+      "verify_ok": true,
+      "audit_ok": true,
+      "restore_ok": true,
+      "before_user_id": 5,
+      "before_original_user_id": 5,
+      "patch_status": 200,
+      "patch_elapsed_ms": 51.6,
+      "post_note_status": 200,
+      "note_elapsed_ms": 50.4,
+      "verify_status": 200,
+      "verify_elapsed_ms": 46.8,
+      "audit_status": 200,
+      "audit_elapsed_ms": 48.1,
+      "restore_status": 200,
+      "restore_elapsed_ms": 50.7,
+      "recent_audit_sample": [
+        {
+          "id": 61,
+          "lead_id": 600027,
+          "user_id": 8,
+          "user_name": "Himani Sharma",
+          "action": "note_added",
+          "field": "Note",
+          "old": null,
+          "new": null,
+          "detail": "QA iteration 68 note by Himani 2026-07-24T10:52:42.986245+00:00",
+          "at": "2026-07-24 10:52:43"
+        },
+        {
+          "id": 60,
+          "lead_id": 600027,
+          "user_id": 8,
+          "user_name": "Himani Sharma",
+          "action": "field_changed",
+          "field": "City",
+          "old": "Jaipur-QA67",
+          "new": "QA City 1784890362",
+          "detail": null,
+          "at": "2026-07-24 10:52:42"
+        },
+        {
+          "id": 59,
+          "lead_id": 600027,
+          "user_id": 8,
+          "user_name": "Himani Sharma",
+          "action": "field_changed",
+          "field": "Lead Stage",
+          "old": "Contacted",
+          "new": "New",
+          "detail": null,
+          "at": "2026-07-24 10:52:42"
+        }
+      ]
+    }
+  ],
+  "passed": 15,
+  "total": 15,
+  "ok": true
+}

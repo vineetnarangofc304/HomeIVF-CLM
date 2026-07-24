@@ -279,6 +279,14 @@ async def list_leads(
     sort_dir = -1 if order == "desc" else 1
     cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
            .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
+    # PIN the sort-covering index for the unscoped "all pipeline" list. Without this the planner
+    # can choose {active,pipeline,create_date,id} and — because the pipeline bucket uses $ne — do
+    # a BLOCKING SORT over all ~120k docs (only ~0.1s in preview, but 15-30s on a load-saturated
+    # prod DB → the /api/leads 504 storm). active_createdate_id walks create_date order and applies
+    # pipeline!=false as a cheap residual (examines ~limit keys). Only the exact unscoped pipeline
+    # default query qualifies; scoped/filtered queries keep their own better compound indexes.
+    if sort == "create_date" and set(q.keys()) <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
+        cur = cur.hint("active_createdate_id")
     try:
         items = await cur.to_list(limit)
     except PyMongoError:

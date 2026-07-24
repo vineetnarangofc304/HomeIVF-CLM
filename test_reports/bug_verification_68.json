@@ -1,0 +1,45 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "APIS too slow.. again facing issues..resolve urgent live callers waiting. On PRODUCTION the CRM is very slow and erroring under live load: System Health shows GET /api/leads at 12-36s for callers and 120s->504 for a manager, plus 500/503 on /api/agent/me, /api/calls/active, /api/whatsapp/unread-summary, /api/webhooks/facebook. ~120k leads, 24 concurrent callers.",
+  "summary": "No relevant testing skill found. Focused verification passed in preview: /api/leads list matrix returned correct totals/items quickly, admin group_counts and related poll endpoints were HTTP 200 under 2s, caller search remained global, and lead 600027 cross-caller edit/assignment-lock/audit regression passed. UI tabs for admin and caller updated URLs/counts as expected. Production load itself was not reproduced in preview per handoff constraints.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_68_api_check.py",
+    "/app/test_reports/iteration_68_api_results.json",
+    "/app/test_reports/iteration_68_browser_check.py",
+    "/app/test_reports/iteration_68.json",
+    "/app/test_reports/bug_verification_68.json"
+  ],
+  "action_items": [
+    "Deploy the fix to production and monitor real production System Health/DB metrics under live caller load, since preview cannot reproduce the production DB-capacity condition."
+  ],
+  "critical_code_review_comments": [
+    "Reviewed /app/backend/routes/leads.py: build_query keeps search global, callers default to own book, scope=all/scope=mine behavior is present, and hint('active_createdate_id') is limited to exact unscoped active pipeline create_date sort queries so filtered/scoped queries are not forced onto that index.",
+    "Reviewed /app/frontend/src/pages/Leads.jsx and /app/frontend/src/pages/LeadDetail.jsx: admin/caller bucket/scope tabs, scope filter param, disabled caller assignee select, original-caller lock text, and Activity Log are present.",
+    "git status showed main-agent product changes still uncommitted in backend/routes/leads.py and frontend/src/pages/Leads.jsx, plus untracked yarn.lock files; testing agent did not edit product code."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_68_api_check.py",
+    "/app/test_reports/iteration_68_api_results.json",
+    "/app/test_reports/iteration_68_browser_check.py",
+    "/app/test_reports/iteration_68.json",
+    "/app/test_reports/bug_verification_68.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "No seed data created. Test lead 600027 was temporarily patched for City/lead_stage as Himani Sharma and then restored to original City/lead_stage; note/audit proof entries remain.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Skill lookup returned no relevant testing skill. API script passed 15/15 checks: admin default /api/leads total 119813 in 121ms, caller default 5144 in 65ms, caller scope=all 119813 in 54ms, admin scope=mine 0 in 50ms, Contacted 24020 in 79ms, page=3 50 different items in 49ms, group_counts lead_stage/user_id ~150ms, /agent/me /calls/active /whatsapp/unread-summary HTTP 200 in ~46-52ms, search 5770614172 found lead 600027, caller edit/note/audit/restore passed. Browser run passed admin/caller tabs, URL/count changes, global search, disabled assignee lock, and Activity Log visibility. No MOCKED APIs used.",
+  "rca_of_the_issue": "The production symptom was slow/504ing /api/leads under ~120k leads and 24 callers, cascading into 500/503 on polling/webhook endpoints. The inspected fix reduces caller default list scope to own book, keeps explicit all/search access, caches/coalesces counts/group_counts, fail-opens polled endpoints, and pins active_createdate_id only for the exact unscoped pipeline default query to avoid a blocking sort plan. Preview evidence confirms functional correctness and fast response times; production DB-capacity behavior still needs post-deploy monitoring."
+}

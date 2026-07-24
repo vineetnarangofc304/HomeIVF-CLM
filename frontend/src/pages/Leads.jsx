@@ -243,7 +243,7 @@ export default function Leads() {
 
   return (
     <div className="flex h-full flex-col" data-testid="leads-page">
-      {/* Lead buckets + (for callers) My-leads / All-leads scope tabs */}
+      {/* Lead buckets + My-leads / All-leads scope tabs (all roles) */}
       <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-white px-5 pt-3">
         {(user.role === "caller"
           ? [
@@ -252,11 +252,12 @@ export default function Leads() {
               { key: "ozonetel", label: "Ozonetel Lead", bkt: "ozonetel", scp: "" },
             ]
           : [
-              { key: "pipeline", label: "Lead in Pipeline", bkt: "pipeline", scp: "" },
+              { key: "pipeline-all", label: "Leads in Pipeline (All)", bkt: "pipeline", scp: "" },
+              { key: "pipeline-mine", label: "Leads in Pipeline (My leads)", bkt: "pipeline", scp: "mine" },
               { key: "ozonetel", label: "Ozonetel Lead", bkt: "ozonetel", scp: "" },
             ]
         ).map((t) => {
-          const curScope = params.get("scope") === "all" ? "all" : "";
+          const curScope = params.get("scope") || "";
           const activeTab = bucket === t.bkt && curScope === t.scp;
           return (
             <button key={t.key} data-testid={`bucket-${t.key}`}
@@ -285,11 +286,15 @@ export default function Leads() {
             placeholder="Search name / phone / email…"
             className="hivf-input !w-60"
           />
-          {user.role === "caller" && (
-            <span data-testid="scope-hint" className="text-xs font-medium text-slate-400">
-              {params.get("scope") === "all" ? "Viewing all callers' leads" : "Viewing your leads · search finds any lead"}
-            </span>
-          )}
+          {(() => {
+            const sc = params.get("scope") || "";
+            const viewingMine = sc === "mine" || (user.role === "caller" && sc !== "all");
+            return (
+              <span data-testid="scope-hint" className="text-xs font-medium text-slate-400">
+                {viewingMine ? "Viewing your leads · search finds any lead" : "Viewing all callers' leads · search finds any lead"}
+              </span>
+            );
+          })()}
           <select data-testid="filter-lead-stage" className="hivf-select" value={params.get("lead_stage") || ""} onChange={(e) => setParam("lead_stage", e.target.value)}>
             <option value="">Lead Stage: All</option>
             {(catalogs?.lead_stage || []).map((s) => <option key={s.id} value={s.name}>{s.name}</option>)}
