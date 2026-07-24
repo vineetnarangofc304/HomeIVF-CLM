@@ -143,9 +143,20 @@ def build_query(
     # scanning the full ~120k collection on every list load + poll saturates the shared DB
     # connection pool → the production 504/500 cascade (/api/leads at 30s, and every other
     # endpoint failing behind it). A caller's ~5k own set is a tiny index-covered query.
-    if (current_user and current_user.get("role") == "caller"
-            and not search and scope != "all" and not user_id):
-        q["user_id"] = current_user["id"]
+    # Scope resolution for the My-leads / All-leads tabs (see build_query callers):
+    #  - a SEARCH is always global (Case 1: find ANY customer by number/name) → no scoping
+    #  - an explicit colleague filter (user_id=<id>) wins over any scope
+    #  - scope=mine → this user's own assigned book (works for ANY role — the "My leads" tab)
+    #  - scope=all → everything (the "All leads" tab)
+    #  - no scope (default): CALLERS default to their OWN book (a hard perf/stability rule — 24
+    #    callers must NOT each scan the full ~120k collection → production pool exhaustion),
+    #    while admins/managers default to everything.
+    if not search and not user_id:
+        if scope == "mine":
+            if current_user:
+                q["user_id"] = current_user["id"]
+        elif scope != "all" and current_user and current_user.get("role") == "caller":
+            q["user_id"] = current_user["id"]
     return q
 
 
