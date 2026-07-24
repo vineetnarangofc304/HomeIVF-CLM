@@ -845,7 +845,7 @@ function SendWhatsAppModal({ lead, onClose, onSent }) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    API.get("/templates/whatsapp").then(({ data }) => setTemplates(data.filter((t) => t.active !== false)));
+    API.get("/templates/whatsapp").then(({ data }) => setTemplates(data.filter((t) => t.active !== false))).catch(() => {});
   }, []);
 
   const filtered = (templates || []).filter((t) => t.name.toLowerCase().includes(search.toLowerCase()));
@@ -914,7 +914,7 @@ function SendEmailModal({ lead, onClose, onSent }) {
   const [sending, setSending] = useState(false);
 
   useEffect(() => {
-    API.get("/templates/email").then(({ data }) => setTemplates(data.filter((t) => t.active !== false)));
+    API.get("/templates/email").then(({ data }) => setTemplates(data.filter((t) => t.active !== false))).catch(() => {});
   }, []);
 
   const applyTemplate = (id) => {
@@ -1078,7 +1078,7 @@ function FollowUpSection({ leadId, catalogs, onChanged, onCount, canEdit = true,
   const [editId, setEditId] = useState(null);
   const [edit, setEdit] = useState({});
 
-  const load = () => API.get(`/leads/${leadId}/followups`).then(({ data }) => { setItems(data); onCount && onCount(data.length); });
+  const load = () => API.get(`/leads/${leadId}/followups`).then(({ data }) => { setItems(data); onCount && onCount(data.length); }).catch(() => {});
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {
@@ -1201,7 +1201,7 @@ function CallerActivities({ leadId, onCount, canEdit = true, onDenied = () => {}
   const load = () => API.get(`/leads/${leadId}/caller-activities`).then(({ data }) => {
     setItems(data);
     onCount && onCount(data.length);
-  });
+  }).catch(() => {});
   useEffect(() => { load(); }, [leadId]);
 
   const add = async () => {

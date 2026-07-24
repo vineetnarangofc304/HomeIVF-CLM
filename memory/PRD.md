@@ -1,5 +1,13 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-07-24c) — "LEADS DON'T OPEN — just says 'Server is busy', leads never load" — FIXED & testing_agent-verified (iter71), needs REDEPLOY
+- **User report (production):** opening a lead now only shows the "Server is busy right now — please try again in a moment." toast and the lead **never loads** ("previously it used to come on in a few tries").
+- **Root cause (main agent, verified iter71):** `LeadDetail.jsx` `load()` did `await Promise.all([...6 GETs...])` = `/leads/{id}` + messages + activities + whatsapp + calls + attachments. `Promise.all` rejects on the FIRST failure, so a single slow/504 SECONDARY read on the loaded production DB rejected the whole promise → `lead` state never set → `if (!lead) return <Spinner/>` kept the page on an infinite spinner while `apiErr()` fired the hardcoded "Server is busy" toast. The core `/leads/{id}` is fast (id-indexed, ~0.1s) — only the secondaries are heavy.
+- **Fix (`frontend/src/pages/LeadDetail.jsx`):** decoupled the load — (1) `await API.get('/leads/'+id); setLead(l)` (return early on failure) so the page renders the instant the core record arrives; (2) fire the 5 secondary GETs INDEPENDENTLY as `.then(...).catch(() => {})` (fill in as they arrive, a failing one never blocks the open). Also added `.catch(() => {})` to child-component mount fetches (FollowUpSection `/followups`, CallerActivities `/caller-activities`, WhatsApp/Email template lists) so a degraded backend can't produce unhandled rejections / dev-overlay noise.
+- **Verified:** testing_agent iter71 = frontend 100% (6/6). With ALL secondary endpoints forced to 504 via Playwright route interception, leads 500210 & 600027 STILL open and render core data + Assignment card (before: infinite spinner). Core-GET-504 correctly stays on spinner + toast (expected — can't render without the core record). Leads list regression intact.
+- **⚠️ NEEDS PRODUCTION REDEPLOY.** Underlying secondary-endpoint slowness on prod is still DB capacity (infra), but the lead now OPENS regardless.
+
+
 ## P0 (2026-07-24b) — "Switching tabs while loading hangs + throws error" — FIXED & bug-agent verified (iter70), needs REDEPLOY
 - **User report (production):** navigating between tabs while a page is still loading instantly throws the Cloudflare 520 ("origin returned empty/malformed response") and the app hangs — e.g. Dashboard→Leads, or leaving a lead mid-load.
 - **Root cause:** leaving a page did NOT cancel its in-flight (often slow, 12–17s) GETs. Those orphaned reads (a) hold the browser's ~6-connections-per-host so the next page's requests queue → the app "hangs", and (b) keep hammering an already-saturated origin → transient Cloudflare 520/connection resets.
