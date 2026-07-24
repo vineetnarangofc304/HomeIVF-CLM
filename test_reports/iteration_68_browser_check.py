@@ -10,7 +10,7 @@ and caller assignment lock + Activity Log visibility.
 # browser automation tool, not a standalone pytest. See iteration_68.json for results.
 
 BROWSER_CHECK_SUMMARY = {
-    "url": "https://homeivf-crm-1.preview.emergentagent.com",
+    "url": "https://ivf-lead-ops.preview.emergentagent.com",
     "passed": True,
     "checks": [
         "Admin tabs shown: Leads in Pipeline (All), Leads in Pipeline (My leads), Ozonetel Lead",

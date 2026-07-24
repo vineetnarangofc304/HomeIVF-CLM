@@ -12,7 +12,7 @@ import requests
 BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "").rstrip("/")
 if not BASE_URL:
     # fallback to frontend .env value baked in for local test runs
-    BASE_URL = "https://homeivf-crm-1.preview.emergentagent.com"
+    BASE_URL = "https://ivf-lead-ops.preview.emergentagent.com"
 
 ADMIN_EMAIL = "admin@homeivf.com"
 ADMIN_PASSWORD = "HomeIVF@2026"

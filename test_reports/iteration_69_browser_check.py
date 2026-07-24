@@ -21,14 +21,14 @@ async def run(page):
             };
         }""")
 
-    await page.goto('https://homeivf-crm-1.preview.emergentagent.com/login')
+    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/login')
     await page.locator('[data-testid="login-email-input"]').fill('caller16@homeivf.com')
     await page.locator('[data-testid="login-password-input"]').fill('TestPass@2026')
     await page.locator('[data-testid="login-submit-button"]').click()
     await page.wait_for_url('**/leads**', timeout=30000)
     await page.locator('[data-testid="leads-table"]').wait_for(state='visible', timeout=30000)
 
-    await page.goto('https://homeivf-crm-1.preview.emergentagent.com/leads/600027')
+    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/leads/600027')
     await page.wait_for_timeout(80)
     await page.locator('[data-testid="nav-leads"]').click(force=True)
     await page.wait_for_timeout(80)

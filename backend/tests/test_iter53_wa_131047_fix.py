@@ -9,7 +9,7 @@ import time
 import pytest
 import requests
 
-BASE_URL = "https://homeivf-crm-1.preview.emergentagent.com"
+BASE_URL = "https://ivf-lead-ops.preview.emergentagent.com"
 
 
 @pytest.fixture(scope="module")

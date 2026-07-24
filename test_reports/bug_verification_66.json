@@ -33,6 +33,6 @@
   "seed_data_creation": "No new seed records were created. Tests added audit/messages/follow-up/caller-activity entries and updated test lead 600027 fields as part of the required cross-caller edit verification.",
   "retest_needed": false,
   "should_main_agent_self_test": false,
-  "context_for_next_testing_agent": "Focused retest for iteration 66 passed. API results are in /app/test_reports/iteration_66_api_results.json. UI automation also passed against preview URL https://homeivf-crm-1.preview.emergentagent.com using caller16. Test lead 600027 now has additional QA66/UI66 audit, note, follow-up, caller-activity entries and latest city/stage/tag values from tests.",
+  "context_for_next_testing_agent": "Focused retest for iteration 66 passed. API results are in /app/test_reports/iteration_66_api_results.json. UI automation also passed against preview URL https://ivf-lead-ops.preview.emergentagent.com using caller16. Test lead 600027 now has additional QA66/UI66 audit, note, follow-up, caller-activity entries and latest city/stage/tag values from tests.",
   "rca_of_the_issue": "Previous failure was caused by applying bucket=pipeline before search, excluding raw Ozonetel leads with pipeline:false. The fix makes bucket filters apply only for non-search lists, so a phone/name/email search can find customers across both pipeline and raw Ozonetel buckets while default bucket counts stay unchanged. Verified with bucket=pipeline&search=5770614172 and broader search 'Lead 6000' returning both raw Ozonetel and pipeline rows."
 }
