@@ -56,9 +56,12 @@ API.interceptors.response.use(
     const original = error.config || {};
     _cleanup(original);
 
-    // Request was cancelled (navigated away / superseded) — not a real error.
+    // Request was cancelled because the user navigated away (RouteChangeAborter) and the owning
+    // component is unmounting. Return a promise that NEVER settles: this globally suppresses the
+    // CanceledError so it can't become an unhandled rejection (React's dev error overlay) or a
+    // stray toast on ANY page — without needing a .catch on every route-mounted API.get.
     if (axios.isCancel(error) || error.code === "ERR_CANCELED") {
-      return Promise.reject(error);
+      return new Promise(() => {});
     }
 
     // 401 → refresh the session once, then replay the request.
