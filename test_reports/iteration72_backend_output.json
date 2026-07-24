@@ -1,0 +1,126 @@
+{
+  "base": "https://ivf-lead-ops.preview.emergentagent.com/api",
+  "steps": [
+    {
+      "step": "admin_login",
+      "seconds": 0.46950793599989993,
+      "user": {
+        "id": 1,
+        "email": "admin@homeivf.com",
+        "role": "admin"
+      }
+    },
+    {
+      "step": "caller_login",
+      "seconds": 0.327884178999966,
+      "user": {
+        "id": 8,
+        "email": "caller16@homeivf.com",
+        "role": "caller"
+      }
+    },
+    {
+      "step": "admin_leads_cold_after_ttl",
+      "status": 200,
+      "seconds": 0.05716562599991448,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&page=1&limit=50&sort=create_date&order=desc",
+      "items": 50,
+      "total": -1,
+      "first_ids": [
+        500210,
+        500204,
+        500203
+      ]
+    },
+    {
+      "step": "admin_leads_second_same_filter",
+      "status": 200,
+      "seconds": 0.047298581000177364,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&page=1&limit=50&sort=create_date&order=desc",
+      "items": 50,
+      "total": 119813,
+      "first_ids": [
+        500210,
+        500204,
+        500203
+      ]
+    },
+    {
+      "step": "caller_default_my_leads",
+      "status": 200,
+      "seconds": 0.053553794999970705,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&page=1&limit=50&sort=create_date&order=desc",
+      "items": 50,
+      "total": -1,
+      "first_ids": [
+        688475,
+        644735,
+        626599
+      ]
+    },
+    {
+      "step": "caller_all_scope",
+      "status": 200,
+      "seconds": 0.0475168319999284,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&page=1&limit=50&sort=create_date&order=desc",
+      "items": 50,
+      "total": 119813,
+      "first_ids": [
+        500210,
+        500204,
+        500203
+      ]
+    },
+    {
+      "step": "admin_get_lead_500210",
+      "status": 200,
+      "seconds": 0.04506330499998512,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads/500210",
+      "id": 500210,
+      "name": "Fallback Test"
+    },
+    {
+      "step": "admin_get_lead_600027",
+      "status": 200,
+      "seconds": 0.04450598900007208,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads/600027",
+      "id": 600027,
+      "name": "Lead 600027"
+    },
+    {
+      "step": "admin_patch_lead_500210_remark_then_restore",
+      "patch_status": 200,
+      "patch_seconds": 0.10174324400009027,
+      "readback_status": 200,
+      "readback_seconds": 0.043143484999973225,
+      "saved_value_observed": "iter72-save-check-1784901004",
+      "restore_status": 200,
+      "restore_seconds": 0.04887147200020081
+    },
+    {
+      "step": "followups_list_today",
+      "status": 200,
+      "seconds": 0.04642829900012657,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?follow_up=today&limit=100&sort=follow_up_date&order=asc",
+      "items": 0,
+      "total": -1
+    },
+    {
+      "step": "activities_today",
+      "status": 200,
+      "seconds": 0.04748090599991883,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/activities?when=today&scope=my",
+      "items": 0,
+      "total": 0
+    },
+    {
+      "step": "calls_list",
+      "status": 200,
+      "seconds": 0.05537689700008741,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/calls?limit=100",
+      "items": 51,
+      "total": 51
+    }
+  ],
+  "failures": []
+}

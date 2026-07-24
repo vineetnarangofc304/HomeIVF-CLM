@@ -199,31 +199,36 @@ _count_inflight: dict = {}
 
 
 async def _cached_count(q: dict) -> int:
+    """Return the list total WITHOUT ever blocking the Leads list from opening. If a fresh
+    count for this exact query is cached, use it. Otherwise kick the count off in the
+    BACKGROUND (on the analytics pool, so it never contends with the interactive finds /
+    lead-detail reads) and return -1 immediately. The frontend renders -1 as 'Many' and
+    paginates via its 'probably a next page' fallback; the exact number appears on the next
+    load once the background count has cached. count_documents over a big filtered set (~120k
+    keys) can take several seconds on a load-saturated prod DB — previously it was awaited
+    INLINE, so the fast (index-covered, 50-row) find was gated behind it → the Leads list
+    'took forever to open / Server is busy' while every other page (small per-user queries)
+    opened fine. Decoupling the count from the item fetch is the fix."""
     key = json.dumps(q, sort_keys=True, default=str)
     now = time.time()
     hit = _count_cache.get(key)
     if hit and hit[0] > now:
         return hit[1]
-    if key in _count_inflight:
-        return await _count_inflight[key]
 
     async def _do():
         try:
-            val = await db.leads.count_documents(q, maxTimeMS=LIST_COUNT_MS)
-        except PyMongoError:
-            val = -1
-        if val >= 0:
+            val = await db_analytics.leads.count_documents(q, maxTimeMS=LIST_COUNT_MS)
             if len(_count_cache) > 1000:
                 _count_cache.clear()
             _count_cache[key] = (time.time() + _COUNT_TTL, val)
-        return val
+        except PyMongoError:
+            pass
+        finally:
+            _count_inflight.pop(key, None)
 
-    task = asyncio.ensure_future(_do())
-    _count_inflight[key] = task
-    try:
-        return await task
-    finally:
-        _count_inflight.pop(key, None)
+    if key not in _count_inflight:
+        _count_inflight[key] = asyncio.ensure_future(_do())
+    return -1
 
 
 # group_counts runs a full-collection aggregation over ~120k pipeline docs every call.
