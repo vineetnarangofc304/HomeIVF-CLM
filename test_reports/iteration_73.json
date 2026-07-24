@@ -1,0 +1,38 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "since last deployment 'Server is busy' is constant on the lead page. Previously at least it was working sometimes, and sometimes a Cloudflare error came. Now it's constant on the Leads page only; every other section (Follow-ups, Call Center, etc.) opens fine.",
+  "summary": "No relevant testing skill found. Verified the focused Leads-page regression end to end: admin/caller auth worked; /api/leads returned 200 with 50 items and no 504 for default pipeline, filters, sorts, pages, and caller scopes; frontend Leads rendered 50 rows with no persistent 'Server is busy' toast or 'No leads found'; lead detail opened from a row and core detail still rendered when secondary reads were FORCED/MOCKED to 504 via Playwright route interception; PATCH /api/leads/500210 saved and was restored.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/iteration_73_api_verification.py",
+    "/app/test_reports/iteration_73_api_results.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Inspected /app/backend/routes/leads.py: list_leads now uses hint by key pattern [('active', 1), ('create_date', -1), ('id', -1)] instead of the production-mismatched index name and retries once without hint on PyMongoError.",
+    "Preview DB still has historical custom index names (backend logs show create_index skipped because active_createdate_id already exists), so the production name-mismatch itself was not recreated by renaming/dropping indexes per instructions; runtime and code evidence confirms the fixed code path is no longer name-dependent."
+  ],
+  "updated_files": [
+    "/app/tests/iteration_73_api_verification.py",
+    "/app/test_reports/iteration_73_api_results.json",
+    "/app/test_reports/bug_verification_73.json",
+    "/app/test_reports/iteration_73.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "None. PATCH regression temporarily changed lead 500210 remark and restored the original value.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Focused iteration 73 verification. Backend API evidence: all Leads list scenarios returned 200 with items; default admin first load returned total=-1 in ~53ms and later same default returned cached total 119813; caller My leads and All scope both returned 200 with 50 items. Frontend evidence: admin Leads page displayed 50 rows, pagination 'Many leads \u00b7 page 1 of 2', no busy toast/no empty state; row click opened detail; 500210 and 600027 detail pages rendered while secondary endpoints were FORCED/MOCKED to 504.",
+  "rca_of_the_issue": "Reported production symptom was caused by the Leads list default unscoped pipeline query hinting an index by the preview-only name active_createdate_id. Production/fresh DB auto-names that index active_1_create_date_-1_id_-1, so the name hint failed and produced constant 504/busy toast on Leads only. Fix changes the hint to key pattern and adds a no-hint fallback."
+}

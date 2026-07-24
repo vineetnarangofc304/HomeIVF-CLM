@@ -282,21 +282,37 @@ async def list_leads(
     if sort not in ALLOWED_SORT:
         sort = "create_date"
     sort_dir = -1 if order == "desc" else 1
-    cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
-           .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
     # PIN the sort-covering index for the unscoped "all pipeline" list. Without this the planner
-    # can choose {active,pipeline,create_date,id} and — because the pipeline bucket uses $ne — do
-    # a BLOCKING SORT over all ~120k docs (only ~0.1s in preview, but 15-30s on a load-saturated
-    # prod DB → the /api/leads 504 storm). active_createdate_id walks create_date order and applies
-    # pipeline!=false as a cheap residual (examines ~limit keys). Only the exact unscoped pipeline
-    # default query qualifies; scoped/filtered queries keep their own better compound indexes.
+    # can do a BLOCKING SORT over all ~120k docs (only ~0.1s in preview, but 15-30s on a
+    # load-saturated prod DB). Walking [active, create_date, id] in create_date order and applying
+    # pipeline!=false as a cheap residual examines ~limit keys.
+    # ⚠️ HINT BY KEY PATTERN, NOT BY INDEX NAME: this index is AUTO-named
+    # ('active_1_create_date_-1_id_-1') on a fresh/production DB but has a historical CUSTOM name
+    # ('active_createdate_id') in preview. Hinting by the name worked in preview but threw
+    # "hint provided does not correspond to an existing index" on production → EVERY Leads-list
+    # request 504'd → CONSTANT "Server is busy" on the Leads page after the deploy that added the
+    # hint. A key-pattern hint resolves to whatever index has these keys, regardless of its name.
+    hint_keys = None
     if sort == "create_date" and set(q.keys()) <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
-        cur = cur.hint("active_createdate_id")
+        hint_keys = [("active", 1), ("create_date", -1), ("id", -1)]
+
+    async def _run(with_hint: bool):
+        cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
+               .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
+        if with_hint and hint_keys:
+            cur = cur.hint(hint_keys)
+        return await cur.to_list(limit)
+
     try:
-        items = await cur.to_list(limit)
+        items = await _run(with_hint=True)
     except PyMongoError:
-        # Extremely slow filter/sort combo — return empty rather than 500 so the app stays up.
-        raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
+        # A hint can fail if the index isn't present yet (still building right after a deploy) or
+        # differs across environments. NEVER let that 504 the whole Leads page — retry once WITHOUT
+        # the hint (let the planner pick an index) before giving up.
+        try:
+            items = await _run(with_hint=False)
+        except PyMongoError:
+            raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
     total = await _cached_count(q)
     return {"items": items, "total": total, "page": page, "limit": limit}
 
