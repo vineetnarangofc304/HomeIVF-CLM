@@ -1,5 +1,17 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-07-24b) — "Switching tabs while loading hangs + throws error" — FIXED & bug-agent verified (iter70), needs REDEPLOY
+- **User report (production):** navigating between tabs while a page is still loading instantly throws the Cloudflare 520 ("origin returned empty/malformed response") and the app hangs — e.g. Dashboard→Leads, or leaving a lead mid-load.
+- **Root cause:** leaving a page did NOT cancel its in-flight (often slow, 12–17s) GETs. Those orphaned reads (a) hold the browser's ~6-connections-per-host so the next page's requests queue → the app "hangs", and (b) keep hammering an already-saturated origin → transient Cloudflare 520/connection resets.
+- **Fix (client-side, `frontend/src/lib/api.js` + `App.js`):**
+  1. **Cancel-on-navigation:** every GET is tagged with its route path + given an AbortController; `RouteChangeAborter` (in App.js, on `useLocation` pathname change) calls `abortPendingReads()` to cancel ONLY the previous route's pending GETs → frees connection slots + cancels the matching server-side queries instantly. Writes (POST/PATCH/DELETE) are never auto-aborted.
+  2. **Swallow cancellations globally:** the axios response interceptor returns a **never-settling promise** for cancelled requests (isCancel/ERR_CANCELED) → no unhandled `CanceledError`, no React error overlay, no stray toast, WITHOUT needing a `.catch` on every page. (First attempt only guarded 3 pages and still overlayed on FollowUps/WhatsApp — the never-settle approach fixed it globally.)
+  3. **Auto-retry transient origin blips:** idempotent GETs retry ≤2× with backoff on network errors / 502/520/521/522/523/524/525 (NOT 503/504, to avoid amplifying DB load) → brief spinner instead of a scary error.
+  4. **Friendly errors:** `apiErr` shows "Server is busy right now — please try again in a moment." instead of raw Cloudflare HTML.
+- **Verified:** bug_testing_agent iter70 = frontend 100%, retest not needed — rapid tab-switching under artificially delayed reads shows no overlay/hang/error; all destination pages load; Case 1 regression intact.
+- **⚠️ NEEDS REDEPLOY.** Note: this makes the app RESILIENT to the slowness, but the underlying 12–17s latency is still production DB/server capacity → the durable fix remains the capacity upgrade via support@emergent.sh.
+
+
 ## P0 (2026-07-24) — PRODUCTION SLOW again (12–120s /api/leads, 5xx cascade) — code mitigation done (iter68), CAPACITY escalation required
 - **Symptom (production, live callers):** System Health = 7 err/1h, 302 err/24h, 3035 SLOW(>8s)/24h. `GET /api/leads` 12–36s for callers, 120s→504 for a manager; 500/503 on `/agent/me`, `/calls/active`, `/whatsapp/unread-summary`, `/webhooks/facebook`. Preview healthy on identical code (all queries <0.5s).
 - **RCA (troubleshoot_agent):** PRIMARY = production MongoDB tier undersized for 24 concurrent callers × ~120k leads + webhooks (CPU/IOPS/connection-pool exhaustion → cascade). Contributing = single uvicorn worker serializes requests; timeout stacking pushes wall-time past the 15s caps. Plus a real **query-planner risk**: the unscoped all-pipeline list (`pipeline:{$ne:false}` + sort create_date) can be planned as a **blocking SORT over ~120k keys** if the planner picks the `active_1_pipeline_1_create_date_-1_id_-1` index (proven in preview: FETCH+SORT+IXSCAN, 119,814 keys examined) — fast on preview's local Mongo, 15–30s on a loaded prod DB.
