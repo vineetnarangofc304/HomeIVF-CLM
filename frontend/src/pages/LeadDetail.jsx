@@ -42,30 +42,30 @@ export default function LeadDetail() {
   const [denied, setDenied] = useState(false);
 
   const load = useCallback(async () => {
+    // Open the lead the instant its CORE record arrives — do NOT gate the whole page on the
+    // 5 secondary reads (messages / activities / whatsapp / calls / attachments). Previously a
+    // single slow or failing secondary GET (e.g. a 504 on a loaded production DB) rejected the
+    // Promise.all, so `lead` never got set → infinite spinner + a "Server is busy" toast, i.e.
+    // "leads never open". The core /leads/{id} is fast (id-indexed) and is all we need to render.
     try {
-      const [{ data: l }, { data: m }, { data: a }, { data: w }, { data: c }, { data: at }] = await Promise.all([
-        API.get(`/leads/${id}`),
-        API.get(`/leads/${id}/messages`, { params: { page: 1 } }),
-        API.get(`/leads/${id}/activities`),
-        API.get(`/whatsapp/lead/${id}`),
-        API.get(`/calls/lead/${id}`),
-        API.get(`/leads/${id}/attachments`),
-      ]);
+      const { data: l } = await API.get(`/leads/${id}`);
       setLead(l);
-      setMessages(m.items);
-      setMsgTotal(m.total);
-      setMsgPage(1);
-      setActivities(a);
-      setWaChannels(w);
-      setCalls(c);
-      setAttachments(at);
-      API.get(`/wa/lead/${id}/messages`).then(({ data }) => {
-        const map = {}; (data || []).forEach((t) => { map[t.id] = t; });
-        setWaTrackById(map);
-      }).catch(() => {});
     } catch (e) {
       const m = apiErr(e); if (m) toast.error(m);
+      return; // cannot render the page without the core lead record
     }
+    // Secondary data — each loaded independently and fault-tolerantly, filling in as it arrives.
+    // A slow/failing one no longer blocks the lead from opening.
+    API.get(`/leads/${id}/messages`, { params: { page: 1 } })
+      .then(({ data: m }) => { setMessages(m.items); setMsgTotal(m.total); setMsgPage(1); }).catch(() => {});
+    API.get(`/leads/${id}/activities`).then(({ data }) => setActivities(data)).catch(() => {});
+    API.get(`/whatsapp/lead/${id}`).then(({ data }) => setWaChannels(data)).catch(() => {});
+    API.get(`/calls/lead/${id}`).then(({ data }) => setCalls(data)).catch(() => {});
+    API.get(`/leads/${id}/attachments`).then(({ data }) => setAttachments(data)).catch(() => {});
+    API.get(`/wa/lead/${id}/messages`).then(({ data }) => {
+      const map = {}; (data || []).forEach((t) => { map[t.id] = t; });
+      setWaTrackById(map);
+    }).catch(() => {});
   }, [id]);
 
   useEffect(() => { load(); }, [load]);

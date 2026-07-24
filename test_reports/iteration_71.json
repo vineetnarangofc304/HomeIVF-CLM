@@ -1,0 +1,43 @@
+{
+  "summary": "Frontend-only verification of the 'leads never open / Server is busy' fix in LeadDetail.jsx. Verified via Playwright network interception that opening a lead is now decoupled from the 5 secondary GETs — the page renders as soon as /api/leads/{id} succeeds, even if messages/activities/whatsapp/calls/attachments/followups all fail with 504. All 6 planned scenarios PASS.",
+  "backend_issues": { "critical": [], "minor": [] },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "LeadDetail secondary reads",
+        "issue": "During resilience test (all secondary endpoints 504), React dev-mode overlay 'Uncaught runtime errors: Request failed with status code 504' briefly appeared over the (correctly rendered) lead-detail-page. Root cause: not all secondary API calls in LeadDetail.jsx have a .catch() — FollowUpSection.load() at ~line 1081 does `API.get(/leads/{id}/followups).then(...)` with no .catch, so its 504 becomes an unhandled promise rejection. Same likely applies to other child components (WaLeadPanel handles it; audit AuditLog / CallerActivities). This is dev-mode only (no user-visible overlay in production build) but is untidy and clutters the console.",
+        "affected_selectors": ["FollowUpSection", "CallerActivities", "AuditLog"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iter71_A_500210.jpeg",
+    "/app/test_reports/iter71_D_secondary504.jpeg",
+    "/app/test_reports/iter71_F_core504.jpeg"
+  ],
+  "verification_matrix": {
+    "TEST_A_happy_path_500210_direct_url": "PASS — lead-detail-page rendered, lead-name='Fallback Test'",
+    "TEST_B_happy_path_600027": "PASS — lead-detail-page rendered, lead-name='Lead 600027'",
+    "TEST_C_regression_leads_list": "PASS — /leads list loads normally as admin",
+    "TEST_D_resilience_500210_all_secondary_504": "PASS — lead rendered with name + Assignment card even though /messages, /activities, /whatsapp/lead, /calls/lead, /attachments, /followups, /wa/lead/*/messages all returned 504. Proves core GET is no longer gated on Promise.all of secondaries.",
+    "TEST_E_resilience_600027_all_secondary_504": "PASS — same as D for 600027",
+    "TEST_F_negative_core_504": "PASS — with /api/leads/500210 forced to 504, page correctly stays on <Spinner/> and does NOT crash; expected 'Server is busy' toast behavior confirmed acceptable"
+  },
+  "action_items": [
+    "OPTIONAL POLISH (non-blocking): Add .catch(() => {}) to remaining secondary fetches inside LeadDetail sub-components (FollowUpSection.load at line ~1081, CallerActivities load, AuditLog load) so they don't surface as unhandled promise rejections in the React dev overlay when the backend is degraded. User-facing behavior in production build is already correct."
+  ],
+  "critical_code_review_comments": [
+    "LeadDetail.load() fix is correct and minimal: `await API.get('/leads/'+id)` first, setLead(l), then fire the 5 secondary GETs independently each with .then/.catch. Render guard `if (!lead) return <Spinner/>` at line 231 is correct.",
+    "Note: child components (FollowUpSection, CallerActivities, AuditLog, WaLeadPanel) also do their own fetches on mount; most of these still lack .catch, so under sustained backend degradation they will produce unhandled rejections. Consider applying the same fault-tolerant pattern in those components."
+  ],
+  "updated_files": [],
+  "success_rate": { "backend": "n/a (frontend-only test)", "frontend": "100% (6/6 scenarios)" },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 (from review_request)",
+  "seed_data_creation": "none",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter71 verified the LeadDetail Promise.all → sequential-core-then-fire-and-forget refactor via Playwright route interception. Method: page.route('**/api/**', ...) fulfills 504 for the 5 secondary endpoints while leaving /api/leads/{id} untouched. Assertion: [data-testid=\"lead-detail-page\"] AND [data-testid=\"lead-name\"] render within 15s, AND [data-testid=\"assignee-select\"] visible = Assignment card rendered from core lead only. Negative check for CORE 504 confirms spinner+no-crash. Any follow-up should focus on adding .catch handlers to child-component fetches to eliminate dev-overlay noise.",
+  "rca of the issue": "USER REPORT: 'LEADS DONT OPEN — server is busy... leads never load.' RCA (root-caused by main agent, verified here): LeadDetail.load() previously did `await Promise.all([GET /leads/{id}, GET /messages, GET /activities, GET /whatsapp/lead/{id}, GET /calls/lead/{id}, GET /attachments])`. Because Promise.all rejects on the first failure, a single slow/504 secondary GET on the loaded production DB rejected the whole promise, so `lead` state was never set → `if (!lead) return <Spinner/>` kept the page on an infinite spinner and apiErr() showed the hardcoded 'Server is busy right now — please try again in a moment.' toast. FIX: split load() into (1) `await API.get('/leads/'+id); setLead(l)` and (2) fire the 5 secondary GETs independently as `.then(...).catch(() => {})` so their failure never blocks the core lead from rendering. VERIFIED: with all 5 secondaries returning 504 via Playwright route interception, both test leads (500210, 600027) open and show core data + Assignment card. Before the fix this would have hung forever."
+}
