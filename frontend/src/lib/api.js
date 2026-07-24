@@ -11,19 +11,58 @@ export const clearToken = () => localStorage.removeItem(TOKEN_KEY);
 
 // Attach a Bearer token fallback so auth works even when a browser blocks
 // the cross-site httpOnly cookie (Safari ITP, strict 3rd-party cookie modes).
+// ---- Global in-flight GET registry ----
+// Under production load, slow reads saturate the browser's ~6 connections-per-host, so switching
+// tabs makes the whole app "hang" behind the previous page's pending requests. On every route
+// change we abort the previous route's pending GETs (see abortPendingReads) to instantly free
+// those connection slots and cancel the matching server-side queries. Writes (POST/PATCH/DELETE)
+// are NEVER auto-aborted, so an in-flight save always completes.
+const _pendingGets = new Set();
+
+export function abortPendingReads() {
+  const cur = typeof window !== "undefined" ? window.location.pathname : null;
+  _pendingGets.forEach((c) => {
+    if (c.__path && c.__path !== cur) {
+      try { c.abort(); } catch (_) {}
+      _pendingGets.delete(c);
+    }
+  });
+}
+
+// Attach a Bearer token fallback + register a cancel signal for GETs (tagged with the route that
+// issued them, so a later route change only cancels the OLD route's reads, never the new page's).
 API.interceptors.request.use((config) => {
   const t = localStorage.getItem(TOKEN_KEY);
   if (t) config.headers.Authorization = `Bearer ${t}`;
+  const method = (config.method || "get").toLowerCase();
+  if (method === "get" && !config.signal) {
+    const ctrl = new AbortController();
+    ctrl.__path = typeof window !== "undefined" ? window.location.pathname : "";
+    config.signal = ctrl.signal;
+    config.__ctrl = ctrl;
+    _pendingGets.add(ctrl);
+  }
   return config;
 });
 
 let refreshing = null;
+const TRANSIENT_STATUS = [502, 520, 521, 522, 523, 524, 525];
+const _sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const _cleanup = (cfg) => { if (cfg && cfg.__ctrl) _pendingGets.delete(cfg.__ctrl); };
 
 API.interceptors.response.use(
-  (res) => res,
+  (res) => { _cleanup(res.config); return res; },
   async (error) => {
-    const original = error.config;
-    if (error.response?.status === 401 && !original._retry && !original.url.includes("/auth/")) {
+    const original = error.config || {};
+    _cleanup(original);
+
+    // Request was cancelled (navigated away / superseded) — not a real error.
+    if (axios.isCancel(error) || error.code === "ERR_CANCELED") {
+      return Promise.reject(error);
+    }
+
+    // 401 → refresh the session once, then replay the request.
+    if (error.response?.status === 401 && !original._retry && !original.url?.includes("/auth/")) {
       original._retry = true;
       try {
         refreshing = refreshing || API.post("/auth/refresh").then((r) => {
@@ -39,11 +78,33 @@ API.interceptors.response.use(
         window.location.href = "/login";
       }
     }
+
+    // Transient ORIGIN/connection errors — a busy origin momentarily returns an empty/malformed
+    // response (Cloudflare 520/522), resets the connection, or a network blip occurs. This is what
+    // users hit when switching tabs while the server is under load. Silently retry idempotent GETs
+    // a couple of times with backoff so they see a brief spinner instead of a scary error. We do
+    // NOT retry 503/504 (the app's own "overloaded/slow" fail-fast) so we never amplify DB load.
+    const method = (original.method || "get").toLowerCase();
+    const status = error.response?.status;
+    const isTransient = (!error.response) || TRANSIENT_STATUS.includes(status);
+    if (method === "get" && isTransient) {
+      original._retryCount = (original._retryCount || 0) + 1;
+      if (original._retryCount <= 2) {
+        await _sleep(original._retryCount * 600);
+        return API(original);
+      }
+    }
+
     return Promise.reject(error);
   }
 );
 
 export function apiErr(e) {
+  if (axios.isCancel(e) || e?.code === "ERR_CANCELED") return "";
+  const status = e?.response?.status;
+  if (!e?.response || [502, 503, 504, 520, 521, 522, 523, 524, 525].includes(status)) {
+    return "Server is busy right now — please try again in a moment.";
+  }
   const d = e?.response?.data?.detail;
   if (!d) return e?.message || "Something went wrong";
   if (typeof d === "string") return d;

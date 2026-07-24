@@ -1,0 +1,8 @@
+{
+  "caller_rapid_navigation": "FAIL",
+  "admin_dashboard_leads_dashboard": "PASS",
+  "key_failure": "Rapid caller route changes produced a visible React runtime overlay: 'Uncaught runtime errors' / 'CanceledError: canceled'. The overlay blocked the final navigation to Leads; Playwright timed out waiting for /leads.",
+  "network_evidence": "During the failing caller run, many previous-route GETs were aborted with net::ERR_ABORTED as intended, but canceled promises surfaced as unhandled runtime errors instead of being silently swallowed.",
+  "skill_lookup": "No relevant testing skill found.",
+  "mocked_apis": false
+}

@@ -1,9 +1,10 @@
 import React, { Suspense } from "react";
 import "./App.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { Toaster } from "sonner";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { NavGuardProvider } from "./context/NavGuardContext";
+import { abortPendingReads } from "./lib/api";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import Leads from "./pages/Leads";
@@ -31,6 +32,30 @@ const FullSpinner = () => (
     <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#4A90E2] border-t-transparent" />
   </div>
 );
+
+// On every route change, cancel the PREVIOUS route's still-pending reads so they don't hold the
+// browser's limited per-host connections (which made tab-switching hang) or keep hammering a busy
+// origin. Skips the very first render. Uses the request's tagged path so the new page's freshly
+// fired requests are never cancelled.
+function RouteChangeAborter() {
+  const { pathname } = useLocation();
+  const first = React.useRef(true);
+  React.useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    abortPendingReads();
+  }, [pathname]);
+  return null;
+}
+
+// Aborted requests reject with ERR_CANCELED — swallow those globally so cancelling reads on
+// navigation never surfaces a console error or a stray toast.
+if (typeof window !== "undefined" && !window.__hivfCancelGuard) {
+  window.__hivfCancelGuard = true;
+  window.addEventListener("unhandledrejection", (ev) => {
+    const r = ev.reason;
+    if (r && (r.code === "ERR_CANCELED" || r.name === "CanceledError")) ev.preventDefault();
+  });
+}
 
 function Protected({ children }) {
   const { user } = useAuth();
@@ -81,6 +106,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <NavGuardProvider>
+        <RouteChangeAborter />
         <Suspense fallback={<FullSpinner />}>
         <Routes>
           <Route path="/login" element={<Login />} />

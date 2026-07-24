@@ -149,7 +149,7 @@ export default function Leads() {
       }
       setSelected([]);
     } catch (e) {
-      toast.error(apiErr(e));
+      const m = apiErr(e); if (m) toast.error(m);
     } finally {
       setLoading(false);
     }

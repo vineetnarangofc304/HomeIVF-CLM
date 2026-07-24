@@ -66,7 +66,7 @@ export default function Dashboard() {
     // heavier aggregation panels stream in behind their own skeletons (no single blocking spinner).
     API.get("/reports/dashboard", { params: { ...params, section: "kpis" } })
       .then(({ data }) => setKpis(data))
-      .catch((e) => { toast.error(apiErr(e)); setKpis({}); });
+      .catch((e) => { const m = apiErr(e); if (m) toast.error(m); setKpis({}); });
     API.get("/reports/dashboard", { params: { ...params, section: "panels" } })
       .then(({ data }) => setPanels(data))
       .catch(() => setPanels({}));
