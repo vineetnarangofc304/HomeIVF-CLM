@@ -1,0 +1,29 @@
+{
+  "summary": "Verified iteration-75 defense-in-depth hardening of WhatsApp read endpoints. All 13 pytest cases passed against preview: GET /api/whatsapp/channels (admin default, ?filter=unread, ?filter=interested, ?search, page 1 & 2) returns 200 with {items,total,page,limit}; each call completed well under the 5s max_time_ms cap. GET /api/whatsapp/channels/{id}/messages returns 200, pagination works, search works, and messages are ordered oldest -> newest (list.reverse() confirmed via ascending-date assertion). GET /api/whatsapp/unread-summary returns 200 with {total_unread, unread_chats, recent} for both admin and caller. Case-1 caller scoping is enforced: caller16 sees only channels where owner_id == caller16.id (strict equality); admin sees a superset. Hot-poll regression endpoints /api/calls/active and /api/leads/followups/reminders both 200. Frontend UI: admin login -> WhatsApp tab renders inbox with 11,918 channels, All/Unread/Interested filter tabs visible, clicking a conversation loads its message thread; no infinite spinner and no 'Server is busy' toast. Note: the 180s pool-exhaustion cascade in the production System Health log cannot be reproduced in preview (healthy DB), which matches the request's guidance to assert functional correctness only.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iter75_whatsapp_hardening.py",
+    "/app/test_reports/pytest/iter75.xml",
+    "/app/test_reports/iter75_wa_inbox.png",
+    "/app/test_reports/iter75_wa_thread.png"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "backend/routes/whatsapp.py list_channels + channel_messages now correctly wrap .max_time_ms(5000).to_list() in try/except PyMongoError -> HTTP 503, and count_documents uses maxTimeMS=4000 -> total=-1 on timeout. Pattern is consistent with unread_summary. Good.",
+    "Caller scoping (q['owner_id'] = user['id'] when role=='caller') is applied BEFORE the search $or clause, so an OR-search cannot leak other callers' channels. Verified by API test.",
+    "channel_messages does not apply caller ownership scoping on the channel_id itself — a caller who knows/guesses another caller's channel_id could technically fetch its messages. Not in the scope of this iteration's hardening ask, but worth noting for a future RBAC hardening pass (low risk since channel_ids aren't exposed to callers' UI due to /channels scoping).",
+    "unread_summary returns zeros (not 503) on PyMongoError which is the right UX for a 30s poller; keep as-is."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter75_whatsapp_hardening.py",
+    "/app/test_reports/iteration_75.json"
+  ],
+  "success_rate": {"backend": "100% (13/13)", "frontend": "100%"},
+  "test_credentials": "Admin: admin@homeivf.com / HomeIVF@2026 ; Caller: caller16@homeivf.com / TestPass@2026",
+  "seed_data_creation": "None. Read-only verification against existing preview data (wa_channels ~11,918, wa_messages ~41,793).",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 75 verified WhatsApp fail-fast hardening via /app/backend/tests/test_iter75_whatsapp_hardening.py (13 tests, all passing in ~2.75s). Run with: REACT_APP_BACKEND_URL=$(grep REACT_APP_BACKEND_URL /app/frontend/.env | cut -d= -f2) pytest backend/tests/test_iter75_whatsapp_hardening.py -v. The 180s production cascade cannot be reproduced in preview because preview DB is healthy; only functional correctness was asserted. One RBAC observation for a future iteration: /api/whatsapp/channels/{id}/messages does not re-check that the channel belongs to the caller — it only relies on channel-list scoping to keep ids private. Not part of this iteration's ask.",
+  "rca_of_the_issue": "Production log showed /api/whatsapp/channels, /channels/{id}/messages, /unread-summary all at ~180s + 503. Root cause (fixed in earlier iterations 71-74) was a slow filtered /api/leads query exhausting the shared Mongo connection pool; every subsequent request — including the two uncapped WhatsApp reads — waited ~180s for a connection and then 503'd. This iteration adds .max_time_ms(5000) + try/except PyMongoError -> 503 to list_channels and channel_messages so they abort at 5s and release their pooled connection under DB pressure, matching the existing pattern in unread_summary. Combined with db.py maxPoolSize=80/waitQueueTimeoutMS=5000/socketTimeoutMS=15000, a 180s hang is now structurally impossible once redeployed to production."
+}

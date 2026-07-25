@@ -90,8 +90,17 @@ async def list_channels(search: Optional[str] = None, filter: str = Query("all")
         q["unread_count"] = {"$gt": 0}
     elif filter == "interested":
         q["category"] = "interested"
-    total = await db.wa_channels.count_documents(q)
-    items = await db.wa_channels.find(q, {"_id": 0}).sort([("last_message_date", -1)]).skip((page - 1) * limit).limit(limit).to_list(limit)
+    # Fail-fast + capped: loaded when opening the WhatsApp inbox. Abort a slow scan at 5s and
+    # RELEASE the pooled connection instead of hanging (the 180s pool-exhaustion pile-up guard —
+    # under DB pressure an uncapped query here waits for a connection indefinitely).
+    try:
+        items = await db.wa_channels.find(q, {"_id": 0}).sort([("last_message_date", -1)]).skip((page - 1) * limit).limit(limit).max_time_ms(5000).to_list(limit)
+    except PyMongoError:
+        raise HTTPException(status_code=503, detail="WhatsApp inbox is busy — please try again in a moment.")
+    try:
+        total = await db.wa_channels.count_documents(q, maxTimeMS=4000)
+    except PyMongoError:
+        total = -1
     return {"items": items, "total": total, "page": page, "limit": limit}
 
 
@@ -126,9 +135,17 @@ async def channel_messages(channel_id: int, search: Optional[str] = None, starre
         q["body"] = {"$regex": re.escape(search), "$options": "i"}
     if starred:
         q["starred"] = True
-    total = await db.wa_messages.count_documents(q)
-    items = await db.wa_messages.find(q, {"_id": 0}).sort([("date", -1), ("id", -1)]).skip((page - 1) * limit).limit(limit).to_list(limit)
+    # Fail-fast + capped: opening a chat. Abort a slow read at 5s and release the pooled
+    # connection instead of hanging under DB pressure (180s pool-exhaustion pile-up guard).
+    try:
+        items = await db.wa_messages.find(q, {"_id": 0}).sort([("date", -1), ("id", -1)]).skip((page - 1) * limit).limit(limit).max_time_ms(5000).to_list(limit)
+    except PyMongoError:
+        raise HTTPException(status_code=503, detail="Chat is busy — please try again in a moment.")
     items.reverse()
+    try:
+        total = await db.wa_messages.count_documents(q, maxTimeMS=4000)
+    except PyMongoError:
+        total = -1
     return {"items": items, "total": total, "page": page, "limit": limit}
 
 
