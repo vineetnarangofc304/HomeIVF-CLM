@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 82 targeted regression after startup index-consolidation robustness fix (_norm_dir + caller default index changed to {user_id,create_dt,id}). Ran 22 pytest tests against the live backend covering /api/version marker, admin default list + scope=all count resolution, sorts, filters, phone search, caller default list on new 3-field index (fast + desc-sorted), caller scope=all global search, group_counts (lead_stage/user_id), same-day merge (create/merge/new phone), and Ozonetel CDR (create + repeat ucid dedupe). ALL 22 PASSED in 6.80s.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "TestVersion (1)": "PASS — build=2026-06-db-consolidation+same-day-merge, leads_index_count=16, leads_index_count_expected=16, indexes_consolidated=true",
+    "TestAdminLeads (6)": "PASS — default list fast, scope=all total resolved to a real number (~120k), sorts (create_date, -create_date, lead_stage) OK, lead_stage filter OK, date_from/date_to filter OK, phone search OK",
+    "TestCallerLeads (4)": "PASS — caller11 default list returns quickly (<20s), items are desc-sorted by create_dt (verifying the new {user_id,create_dt,id} index covers the sort with no residual blocking sort), scope=all lets them search globally, alt sorts OK",
+    "TestGroupCounts (2)": "PASS — lead_stage & user_id both return within 15s with non-empty response",
+    "TestSameDayMerge (4)": "PASS — webhook created, 1st post creates (merged_same_day=false), 2nd same-phone returns merged_same_day=true / merged_into=leadA, different phone creates new lead. Cleaned up.",
+    "TestOzonetelCDR (2)": "PASS — new NotAnswered CDR returns 200 in <6s and auto-creates lead; repeat with same ucid updates same call_event (no duplicate). Cleaned up."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter82_caller_index_regression.py",
+    "/app/test_reports/pytest/iter82_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "_norm_dir() correctly wraps int conversion in try/except and falls back to a stable string tuple key for non-b-tree directions ('text'/'hashed'/'2dsphere') — legacy indexes can no longer crash cleanup.",
+    "_ensure_indexes() now wraps the _drop_stale_lead_indexes() call in its own try/except so backfills (create_dt/date-parts, name_lc, pipeline=false) always run even if the drop step fails. Good defence-in-depth.",
+    "Caller default index {user_id:1, create_dt:-1, id:-1} with partial active:true is fully sort-covering for the caller default list — verified empirically (desc-sorted items, sub-second response).",
+    "/api/version doc comment corrected to 16 matches actual count."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter82_caller_index_regression.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "N/A (not tested per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026; caller11@homeivf.com / TestPass@2026",
+  "seed_data_creation": "Created 1 test webhook (TEST_iter82_*), 2 test leads via webhook, and 1 Ozonetel CDR lead — all deleted in cleanup fixture.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Iter82 regression file at /app/backend/tests/test_iter82_caller_index_regression.py is self-contained and covers version marker, admin/caller leads, group_counts, same-day merge, and Ozonetel CDR. Ran 22/22 in 6.8s against preview URL. Startup index-consolidation robustness fix is production-safe: caller default index change did not regress any leads flow, and the _norm_dir tolerance means legacy non-b-tree indexes will be handled without breaking downstream backfills."
+}

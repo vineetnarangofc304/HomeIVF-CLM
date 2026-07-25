@@ -201,7 +201,7 @@ async def health():
 
 
 # Build/version marker + LIVE DB signature so a deploy can be verified at a glance (no login
-# needed): open /api/version on the deployed URL and confirm leads_index_count == 15 and the
+# needed): open /api/version on the deployed URL and confirm leads_index_count == 16 and the
 # expected build tag. Read-only, runs on the isolated analytics pool, exposes nothing sensitive.
 BUILD_TAG = "2026-06-db-consolidation+same-day-merge"
 
@@ -258,7 +258,9 @@ INDEX_SPECS = [
     # BOTH active:true and active:false lists (active is a cheap residual filter).
     ("leads", [("create_dt", -1), ("id", -1)], {}),
     # Caller default list / colleague filter (user_id is genuinely selective → it leads).
-    ("leads", [("user_id", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
+    # `id` last so [(create_dt,-1),(id,-1)] is fully index-covered (no residual blocking sort
+    # over a caller's book).
+    ("leads", [("user_id", 1), ("create_dt", -1), ("id", -1)], {"partialFilterExpression": {"active": True}}),
     # Caller + lead-stage.
     ("leads", [("user_id", 1), ("lead_stage", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
     # Admin lead-stage filter + sort.
@@ -331,11 +333,20 @@ INDEX_SPECS = [
 ]
 
 
+def _norm_dir(d):
+    """Index direction as a comparable value: 1/-1 as ints, but tolerate non-b-tree
+    directions like 'text' / 'hashed' / '2dsphere' (int() would raise on those)."""
+    try:
+        return int(d)
+    except (ValueError, TypeError):
+        return d
+
+
 def _spec_key_tuple(keys):
     """Normalize an INDEX_SPECS key ('id' or [('user_id',1),...]) to a comparable tuple."""
     if isinstance(keys, str):
         return ((keys, 1),)
-    return tuple((k, int(d)) for k, d in keys)
+    return tuple((k, _norm_dir(d)) for k, d in keys)
 
 
 async def _drop_stale_lead_indexes():
@@ -354,13 +365,15 @@ async def _drop_stale_lead_indexes():
     for name, meta in info.items():
         if name == "_id_":
             continue
-        key_t = tuple((k, int(d)) for k, d in meta.get("key", []))
-        if key_t in keep:
-            continue
         try:
+            key_t = tuple((k, _norm_dir(d)) for k, d in meta.get("key", []))
+            if key_t in keep:
+                continue
             await db_analytics.leads.drop_index(name)
             dropped += 1
         except Exception as e:
+            # Never let one odd index (e.g. a legacy text/hashed/geo index whose direction
+            # isn't an int) abort the whole cleanup or the backfills that run after it.
             logger.warning(f"drop stale index leads.{name} skipped: {str(e)[:120]}")
     if dropped:
         logger.info(f"Dropped {dropped} stale/redundant leads index(es)")
@@ -380,8 +393,12 @@ async def _ensure_indexes():
         except Exception as e:
             logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
     # Remove the legacy/redundant leads indexes (Support consolidation) AFTER the lean set
-    # is in place, so query coverage is never left with a gap during the transition.
-    await _drop_stale_lead_indexes()
+    # is in place, so query coverage is never left with a gap during the transition. Guarded
+    # so a cleanup hiccup can never block the one-time backfills that run below.
+    try:
+        await _drop_stale_lead_indexes()
+    except Exception as e:
+        logger.warning(f"leads index cleanup skipped: {str(e)[:120]}")
     # One-time (idempotent) backfill of precomputed date-parts so the heatmap / trends
     # aggregations are index-COVERED. Only touches leads still missing the field, so it
     # is a no-op on every later startup. Runs in this background task (never blocks
