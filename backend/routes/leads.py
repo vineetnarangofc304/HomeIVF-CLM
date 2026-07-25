@@ -199,7 +199,10 @@ ALLOWED_SORT = {"create_date", "create_date_ist", "contact_name", "name", "phone
 # connection (fast error) instead of hanging until the ingress gateway 503s. Support DB
 # review: keep these in the 5-10s range so one slow query never blocks the pool for minutes.
 LIST_FIND_MS = 10000
-LIST_COUNT_MS = 8000
+# The list TOTAL count runs in the BACKGROUND on the isolated analytics pool (never blocks the
+# item fetch or a caller's finds), so it gets a more generous cap: it must be allowed to COMPLETE
+# and cache even on a cold, loaded prod DB, otherwise the total shows "-1" forever.
+LIST_COUNT_MS = 20000
 
 # count_documents on a big filtered set (e.g. ~120k pipeline leads) scans that many index
 # keys EVERY call. Under a burst of concurrent Lead-menu loads (24 callers) those scans

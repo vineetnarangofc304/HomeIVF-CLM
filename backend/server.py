@@ -217,7 +217,7 @@ async def version():
     try:
         info = await db_analytics.leads.index_information()
         out["leads_index_count"] = len(info)
-        out["leads_index_count_expected"] = 15
+        out["leads_index_count_expected"] = 16
         out["indexes_consolidated"] = len(info) <= 20
     except Exception as e:
         out["leads_index_count"] = None
@@ -247,6 +247,13 @@ INDEX_SPECS = [
     #   • the sort field goes LAST and is `create_dt` (a real Date — smaller, reliable keys).
     # Stale/legacy indexes are removed on startup by _drop_stale_lead_indexes().
     ("leads", "id", {"unique": True}),
+    # Single-field {active:1} ONLY so the unfiltered list total (count of {active:true}) uses a
+    # fast COUNT_SCAN (~30ms, index-only) instead of a COLLSCAN of the whole ~240MB collection.
+    # The COLLSCAN was cheap in preview (data in RAM) but exceeded the count timeout on the
+    # loaded prod DB → the background count silently failed → the Leads total showed "-1" forever.
+    # This is NOT the anti-pattern Support flagged (that was 34 active-LEADING *compound* indexes
+    # confusing the FIND planner); a lone {active:1} is never chosen for the create_dt-sorted finds.
+    ("leads", [("active", 1)], {}),
     # Primary list sort (admin default list + archived/lost views). NON-partial so it serves
     # BOTH active:true and active:false lists (active is a cheap residual filter).
     ("leads", [("create_dt", -1), ("id", -1)], {}),

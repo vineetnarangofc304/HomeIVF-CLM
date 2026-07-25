@@ -2,6 +2,27 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — Prod verification follow-up: /api/version marker + Leads total-count fix
+
+- Added a read-only **`GET /api/version`** endpoint (server.py) that reports the LIVE deploy
+  signature: `build` tag, `leads_index_count` (+ expected 16), `indexes_consolidated`,
+  `list_sort_field:create_dt`, `pipeline_default_filter:removed`, `same_day_merge:true`. Lets any
+  deploy be verified at a glance with no login — open `<domain>/api/version`.
+- **Verified against production (crm.homeivfmarketing.com) with admin creds, read-only:** login OK;
+  leads open in 0.16-0.65s (P0 "server is busy" gone); date-filter 0.37s, lead_stage 0.4s, phone
+  search 0.28s; a raw Ozonetel lead (pipeline:false) now appears in the DEFAULT list — a
+  new-code-only behavior — so the pipeline-filter removal IS live on prod.
+- **Found + fixed a regression the consolidation introduced:** the Leads list TOTAL showed `-1`
+  forever on prod. Root cause: dropping the old single-field `{active:1}` index made the unfiltered
+  `count({active:true})` fall back to a COLLSCAN of the ~240MB collection; cheap in preview (RAM) but
+  it exceeded the 8s background-count cap on the loaded prod DB, so the count silently failed and
+  never cached. (The `-1` also *confirms* the consolidation ran on prod — the old count index was
+  gone.) Fix: re-added a lone **`{active:1}`** index (count → 32ms COUNT_SCAN; the find planner still
+  never picks it, so it's NOT the anti-pattern Support flagged) and raised the non-blocking
+  analytics-pool `LIST_COUNT_MS` 8000→20000. Verified in preview: total resolves to 120021.
+- Lean leads index set is now **16** (was 15) — the extra is the count-only `{active:1}`.
+- ⚠️ Needs ONE more prod REDEPLOY to apply the count fix + expose `/api/version`.
+
 ## 2026-06 — P0: MongoDB index consolidation (Emergent Support DB review) + Same-Day Lead Merge
 
 ### Root cause of the recurring production crashes (Support diagnosis, confirmed in preview)
