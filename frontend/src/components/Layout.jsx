@@ -121,7 +121,10 @@ export default function Layout({ children }) {
         </header>
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
-      <IncomingCallBanner />
+      {/* The incoming-call screen-pop polls /calls/active every 8s. That endpoint is user-scoped to
+          Ozonetel-mapped agents, so for admins/managers who never receive assigned calls it always
+          returns null — pure wasted load. Only mount it for users who can actually take a call. */}
+      {(user.role === "caller" || user.ozonetel_agent_id) && <IncomingCallBanner />}
       <WaNotifier />
       <FollowUpReminder />
     </div>
