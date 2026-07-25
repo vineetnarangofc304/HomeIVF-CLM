@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { CaretDown } from "@phosphor-icons/react";
 import { API } from "../lib/api";
+import { usePoll } from "../hooks/usePoll";
 
 const STATUSES = ["Available", "On Call", "Lunch Break", "Washroom Break", "Refreshment Break", "Meeting", "Offline"];
 const DOT = {
@@ -13,13 +14,11 @@ export default function AgentStatusSwitcher() {
   const [status, setStatus] = useState("Offline");
   const [open, setOpen] = useState(false);
 
-  useEffect(() => {
-    const load = () => API.get("/agent/me").then(({ data }) => setStatus(data.status || "Offline")).catch(() => {});
-    load();
-    // Poll so an admin-forced status change (e.g. forced Offline) reflects here promptly.
-    const t = setInterval(load, 45000);
-    return () => clearInterval(t);
-  }, []);
+  // Poll so an admin-forced status change (e.g. forced Offline) reflects here promptly.
+  usePoll(async () => {
+    const { data } = await API.get("/agent/me");
+    setStatus(data.status || "Offline");
+  }, 45000);
 
   const change = async (s) => {
     setOpen(false);

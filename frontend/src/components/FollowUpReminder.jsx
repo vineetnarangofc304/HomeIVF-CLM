@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { BellRinging, X, CheckCircle } from "@phosphor-icons/react";
 import { API, fmtDay } from "../lib/api";
+import { usePoll } from "../hooks/usePoll";
 
 // Case 2 — owner-only follow-up reminder. Backend returns a reminder ONLY to the
 // follow-up's creator, and ONLY in the 5-minute window before the scheduled time
@@ -26,11 +27,7 @@ export default function FollowUpReminder() {
     } catch { /* silent — reminders are best-effort */ }
   };
 
-  useEffect(() => {
-    load();
-    const t = setInterval(load, 60000);
-    return () => clearInterval(t);
-  }, []);
+  usePoll(load, 60000);
 
   const dismiss = (id) => {
     dismissed.current.add(id);

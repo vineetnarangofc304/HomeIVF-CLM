@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { WhatsappLogo, X } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { API, fmtDate } from "../lib/api";
+import { usePoll } from "../hooks/usePoll";
 
 // Global floating "new WhatsApp message" alert — polls unread so no chat is missed.
 export default function WaNotifier() {
@@ -11,28 +12,19 @@ export default function WaNotifier() {
   const prev = useRef(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      try {
-        const { data } = await API.get("/whatsapp/unread-summary");
-        if (!alive) return;
-        if (prev.current !== null && data.total_unread > prev.current) {
-          const top = data.recent?.[0];
-          toast.message("New WhatsApp message", {
-            description: top ? `${top.name} • ${data.total_unread} unread` : `${data.total_unread} unread`,
-            action: top ? { label: "Open", onClick: () => navigate(`/whatsapp?channel=${top.id}`) } : undefined,
-          });
-          setOpen(true);
-        }
-        prev.current = data.total_unread;
-        setSummary(data);
-      } catch { /* ignore */ }
-    };
-    poll();
-    const t = setInterval(poll, 30000);
-    return () => { alive = false; clearInterval(t); };
-  }, [navigate]);
+  usePoll(async () => {
+    const { data } = await API.get("/whatsapp/unread-summary");
+    if (prev.current !== null && data.total_unread > prev.current) {
+      const top = data.recent?.[0];
+      toast.message("New WhatsApp message", {
+        description: top ? `${top.name} • ${data.total_unread} unread` : `${data.total_unread} unread`,
+        action: top ? { label: "Open", onClick: () => navigate(`/whatsapp?channel=${top.id}`) } : undefined,
+      });
+      setOpen(true);
+    }
+    prev.current = data.total_unread;
+    setSummary(data);
+  }, 30000);
 
   if (!summary.total_unread) return null;
 

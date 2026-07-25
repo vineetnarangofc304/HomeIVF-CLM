@@ -1,8 +1,9 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhoneIncoming, X, ArrowRight } from "@phosphor-icons/react";
 import { toast } from "sonner";
 import { API, apiErr } from "../lib/api";
+import { usePoll } from "../hooks/usePoll";
 
 const DISPOSITIONS = ["Interested", "Not interested", "Call back later", "Converted"];
 
@@ -20,23 +21,14 @@ export default function IncomingCallBanner() {
   const [saving, setSaving] = useState(false);
   const dismissedRef = useRef(new Set());
 
-  useEffect(() => {
-    let alive = true;
-    const tick = async () => {
-      try {
-        const { data } = await API.get("/calls/active");
-        if (!alive) return;
-        const c = data.active;
-        if (c && !dismissedRef.current.has(c.ucid || c.id)) {
-          setCall(c);
-          setLead(data.lead || null);
-        }
-      } catch (e) { /* logged out */ }
-    };
-    tick();
-    const t = setInterval(tick, 8000);
-    return () => { alive = false; clearInterval(t); };
-  }, []);
+  usePoll(async () => {
+    const { data } = await API.get("/calls/active");
+    const c = data.active;
+    if (c && !dismissedRef.current.has(c.ucid || c.id)) {
+      setCall(c);
+      setLead(data.lead || null);
+    }
+  }, 8000);
 
   if (!call) return null;
 

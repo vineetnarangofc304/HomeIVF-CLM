@@ -1,0 +1,64 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "Again STUCK. https://crm.homeivfmarketing.com/api/auth/me api load time HIGH (stays pending). https://crm.homeivfmarketing.com/api/leads?bucket=pipeline&page=1&limit=50&sort=create_date&order=desc load time 3 MIN then Server Error. Why do so many API calls fire when a caller clicks a single side-menu item like the Leads tab? Data failed - API Error - No data response. (Network tab showed dozens of concurrent requests \u2014 /api/calls/active, /api/whatsapp/unread-summary, /api/leads/followups/reminders, /api/agent/me, plus the page requests \u2014 all pending for minutes.)",
+  "summary": "Focused frontend verification on the reported pending/stacking API issue using Playwright route delays against the preview origin. No relevant testing skill found. Core no-overlap polling is still failing: with /api/calls/active delayed 15s, max concurrent in-flight requests reached 2 (expected <=1). Stalled /api/leads timed out at ~60s with friendly busy toast, but two identical list requests were started simultaneously and produced two busy toasts. Pause-when-hidden, auth bootstrap fallback, and normal login/leads/lead-open smoke checks passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "usePoll / global pollers",
+        "issue": "NO-OVERLAP requirement not met in preview: delayed GET /api/calls/active reached max_inflight=2 after login/Leads navigation, so a single poller can still have multiple concurrent requests pending.",
+        "selector": "global poller network route **/api/calls/active*",
+        "priority": "CRITICAL"
+      },
+      {
+        "component": "Leads page load",
+        "issue": "A single Leads navigation started two identical GET /api/leads?bucket=pipeline&page=1&limit=50&sort=create_date&order=desc requests under stall conditions; both timed out around 60s and surfaced duplicate 'Server is busy' toasts. This still contributes to connection pressure, even though the timeout itself is bounded.",
+        "selector": "[data-testid=nav-leads], [data-testid=leads-page]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Login/route mount global pollers",
+        "issue": "Each of the four global poller endpoints fired twice immediately on protected layout mount in preview (/calls/active, /whatsapp/unread-summary, /leads/followups/reminders, /agent/me). Hidden-tab pause works after mount, but initial duplicate mount traffic remains.",
+        "affected_selectors": [
+          "[data-testid=topbar-user-name]",
+          "[data-testid=agent-status-button]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_76_browser_tests.py",
+    "/app/test_reports/iteration_76.json",
+    "/app/test_reports/bug_verification_76.json"
+  ],
+  "action_items": [
+    "Fix usePoll so in-flight state survives React StrictMode/effect remounts or otherwise globally de-dupes by poller key; delayed /api/calls/active must never exceed one in-flight request.",
+    "De-dupe Leads list loading on mount/navigation so a single Leads click cannot start duplicate identical GET /api/leads reads or duplicate busy toasts.",
+    "Re-run the 15s delayed /api/calls/active test and the stalled /api/leads 60s timeout test after the fix."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/hooks/usePoll.js keeps inFlight as a local variable inside the effect. In React StrictMode/dev-style remounts, the first mount's immediate async tick remains pending after cleanup while the second mount starts another immediate tick, so no-overlap is not guaranteed across remounts.",
+    "frontend/src/pages/Leads.jsx load() useEffect can issue duplicate identical GET /api/leads in the preview runtime; there is no request-level de-dupe/in-flight guard for the page read."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_76.json",
+    "/app/test_reports/bug_verification_76.json",
+    "/app/test_reports/iteration_76_browser_tests.py"
+  ],
+  "success_rate": {
+    "backend": "not tested (frontend-only request)",
+    "frontend": "4/6 focused checks passed; 2 critical checks failed"
+  },
+  "seed_data_creation": "No seed data created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use https://ivf-lead-ops.preview.emergentagent.com as the browser origin (localhost + preview API hits CORS with credentials). Admin credentials worked. Browser evidence: no-overlap test saw /api/calls/active starts #1 and #2 before the first 15s-delayed response released (max_inflight=2). Hidden pause test saw no new poll requests over 35s hidden and resumed on visible. Auth bootstrap with stalled /auth/me fell back to login in ~51.4s, but route interception saw duplicate attempts per retry. GET timeout test saw friendly busy toast at ~60.1s, but two identical /api/leads list requests started and two toasts appeared.",
+  "rca_of_the_issue": "Likely frontend StrictMode/effect remount duplication: usePoll's inFlight guard is scoped to a single effect instance, so it does not protect against the old immediate tick still pending while the remounted effect starts a new tick. Leads page similarly lacks in-flight/de-dupe around its initial list load. This means the user-visible 'many calls/pending connections' symptom is reduced but not fully eliminated."
+}

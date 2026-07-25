@@ -18,9 +18,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => {
-    API.get("/auth/me")
-      .then(({ data }) => setUser(data))
-      .catch(() => setUser(false));
+    let alive = true;
+    (async () => {
+      // Bootstrap the session WITHOUT freezing the whole app on a blank spinner: /auth/me now has
+      // a bounded per-request timeout and we retry a single transient hiccup before falling back
+      // to the guest state (login). A 401 (no/bad token) is a definite guest → stop immediately.
+      for (let i = 0; i < 2; i++) {
+        try {
+          const { data } = await API.get("/auth/me", { timeout: 25000 });
+          if (alive) setUser(data);
+          return;
+        } catch (e) {
+          if (e?.response?.status === 401) break;
+          if (i === 0) await new Promise((r) => setTimeout(r, 800));
+        }
+      }
+      if (alive) setUser(false);
+    })();
+    return () => { alive = false; };
   }, []);
 
   useEffect(() => {

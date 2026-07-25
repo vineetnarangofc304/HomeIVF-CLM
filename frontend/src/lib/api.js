@@ -35,12 +35,19 @@ API.interceptors.request.use((config) => {
   const t = localStorage.getItem(TOKEN_KEY);
   if (t) config.headers.Authorization = `Bearer ${t}`;
   const method = (config.method || "get").toLowerCase();
-  if (method === "get" && !config.signal) {
-    const ctrl = new AbortController();
-    ctrl.__path = typeof window !== "undefined" ? window.location.pathname : "";
-    config.signal = ctrl.signal;
-    config.__ctrl = ctrl;
-    _pendingGets.add(ctrl);
+  if (method === "get") {
+    // Client-side HARD timeout: a read must NEVER sit "pending" for minutes holding one of the
+    // browser's ~6 per-host connections (the "auth/me & leads pending 3 min then Server Error"
+    // hang). Healthy reads are <1s and are capped server-side at ~18s, so 60s only ever trips on
+    // a genuine hang and converts it into a clean, retryable error instead of a frozen UI.
+    if (!config.timeout) config.timeout = 60000;
+    if (!config.signal) {
+      const ctrl = new AbortController();
+      ctrl.__path = typeof window !== "undefined" ? window.location.pathname : "";
+      config.signal = ctrl.signal;
+      config.__ctrl = ctrl;
+      _pendingGets.add(ctrl);
+    }
   }
   return config;
 });
@@ -89,8 +96,12 @@ API.interceptors.response.use(
     // NOT retry 503/504 (the app's own "overloaded/slow" fail-fast) so we never amplify DB load.
     const method = (original.method || "get").toLowerCase();
     const status = error.response?.status;
+    // A client-side timeout (60s hard cap) means the request genuinely hung — do NOT retry it
+    // (that would just hang again and pile up on the browser's ~6 connections). Surface it so
+    // apiErr shows the friendly "server busy" message and the connection slot is freed.
+    const isTimeout = error.code === "ECONNABORTED" || error.code === "ETIMEDOUT";
     const isTransient = (!error.response) || TRANSIENT_STATUS.includes(status);
-    if (method === "get" && isTransient) {
+    if (method === "get" && isTransient && !isTimeout) {
       original._retryCount = (original._retryCount || 0) + 1;
       if (original._retryCount <= 2) {
         await _sleep(original._retryCount * 600);
