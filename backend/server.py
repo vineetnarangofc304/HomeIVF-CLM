@@ -200,6 +200,31 @@ async def health():
     return {"status": "ok", "service": "HomeIVF CRM API", "powered_by": "TifTech"}
 
 
+# Build/version marker + LIVE DB signature so a deploy can be verified at a glance (no login
+# needed): open /api/version on the deployed URL and confirm leads_index_count == 15 and the
+# expected build tag. Read-only, runs on the isolated analytics pool, exposes nothing sensitive.
+BUILD_TAG = "2026-06-db-consolidation+same-day-merge"
+
+
+@api.get("/version")
+async def version():
+    out = {
+        "build": BUILD_TAG,
+        "list_sort_field": "create_dt",
+        "pipeline_default_filter": "removed",
+        "same_day_merge": True,
+    }
+    try:
+        info = await db_analytics.leads.index_information()
+        out["leads_index_count"] = len(info)
+        out["leads_index_count_expected"] = 15
+        out["indexes_consolidated"] = len(info) <= 20
+    except Exception as e:
+        out["leads_index_count"] = None
+        out["error"] = str(e)[:120]
+    return out
+
+
 app.include_router(api)
 
 DEFAULT_LEAD_STAGES = ["Contact Attempt", "Contacted", "Converted", "Closed"]
