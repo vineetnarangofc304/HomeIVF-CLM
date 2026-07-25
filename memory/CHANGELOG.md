@@ -2,6 +2,24 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — Leads-page API audit (answered) + gated the /calls/active poll
+
+- **User asked** why `/api/reports/dashboard?section=kpis` and `/api/leads?follow_up=today` fire on the
+  Leads page and how often. **Finding:** they don't — the Leads page only fires 3 one-time requests
+  (`/api/leads`, `/api/leads/group_counts`, `/api/filters`). The dashboard/follow-up requests belong to the
+  Dashboard/Follow-ups pages; when seen on Leads they are marked `canceled` because `RouteChangeAborter`
+  (App.js) aborts the previous route's in-flight GETs on navigation — intended, frees browser connections.
+- **Global background pollers (mounted in Layout on every page):** `/api/calls/active` 8s (IncomingCallBanner),
+  `/api/whatsapp/unread-summary` 30s (WaNotifier), `/api/leads/followups/reminders` 60s (FollowUpReminder).
+  All pause on hidden tab and never overlap (usePoll).
+- **Optimization:** `/api/calls/active` is user-scoped to Ozonetel-mapped agents and ALWAYS returns null for
+  admins/managers, so polling it for them every 8s was pure waste. Layout.jsx now mounts IncomingCallBanner
+  only for `role==='caller' || user.ozonetel_agent_id`. Verified (iteration_81, 100%): admin fires 0
+  `/calls/active` over a 14s window; caller still polls.
+- **`/api/whatsapp/channels` 504** the user saw = the ingress giving up while the request waited for a DB
+  connection from the exhausted pool (same COLLSCAN-storm root cause). The endpoint code is already guarded
+  (5s cap → 503); it resolves once the `active_1` DB fix is redeployed.
+
 ## 2026-06 — Prod 504 on /api/leads: COLLSCAN-storm root cause + CDR hardening
 
 - **Reported (prod):** a `GET /api/leads` 504 (13s), cascading 503/500s, and `POST /api/calls/ozonetel/cdr`
