@@ -22,13 +22,13 @@ export default function IncomingCallBanner() {
   const dismissedRef = useRef(new Set());
 
   usePoll(async () => {
-    const { data } = await API.get("/calls/active");
+    const { data } = await API.get("/calls/active", { noCancel: true });
     const c = data.active;
     if (c && !dismissedRef.current.has(c.ucid || c.id)) {
       setCall(c);
       setLead(data.lead || null);
     }
-  }, 8000);
+  }, 8000, "calls-active");
 
   if (!call) return null;
 

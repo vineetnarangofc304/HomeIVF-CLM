@@ -21,13 +21,13 @@ export default function FollowUpReminder() {
 
   const load = async () => {
     try {
-      const { data } = await API.get("/leads/followups/reminders");
+      const { data } = await API.get("/leads/followups/reminders", { noCancel: true });
       const active = (data.reminders || []).filter((r) => !dismissed.current.has(r.follow_up_id));
       setReminders(active);
     } catch { /* silent — reminders are best-effort */ }
   };
 
-  usePoll(load, 60000);
+  usePoll(load, 60000, "fu-reminders");
 
   const dismiss = (id) => {
     dismissed.current.add(id);

@@ -41,7 +41,10 @@ API.interceptors.request.use((config) => {
     // hang). Healthy reads are <1s and are capped server-side at ~18s, so 60s only ever trips on
     // a genuine hang and converts it into a clean, retryable error instead of a frozen UI.
     if (!config.timeout) config.timeout = 60000;
-    if (!config.signal) {
+    // Global background pollers pass { noCancel:true }. They are NOT tied to a route, so they must
+    // never be aborted on navigation — an aborted GET returns a never-settling promise, which would
+    // permanently deadlock the poller's in-flight guard. Only route-scoped reads get registered.
+    if (!config.noCancel && !config.signal) {
       const ctrl = new AbortController();
       ctrl.__path = typeof window !== "undefined" ? window.location.pathname : "";
       config.signal = ctrl.signal;

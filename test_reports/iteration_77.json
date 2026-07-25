@@ -1,0 +1,66 @@
+{
+  "verdict": "not_fixed",
+  "user_reported_bug": "Again STUCK. /api/auth/me pending (high load time); /api/leads pending ~3 min then Server Error; why do so many API calls fire when a caller clicks one side-menu item like Leads; Data failed - API Error - No data response. (Network showed dozens of concurrent duplicated requests piling up.)",
+  "summary": "Focused frontend retest of the pending/duplicate API pile-up bug on the preview UI. No relevant testing skill found. The previous duplicate poller and duplicate /api/leads failures are fixed: delayed /api/calls/active never exceeded max_inflight=1, initial pollers fired once, /api/leads fired once on mount and once on filter change, hidden-tab pause/resume worked, stalled /api/leads timed out at ~60s with one friendly busy toast, and navigation did not deadlock pollers. However the auth-bootstrap freeze is still reproducible: with /api/auth/me stalled, a protected route stayed on the spinner beyond 90s, did not fall back to login, and /auth/me was attempted twice.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "AuthContext / Protected route bootstrap",
+        "issue": "Stalled /api/auth/me still leaves protected routes on a blank spinner beyond 90s instead of falling back to login after the bounded timeout. The route interception observed two /auth/me attempts (~0s and ~26s) and the UI remained at the FullSpinner.",
+        "selector": "div.animate-spin, [data-testid=login-email-input]",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Protected route initial load with slow /api/auth/me",
+        "issue": "The user-visible auth freeze part of the reported bug is not fixed. Under React StrictMode, AuthContext's bootstrap effect can be cleaned up while the stalled request is pending; the guarded remount does not restart a live bootstrap, so setUser(false) never happens after timeout/retry.",
+        "affected_selectors": [
+          "[data-testid=login-email-input]",
+          "div.animate-spin"
+        ]
+      },
+      {
+        "flow": "Leads page auxiliary saved filters load",
+        "issue": "Minor remaining duplicate: a single Leads navigation still fired /api/filters?page=leads twice under StrictMode. The heavy /api/leads list itself was correctly de-duped to one request.",
+        "affected_selectors": [
+          "[data-testid=nav-leads]",
+          "[data-testid=leads-page]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_77_browser_tests.py",
+    "/app/test_reports/iteration_77.json",
+    "/app/test_reports/bug_verification_77.json"
+  ],
+  "action_items": [
+    "Fix AuthContext bootstrap so a stalled/timeout /api/auth/me on a protected route always transitions from user=null to guest/login after the bounded timeout in React StrictMode.",
+    "Ensure the auth bootstrap truly issues only one /api/auth/me per app load, or update the contract if the intentional retry remains; current stalled test saw two attempts.",
+    "Consider de-duping the Leads page /api/filters load as a minor remaining StrictMode duplicate."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/context/AuthContext.jsx sets didBootstrap.current=true before launching the async /auth/me loop. In React StrictMode, the first effect cleanup sets its local alive=false while the request is still pending; the second effect invocation returns early because didBootstrap is already true. When the stalled request times out/retries, the async branch cannot call setUser(false), leaving protected routes permanently at user=null/FullSpinner.",
+    "The auth bootstrap loop still retries /auth/me once on non-401 failures, so the stalled-auth test observed two /api/auth/me attempts. This conflicts with the stated 'fired ONCE on app load' expectation for the auth bootstrap."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_77_browser_tests.py",
+    "/app/test_reports/iteration_77.json",
+    "/app/test_reports/bug_verification_77.json"
+  ],
+  "success_rate": {
+    "backend": "not tested (frontend-only request)",
+    "frontend": "6/7 focused checks passed; auth-bootstrap stalled fallback failed"
+  },
+  "seed_data_creation": "No seed data created.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Use https://ivf-lead-ops.preview.emergentagent.com. Admin credentials worked. Passing evidence: browser1 showed auth/me normal count=1, each poller initial count=1, delayed /calls/active max_inflight=1, /api/leads mount count=1, filter count=1. browser2b showed hidden deltas all 0, visible resume all pollers, and /calls/active continued after navigation with max_inflight=1. browser4 showed stalled /api/leads request count=1 and busy toast at ~60.1s. browser5 showed all poller widgets visible with test-stub data and opening a real lead worked. Failing evidence: auth_probe/browser3 stalled /api/auth/me; route hits at ~0s and ~26s, request failures at ~25s and ~51s, but protected /leads remained spinner through 90s with no login fallback.",
+  "rca_of_the_issue": "Likely StrictMode bootstrap lifecycle bug: the didBootstrap useRef suppresses the second effect invocation, but the first invocation's cleanup marks alive=false before the delayed /auth/me promise settles. Therefore the timeout/retry path cannot update user state to false, so Protected keeps rendering the full-screen spinner. This preserves the user's reported '/api/auth/me pending/high load time leaves app stuck' symptom even though poller and Leads-list de-duping are now fixed. Test-only route delays/stubs were used to simulate slowness and positive poller widget data; product APIs are not mocked."
+}

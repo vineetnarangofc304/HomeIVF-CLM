@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from "react";
 import { API, setToken, clearToken } from "../lib/api";
 
 const AuthContext = createContext(null);
@@ -17,7 +17,10 @@ export function AuthProvider({ children }) {
     }
   }, []);
 
+  const didBootstrap = useRef(false);
   useEffect(() => {
+    if (didBootstrap.current) return; // guard React StrictMode's dev double-invoke (fire /auth/me once)
+    didBootstrap.current = true;
     let alive = true;
     (async () => {
       // Bootstrap the session WITHOUT freezing the whole app on a blank spinner: /auth/me now has

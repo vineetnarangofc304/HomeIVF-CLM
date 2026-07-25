@@ -13,7 +13,7 @@ export default function WaNotifier() {
   const navigate = useNavigate();
 
   usePoll(async () => {
-    const { data } = await API.get("/whatsapp/unread-summary");
+    const { data } = await API.get("/whatsapp/unread-summary", { noCancel: true });
     if (prev.current !== null && data.total_unread > prev.current) {
       const top = data.recent?.[0];
       toast.message("New WhatsApp message", {
@@ -24,7 +24,7 @@ export default function WaNotifier() {
     }
     prev.current = data.total_unread;
     setSummary(data);
-  }, 30000);
+  }, 30000, "wa-unread");
 
   if (!summary.total_unread) return null;
 

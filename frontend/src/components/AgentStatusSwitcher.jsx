@@ -16,9 +16,9 @@ export default function AgentStatusSwitcher() {
 
   // Poll so an admin-forced status change (e.g. forced Offline) reflects here promptly.
   usePoll(async () => {
-    const { data } = await API.get("/agent/me");
+    const { data } = await API.get("/agent/me", { noCancel: true });
     setStatus(data.status || "Offline");
-  }, 45000);
+  }, 45000, "agent-me");
 
   const change = async (s) => {
     setOpen(false);

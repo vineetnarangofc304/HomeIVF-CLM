@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { CaretLeft, CaretRight, FunnelSimple, Kanban, ListBullets, Plus, FloppyDisk, X, PhoneCall, Columns, DownloadSimple } from "@phosphor-icons/react";
@@ -121,7 +121,13 @@ export default function Leads() {
   const sort = params.get("sort") || "create_date";
   const order = params.get("order") || "desc";
 
+  const inFlightKeyRef = useRef(null);
   const load = useCallback(async () => {
+    const reqKey = JSON.stringify({ view, groupBy, filterParams, page, sort, order });
+    // Collapse React StrictMode's dev double-invoke (and any duplicate concurrent identical load)
+    // so one navigation can't fire two identical /leads reads + two "Server is busy" toasts.
+    if (inFlightKeyRef.current === reqKey) return;
+    inFlightKeyRef.current = reqKey;
     setLoading(true);
     try {
       if (view === "kanban") {
@@ -152,6 +158,7 @@ export default function Leads() {
       const m = apiErr(e); if (m) toast.error(m);
     } finally {
       setLoading(false);
+      if (inFlightKeyRef.current === reqKey) inFlightKeyRef.current = null;
     }
   }, [filterParams, page, view, groupBy, sort, order]);
 
