@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import get_current_user, require_roles, ensure_lead_edit
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, search_norm
+from core.utils import log_message, next_id, now_utc_str, run_automations, schedule_automations, to_ist_str, ist_date_parts, search_norm
 
 router = APIRouter(prefix="/calls", tags=["calls"])
 
@@ -41,18 +41,18 @@ def _params_from_request(request: Request, body: dict) -> dict:
 async def _match_lead(phone_digits: str):
     if phone_digits and len(phone_digits) >= 7:
         return await db.leads.find_one(
-            {"phone_digits": phone_digits}, LEAD_SUMMARY, sort=[("write_date", -1)]
+            {"phone_digits": phone_digits}, LEAD_SUMMARY, sort=[("write_date", -1)], max_time_ms=5000
         )
     return None
 
 
 async def _match_agent(agent_oid: Optional[str], phone_name: Optional[str]):
     if agent_oid:
-        u = await db.users.find_one({"ozonetel_agent_id": agent_oid}, {"_id": 0, "id": 1, "name": 1})
+        u = await db.users.find_one({"ozonetel_agent_id": agent_oid}, {"_id": 0, "id": 1, "name": 1}, max_time_ms=5000)
         if u:
             return u
     if phone_name:
-        u = await db.users.find_one({"ozonetel_phone_name": phone_name}, {"_id": 0, "id": 1, "name": 1})
+        u = await db.users.find_one({"ozonetel_phone_name": phone_name}, {"_id": 0, "id": 1, "name": 1}, max_time_ms=5000)
         if u:
             return u
     return None
@@ -98,7 +98,9 @@ async def _create_call_lead(phone: str, source_name: str, missed: bool = False, 
     doc.update(search_norm(doc))
     await db.leads.insert_one(doc)
     await log_message(lid, f"Lead auto-created from {source_name} (via Ozonetel)")
-    await run_automations("on_create", doc)
+    # Run automations in the BACKGROUND so the Ozonetel CDR webhook returns immediately and
+    # releases its pooled DB connection, instead of holding it during a WhatsApp/email send.
+    schedule_automations("on_create", doc)
     doc.pop("_id", None)
     return doc
 
@@ -449,13 +451,13 @@ async def ozonetel_cdr(request: Request):
     campaign = _cdr_get(payload, "CampaignName", "campaignName", "campaignID")
     did = _cdr_get(payload, "DID", "did")
 
-    cfg = await db.settings.find_one({"key": "ozonetel"}, {"_id": 0}) or {}
+    cfg = await db.settings.find_one({"key": "ozonetel"}, {"_id": 0}, max_time_ms=5000) or {}
     out_campaign = cfg.get("campaign_name")
     direction = "outbound" if (campaign and out_campaign and str(campaign) == str(out_campaign)) else "incoming"
     pdig = norm_phone(phone)
     agent = await _match_agent(agent_oid, phone_name)
 
-    ce = await db.call_events.find_one({"ucid": ucid}) if ucid else None
+    ce = await db.call_events.find_one({"ucid": ucid}, max_time_ms=5000) if ucid else None
     lead = await _match_lead(pdig)
     if not lead and pdig and len(pdig) >= 8:
         if direction == "incoming":

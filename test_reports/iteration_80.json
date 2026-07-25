@@ -1,0 +1,35 @@
+{
+  "summary": "Backend-only regression for iteration 80: re-added single-field {active:1} index on leads (16 total), raised LIST_COUNT_MS to 20s, hardened Ozonetel CDR endpoint (max_time_ms=5000 on lookups, fire-and-forget schedule_automations). Wrote /app/backend/tests/test_iter80_index_readd_and_cdr.py (30 pytest cases). Result: 30/30 PASS in ~11s. Verified: (1) GET /api/version returns build='2026-06-db-consolidation+same-day-merge', leads_index_count=16, indexes_consolidated=true, list_sort_field='create_dt', same_day_merge=true. (2) COUNT FIX — GET /api/leads?scope=all resolves to real total (~120022) on first poll, no -1 stall. (3) group_counts by lead_stage / source_lead / user_id all return 200 fast and non-empty (well under 15s each; actually sub-second in preview). (4) Ozonetel CDR: incoming missed call from a NEW phone returns {ok:true, status:'missed', lead_id:<new>} in well under 3s and auto-creates an ACTIVE ozonetel_lead=true, pipeline=false call lead; repeat CDR with the same ucid updates the same call_event (call_id and lead_id both unchanged); the response returns promptly even though _create_call_lead now schedules automations in the background. (5) Regression: admin login, default /api/leads with items, sorts (create_date asc/desc, lead_stage, user_id, follow_up_date), filters (lead_stage, date_from/date_to on create_dt, follow_up today/overdue/upcoming, search=phone), buckets (pipeline, ozonetel), caller11 scoping, /api/reports/dashboard for admin & caller, /api/reports/kpi-overview — all 200. (6) SAME-DAY MERGE regression: first webhook POST creates lead, second POST same phone returns merged_same_day=true / merged_into=<same lead_id>, third POST different phone creates a new lead. All test data cleaned up (webhook + 2 merge leads + 3 CDR leads).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter80_index_readd_and_cdr.py",
+    "/app/test_reports/pytest/iter80.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py version endpoint sets leads_index_count_expected=16 but indexes_consolidated=(len<=20). If someone later adds indexes, indexes_consolidated will silently stay True while the expected/actual mismatch would only be visible by eyeballing leads_index_count. Consider asserting indexes_consolidated=(len==leads_index_count_expected) for a tighter guard.",
+    "routes/calls.py ozonetel_cdr: max_time_ms=5000 is a good guard for db.settings/call_events/lead lookups, but log_message(...) at the end of the handler is still awaited and has no timeout. If db.messages writes get slow under prod load, this could re-block the CDR. Consider wrapping the final log_message in schedule_task/asyncio.create_task too (fire-and-forget) since it's just a chatter note.",
+    "schedule_automations in core/utils.py holds task refs in module-level _bg_tasks — should also add task.add_done_callback(_bg_tasks.discard) to prevent slow memory growth on a long-running process (24 callers x many calls/day)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter80_index_readd_and_cdr.py"
+  ],
+  "success_rate": {
+    "backend": "100% (30/30)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026; caller11@homeivf.com / TestPass@2026 — login field is access_token.",
+  "seed_data_creation": "TEST_iter80_* webhook (auto-deleted), 2 same-day-merge webhook leads (auto-deleted), 3 Ozonetel CDR-created call leads on random 918876... phones (auto-deleted via search+delete on cleanup).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iter80_index_readd_and_cdr.py is a good regression harness for the index re-add + Ozonetel CDR hardening. Key observations preserved: (a) /api/version leads_index_count is 16 (not 15) after {active:1} re-add; (b) Ozonetel CDR public POST accepts form field 'data' with a JSON string; response shape is {ok:true, call_id, lead_id, status}; (c) call leads have ozonetel_lead=true & pipeline=false and are excluded from the default pipeline bucket; (d) same-day merge webhook response includes merged_same_day=true and merged_into=<id>; (e) preview cannot reproduce the 150s prod CDR stall or the /api/leads 504 because dataset is small and cached — this run only proves functional correctness, not perf under 24-caller load.",
+  "rca_of_the_issue": "Root cause (per E1): after the earlier 57->15 index consolidation, the single-field {active:1} index was dropped; count({active:true}) and group_counts fell back to full COLLSCANs. Under 24-caller load these COLLSCAN storms saturated MongoDB, causing /api/calls/ozonetel/cdr to queue 150-168s (each doing 3 blocking lookups + await run_automations) and exhausting the pool -> GET /api/leads 504. Fixes verified in preview: (1) {active:1} re-added (16 indexes total, verified via /api/version); (2) LIST_COUNT_MS 8000->20000 so background total resolves and doesn't return -1; (3) CDR hardened with max_time_ms=5000 on db.settings/call_events/lead lookups and schedule_automations() replacing await run_automations() so the webhook returns immediately. All 30 functional tests pass; full perf re-verification must happen against prod-scale MongoDB."
+}

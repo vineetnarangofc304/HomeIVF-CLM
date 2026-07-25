@@ -1,8 +1,12 @@
 from datetime import datetime, timezone, timedelta
 
 import re
+import asyncio
+import logging
 
 from core.db import db
+
+logger = logging.getLogger(__name__)
 
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
@@ -421,3 +425,25 @@ async def _apply_actions(rule: dict, lead: dict):
         await db.leads.update_one({"id": lead["id"]}, {"$set": updates})
         lead.update(updates)
         await log_message(lead["id"], f"Automation '{rule['name']}' applied: {', '.join(updates.keys())}")
+
+
+
+# Keep hard references so fire-and-forget tasks aren't garbage-collected mid-flight.
+_bg_tasks: set = set()
+
+
+def schedule_automations(trigger: str, lead: dict, extra: dict = None):
+    """Run on_create/on_update automations in the BACKGROUND so an ingestion request
+    (Ozonetel CDR / website / Meta webhook) returns immediately and releases its pooled DB
+    connection, instead of holding it while an automation makes an external WhatsApp/email
+    send (which contributed to the 150s CDR requests → pool exhaustion → /api/leads 504)."""
+    async def _safe():
+        try:
+            await run_automations(trigger, lead, extra)
+        except Exception as e:  # never let a background automation crash silently-hard
+            logger.warning(f"bg automation '{trigger}' for lead {lead.get('id')} failed: {str(e)[:160]}")
+        finally:
+            _bg_tasks.discard(t)
+    t = asyncio.ensure_future(_safe())
+    _bg_tasks.add(t)
+    return t
