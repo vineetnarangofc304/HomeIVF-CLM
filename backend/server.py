@@ -285,6 +285,26 @@ INDEX_SPECS = [
     # whole ~240MB collection. Admin scope + caller (user_id) scope.
     ("leads", [("active", 1), ("pipeline", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
     ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date_ist", -1)], {}),
+    # Sort-by-column coverage for the Leads grid. Without these, clicking the "Assigned To"
+    # (user_id) or "Follow-up date" column headers does a BLOCKING SORT over the ~120k pipeline
+    # docs. maxTimeMS does NOT reliably interrupt a large blocking sort, so on production those
+    # sorts ran 2-6 minutes and 504'd (holding connections). With these, the sort is served by
+    # an index walk (IXSCAN+LIMIT, ~4ms). Mirrors the existing per-column sort indexes above.
+    ("leads", [("active", 1), ("user_id", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("user_id", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("user_id", 1), ("create_date", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("follow_up_date", -1), ("id", -1)], {}),
+    # Reverse-direction coverage for the remaining UI-sortable Leads columns. Each grid column
+    # header toggles asc<->desc; the existing indexes above only covered ONE direction, so the
+    # other direction did a blocking sort over ~120k docs (the user_id/follow_up_date 504s). These
+    # make BOTH directions of every clickable column an index walk (~4ms). (Non-UI, API-only sort
+    # columns are intentionally not indexed here to stay well under Mongo's 64-index cap; the
+    # list_leads wall-clock guard below makes those fail fast instead of hanging.)
+    ("leads", [("active", 1), ("create_date", 1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("contact_name", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("phone", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("lead_stage", -1), ("id", -1)], {}),
+    ("leads", [("active", 1), ("source_lead", -1), ("id", -1)], {}),
     ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
     ("follow_ups", [("follow_up_date", 1)], {}),
     ("follow_ups", [("source", 1), ("lead_id", 1)], {}),

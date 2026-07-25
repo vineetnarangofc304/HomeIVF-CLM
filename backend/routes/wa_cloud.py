@@ -53,122 +53,137 @@ async def wa_webhook(request: Request):
     # diagnostics — record what Meta actually delivered (esp. delivered/read events)
     log_statuses = []
     log_matched = 0
-    for entry in payload.get("entry", []):
-        for change in entry.get("changes", []):
-            value = change.get("value", {})
-            # Case 23 — per-message delivery status lifecycle (sent→delivered→read / failed)
-            for st in value.get("statuses", []):
-                wamid = st.get("id")
-                new_status = st.get("status")  # sent | delivered | read | failed
-                if not wamid or not new_status:
-                    continue
-                log_statuses.append({"wamid": wamid, "status": new_status})
-                now = now_utc_str()
-                err = None
-                if st.get("errors"):
-                    err = (st["errors"][0] or {}).get("title") or str(st["errors"][0])
-                res_wam = await db.wa_messages.update_one(
-                    {"wamid": wamid},
-                    {"$set": {"status": new_status, "status_at": now, "error": err},
-                     "$push": {"status_history": {"status": new_status, "at": now}}},
-                )
-                if res_wam.modified_count:
-                    status_updates += 1
-                # Case 5 — update the tracked outbound record with lifecycle + failure detail
-                failure_type = None
-                error_code = None
-                if st.get("errors"):
-                    e0 = st["errors"][0] or {}
-                    error_code = e0.get("code")
-                    ed = e0.get("error_data")
-                    failure_type = ed.get("details") if isinstance(ed, dict) else e0.get("href")
-                setd = {"status": new_status, "status_at": now, "error": err,
-                        "failure_type": failure_type, "error_code": error_code}
-                tr = await db.wa_tracking.update_one(
-                    {"wamid": wamid},
-                    {"$set": setd, "$push": {"status_history": {"status": new_status, "at": now}}},
-                )
-                if tr.modified_count:
-                    status_updates += 1
-                    log_matched += 1
-            for m in value.get("messages", []):
-                frm = m.get("from")
-                mtype = m.get("type")
-                now = now_utc_str()
-                # Inbound emoji reaction → attach to the target message, skip as a chat line
-                if mtype == "reaction":
-                    rc = m.get("reaction") or {}
-                    tgt_wamid, emoji = rc.get("message_id"), rc.get("emoji")
-                    if tgt_wamid:
-                        await db.wa_messages.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
-                        await db.wa_tracking.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
-                    continue
-                # Case 5 — Quick Reply / interactive reply button tap
-                reply_title = reply_id = None
-                if mtype == "button":
-                    b = m.get("button") or {}
-                    reply_title, reply_id = b.get("text"), b.get("payload")
-                elif mtype == "interactive":
-                    br = (m.get("interactive") or {}).get("button_reply") or {}
-                    reply_title, reply_id = br.get("title"), br.get("id")
-                text = (m.get("text") or {}).get("body") or reply_title or f"[{mtype}]"
-                digits = re.sub(r"\D", "", frm or "")[-10:]
-                # mirror into a WhatsApp thread for this number — auto-create one
-                # if it doesn't exist yet so inbound always shows in the 2-way inbox.
-                ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}}) if len(digits) >= 8 else None
-                if not ch and len(digits) >= 8:
-                    lead_nm = await db.leads.find_one({"phone_digits": digits}, {"_id": 0, "contact_name": 1, "name": 1, "user_id": 1})
-                    ch_id = await _next_channel_id()
-                    ch = {"id": ch_id, "phone_digits": digits,
-                          "name": (lead_nm or {}).get("contact_name") or (lead_nm or {}).get("name") or frm,
-                          "owner_id": (lead_nm or {}).get("user_id"),
-                          "whatsapp_number": frm, "last_message_date": now, "created_via": "inbound_webhook"}
-                    await db.wa_channels.insert_one(dict(ch))
-                if ch:
-                    await db.wa_messages.insert_one({
-                        "id": await next_id("wa_message"), "channel_id": ch["id"], "body": text,
-                        "author_name": ch.get("name") or frm, "date": now,
-                        "message_type": "comment", "direction": "inbound", "status": "received",
-                        "wamid": m.get("id"),
-                    })
-                    await db.wa_channels.update_one({"id": ch["id"]}, {"$set": {"last_message_date": now}, "$inc": {"unread_count": 1}})
-                # log to a matching lead's chatter
-                if len(digits) >= 8:
-                    lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)])
-                    if lead:
-                        await log_message(lead["id"], f"💬 Inbound WhatsApp from {frm}: {text[:500]}", subtype="comment")
-                        # Case 5 — mark the most recent outbound template to this lead as Replied
-                        last = await db.wa_tracking.find_one(
-                            {"lead_id": lead["id"], "status": {"$in": ["sent", "delivered", "read"]}},
-                            {"_id": 0, "id": 1, "template_id": 1}, sort=[("id", -1)])
-                        if last:
-                            await db.wa_tracking.update_one(
-                                {"id": last["id"]},
-                                {"$set": {"status": "replied", "status_at": now},
-                                 "$push": {"status_history": {"status": "replied", "at": now}}})
-                        # Case 5 — Quick Reply → capture + run the button's mapped automation
-                        if reply_title or reply_id:
-                            tmpl = None
-                            if last and last.get("template_id"):
-                                tmpl = await db.templates_whatsapp.find_one({"id": last["template_id"]}, {"_id": 0})
-                            btn = None
-                            for b in ((tmpl or {}).get("buttons") or []):
-                                if (reply_title and (b.get("text") or "").strip().lower() == reply_title.strip().lower()) \
-                                        or (reply_id and str(b.get("id") or b.get("payload") or "") == str(reply_id)):
-                                    btn = b
-                                    break
-                            await log_message(
-                                lead["id"],
-                                f"↩️ WhatsApp Quick Reply: <b>{reply_title or reply_id}</b>"
-                                + (f" (template: {tmpl['name']})" if tmpl else ""),
-                                subtype="comment",
-                                extra={"kind": "wa_quick_reply", "reply": reply_title or reply_id,
-                                       "template_name": (tmpl or {}).get("name"),
-                                       "track_id": (last or {}).get("id")})
-                            aid = (btn or {}).get("automation_id")
-                            if aid:
-                                await run_automation_by_id(aid, lead)
-                stored += 1
+    try:
+        for entry in payload.get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                # Case 23 — per-message delivery status lifecycle (sent→delivered→read / failed)
+                for st in value.get("statuses", []):
+                    wamid = st.get("id")
+                    new_status = st.get("status")  # sent | delivered | read | failed
+                    if not wamid or not new_status:
+                        continue
+                    log_statuses.append({"wamid": wamid, "status": new_status})
+                    now = now_utc_str()
+                    err = None
+                    if st.get("errors"):
+                        err = (st["errors"][0] or {}).get("title") or str(st["errors"][0])
+                    res_wam = await db.wa_messages.update_one(
+                        {"wamid": wamid},
+                        {"$set": {"status": new_status, "status_at": now, "error": err},
+                         "$push": {"status_history": {"status": new_status, "at": now}}},
+                    )
+                    if res_wam.modified_count:
+                        status_updates += 1
+                    # Case 5 — update the tracked outbound record with lifecycle + failure detail
+                    failure_type = None
+                    error_code = None
+                    if st.get("errors"):
+                        e0 = st["errors"][0] or {}
+                        error_code = e0.get("code")
+                        ed = e0.get("error_data")
+                        failure_type = ed.get("details") if isinstance(ed, dict) else e0.get("href")
+                    setd = {"status": new_status, "status_at": now, "error": err,
+                            "failure_type": failure_type, "error_code": error_code}
+                    tr = await db.wa_tracking.update_one(
+                        {"wamid": wamid},
+                        {"$set": setd, "$push": {"status_history": {"status": new_status, "at": now}}},
+                    )
+                    if tr.modified_count:
+                        status_updates += 1
+                        log_matched += 1
+                for m in value.get("messages", []):
+                    frm = m.get("from")
+                    mtype = m.get("type")
+                    now = now_utc_str()
+                    # Inbound emoji reaction → attach to the target message, skip as a chat line
+                    if mtype == "reaction":
+                        rc = m.get("reaction") or {}
+                        tgt_wamid, emoji = rc.get("message_id"), rc.get("emoji")
+                        if tgt_wamid:
+                            await db.wa_messages.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
+                            await db.wa_tracking.update_one({"wamid": tgt_wamid}, {"$set": {"reaction": emoji or None}})
+                        continue
+                    # Case 5 — Quick Reply / interactive reply button tap
+                    reply_title = reply_id = None
+                    if mtype == "button":
+                        b = m.get("button") or {}
+                        reply_title, reply_id = b.get("text"), b.get("payload")
+                    elif mtype == "interactive":
+                        br = (m.get("interactive") or {}).get("button_reply") or {}
+                        reply_title, reply_id = br.get("title"), br.get("id")
+                    text = (m.get("text") or {}).get("body") or reply_title or f"[{mtype}]"
+                    digits = re.sub(r"\D", "", frm or "")[-10:]
+                    # mirror into a WhatsApp thread for this number — auto-create one
+                    # if it doesn't exist yet so inbound always shows in the 2-way inbox.
+                    ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}}) if len(digits) >= 8 else None
+                    if not ch and len(digits) >= 8:
+                        lead_nm = await db.leads.find_one({"phone_digits": digits}, {"_id": 0, "contact_name": 1, "name": 1, "user_id": 1})
+                        ch_id = await _next_channel_id()
+                        ch = {"id": ch_id, "phone_digits": digits,
+                              "name": (lead_nm or {}).get("contact_name") or (lead_nm or {}).get("name") or frm,
+                              "owner_id": (lead_nm or {}).get("user_id"),
+                              "whatsapp_number": frm, "last_message_date": now, "created_via": "inbound_webhook"}
+                        await db.wa_channels.insert_one(dict(ch))
+                    if ch:
+                        await db.wa_messages.insert_one({
+                            "id": await next_id("wa_message"), "channel_id": ch["id"], "body": text,
+                            "author_name": ch.get("name") or frm, "date": now,
+                            "message_type": "comment", "direction": "inbound", "status": "received",
+                            "wamid": m.get("id"),
+                        })
+                        await db.wa_channels.update_one({"id": ch["id"]}, {"$set": {"last_message_date": now}, "$inc": {"unread_count": 1}})
+                    # log to a matching lead's chatter
+                    if len(digits) >= 8:
+                        lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)])
+                        if lead:
+                            await log_message(lead["id"], f"💬 Inbound WhatsApp from {frm}: {text[:500]}", subtype="comment")
+                            # Case 5 — mark the most recent outbound template to this lead as Replied
+                            last = await db.wa_tracking.find_one(
+                                {"lead_id": lead["id"], "status": {"$in": ["sent", "delivered", "read"]}},
+                                {"_id": 0, "id": 1, "template_id": 1}, sort=[("id", -1)])
+                            if last:
+                                await db.wa_tracking.update_one(
+                                    {"id": last["id"]},
+                                    {"$set": {"status": "replied", "status_at": now},
+                                     "$push": {"status_history": {"status": "replied", "at": now}}})
+                            # Case 5 — Quick Reply → capture + run the button's mapped automation
+                            if reply_title or reply_id:
+                                tmpl = None
+                                if last and last.get("template_id"):
+                                    tmpl = await db.templates_whatsapp.find_one({"id": last["template_id"]}, {"_id": 0})
+                                btn = None
+                                for b in ((tmpl or {}).get("buttons") or []):
+                                    if (reply_title and (b.get("text") or "").strip().lower() == reply_title.strip().lower()) \
+                                            or (reply_id and str(b.get("id") or b.get("payload") or "") == str(reply_id)):
+                                        btn = b
+                                        break
+                                await log_message(
+                                    lead["id"],
+                                    f"↩️ WhatsApp Quick Reply: <b>{reply_title or reply_id}</b>"
+                                    + (f" (template: {tmpl['name']})" if tmpl else ""),
+                                    subtype="comment",
+                                    extra={"kind": "wa_quick_reply", "reply": reply_title or reply_id,
+                                           "template_name": (tmpl or {}).get("name"),
+                                           "track_id": (last or {}).get("id")})
+                                aid = (btn or {}).get("automation_id")
+                                if aid:
+                                    await run_automation_by_id(aid, lead)
+                    stored += 1
+    except Exception as _e:
+        # A webhook must NEVER 5xx: Meta retries the same payload on any non-2xx, turning one
+        # bad event into a retry storm (the /api/webhooks/whatsapp 500s). Swallow, record the
+        # failure (with traceback) for diagnosis, and fall through to the 200 ack below.
+        import traceback as _tb
+        try:
+            await db.wa_webhook_log.insert_one({
+                "id": await next_id("wa_webhook_log"), "create_date": now_utc_str(),
+                "kind": "processing_error", "error_type": type(_e).__name__,
+                "error": str(_e)[:500], "traceback": _tb.format_exc()[:4000],
+                "messages_in": stored, "status_updates": status_updates,
+            })
+        except Exception:
+            pass
     # persist a diagnostic log entry (keeps last ~200)
     try:
         await db.wa_webhook_log.insert_one({

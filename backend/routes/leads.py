@@ -294,24 +294,37 @@ async def list_leads(
     # hint. A key-pattern hint resolves to whatever index has these keys, regardless of its name.
     hint_keys = None
     if sort == "create_date" and set(q.keys()) <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
-        hint_keys = [("active", 1), ("create_date", -1), ("id", -1)]
+        # Direction-AWARE: pin the create_date index whose direction matches the requested order
+        # (desc -> {active,create_date:-1,id:-1}, asc -> {active,create_date:1,id:-1}). Previously
+        # this always hinted the desc index, so the ascending toggle was forced onto a
+        # wrong-direction index -> blocking SORT over ~120k docs -> 16s/504 on prod.
+        hint_keys = [("active", 1), ("create_date", sort_dir), ("id", -1)]
 
     async def _run(with_hint: bool):
         cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
                .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
         if with_hint and hint_keys:
             cur = cur.hint(hint_keys)
-        return await cur.to_list(limit)
+        # Hard wall-clock stop. maxTimeMS does NOT reliably interrupt a large in-memory/disk
+        # blocking SORT, so a sort/filter that is not index-backed could otherwise hang for
+        # minutes while holding a pooled connection (the historical 504 / pool-exhaustion
+        # cascade). This guarantees the request returns promptly; an un-indexed view degrades to
+        # a clean 504 instead of an outage. Transparent to normal queries (they return in ms).
+        return await asyncio.wait_for(cur.to_list(limit), timeout=LIST_FIND_MS / 1000 + 3)
 
     try:
         items = await _run(with_hint=True)
+    except asyncio.TimeoutError:
+        # Not index-backed (e.g. an API-only sort column) — fail fast rather than hang. Retrying
+        # without the hint would just wait again, so go straight to a clean 504.
+        raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
     except PyMongoError:
         # A hint can fail if the index isn't present yet (still building right after a deploy) or
         # differs across environments. NEVER let that 504 the whole Leads page — retry once WITHOUT
         # the hint (let the planner pick an index) before giving up.
         try:
             items = await _run(with_hint=False)
-        except PyMongoError:
+        except (PyMongoError, asyncio.TimeoutError):
             raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
     total = await _cached_count(q)
     return {"items": items, "total": total, "page": page, "limit": limit}
