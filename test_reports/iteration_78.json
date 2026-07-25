@@ -1,0 +1,49 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "Again STUCK. /api/auth/me pending (high load time) leaves the app frozen on a blank spinner; /api/leads pending ~3 min then Server Error; too many API calls fire when clicking one menu; Data failed - API Error - No data response.",
+  "summary": "Focused frontend retest of the pending auth/leads/API pile-up bug. No relevant testing skill found; auth testing playbook was used as an auth checklist. The previously failing stalled /api/auth/me case is fixed: with /auth/me intentionally left pending, the protected route left the blank spinner and showed the login screen within ~12.5s, and /auth/me fired exactly once on a single app load. Normal admin login, guest 401 login fallback, poller de-dupe/no-overlap, hidden-tab pause/resume, stalled /api/leads 60s busy-toast behavior, widgets, and real Leads list/open-lead flow all passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Leads page auxiliary saved filters load",
+        "issue": "Minor existing observation: one Leads navigation still fired /api/filters?page=leads twice under React StrictMode. The heavy /api/leads list request was correctly de-duped to exactly one request, and no user-visible freeze/error occurred.",
+        "affected_selectors": [
+          "[data-testid=nav-leads]",
+          "[data-testid=leads-page]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_78_browser_tests.py",
+    "/app/test_reports/iteration_78.json",
+    "/app/test_reports/bug_verification_78.json"
+  ],
+  "action_items": [
+    "Optional: de-dupe the auxiliary /api/filters?page=leads call under React StrictMode to remove the last minor duplicate read observed during Leads navigation."
+  ],
+  "critical_code_review_comments": [
+    "frontend/src/context/AuthContext.jsx now removes the StrictMode alive-gating failure mode, races /auth/me against a hard 10s timer, uses noCancel, and has no retry loop; runtime evidence confirmed stalled auth bootstrap falls back to login and requests /api/auth/me once on a single load.",
+    "TEST-ONLY MOCKED route stubs/delays were used in browser tests to simulate stalled /auth/me, delayed /calls/active, stalled /leads, and positive widget data; product APIs/integrations are not mocked."
+  ],
+  "updated_files": [
+    "/app/test_reports/iteration_78_browser_tests.py",
+    "/app/test_reports/iteration_78.json",
+    "/app/test_reports/bug_verification_78.json"
+  ],
+  "success_rate": {
+    "backend": "auth API smoke passed (login 200, /auth/me 200 via curl)",
+    "frontend": "8/8 focused checks passed"
+  },
+  "seed_data_creation": "No seed data created.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Use https://ivf-lead-ops.preview.emergentagent.com. Admin credentials worked. Key evidence: stalled /api/auth/me single-load test showed login within ~12.5s and auth_count=1; guest no-token showed single 401 then login; normal login and protected /leads reload worked; delayed /calls/active max_inflight=1; initial pollers each fired once; one Leads menu click fired /api/leads count=1; hidden-tab pause/resume and navigation poller continuation passed; stalled /api/leads produced one busy toast at ~60s; widgets rendered/interacted with TEST-ONLY MOCKED stubs; real lead 500210 opened without Data failed/API Error text.",
+  "rca_of_the_issue": "Prior failure was caused by auth bootstrap using a route-aborted /auth/me request whose cancellation could be swallowed into a never-settling promise, plus StrictMode lifecycle gating/retry behavior. The new bounded Promise.race + noCancel + no alive gate + single attempt prevents the blank-spinner deadlock."
+}

@@ -21,24 +21,26 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     if (didBootstrap.current) return; // guard React StrictMode's dev double-invoke (fire /auth/me once)
     didBootstrap.current = true;
-    let alive = true;
     (async () => {
-      // Bootstrap the session WITHOUT freezing the whole app on a blank spinner: /auth/me now has
-      // a bounded per-request timeout and we retry a single transient hiccup before falling back
-      // to the guest state (login). A 401 (no/bad token) is a definite guest → stop immediately.
-      for (let i = 0; i < 2; i++) {
-        try {
-          const { data } = await API.get("/auth/me", { timeout: 25000 });
-          if (alive) setUser(data);
-          return;
-        } catch (e) {
-          if (e?.response?.status === 401) break;
-          if (i === 0) await new Promise((r) => setTimeout(r, 800));
-        }
+      // GUARANTEED-BOUNDED bootstrap: race /auth/me against a hard 10s timer so a hung/stalled
+      // response can NEVER leave the app frozen on a blank spinner. `noCancel` keeps this request
+      // OUT of the route-abort registry — otherwise an axios timeout aborts via the signal and
+      // surfaces as ERR_CANCELED, which the response interceptor swallows into a never-settling
+      // promise that would deadlock the bootstrap. On any failure/timeout we fall back to the guest
+      // state (login) rather than hang. setUser is intentionally NOT gated on an `alive` flag:
+      // AuthProvider is the root (never really unmounts) and gating it broke under StrictMode (the
+      // first pass's cleanup set alive=false while the guard skipped the second pass → result
+      // discarded → permanent blank spinner).
+      try {
+        const { data } = await Promise.race([
+          API.get("/auth/me", { noCancel: true }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("auth-bootstrap-timeout")), 10000)),
+        ]);
+        setUser(data);
+      } catch {
+        setUser(false);
       }
-      if (alive) setUser(false);
     })();
-    return () => { alive = false; };
   }, []);
 
   useEffect(() => {
