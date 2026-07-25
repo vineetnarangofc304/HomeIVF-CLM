@@ -742,3 +742,12 @@ Production: https://crm.homeivfmarketing.com (built in preview; redeploy to push
 - /app/backend/tests/test_homeivf_api.py (32-test regression suite, run: cd /app/backend && python -m pytest tests/ -q)
 - /app/memory/test_credentials.md, /app/auth_testing.md, /app/test_reports/iteration_1.json
 - Odoo discovery dumps: /app/discovery/out/*.json
+
+---
+## 2026-06 update (see CHANGELOG.md for detail)
+- ✅ DONE (P0): MongoDB over-indexing fix per Emergent Support — leads indexes 57→15, removed
+  non-selective `pipeline:{$ne:false}`, migrated list sort/date-filter to real-Date `create_dt`,
+  trimmed hot-path maxTimeMS to 5-10s, added startup stale-index drop. Root cause of the recurring
+  "Server is busy" prod outages. Verified 35/35 (iteration_79). **Needs prod REDEPLOY to apply.**
+- ✅ DONE (P0): Same-Day Lead Merge for website webhook + Meta/Facebook ingestion
+  (`check_duplicate_today`); same-day duplicate merges, cross-day creates a new lead.
