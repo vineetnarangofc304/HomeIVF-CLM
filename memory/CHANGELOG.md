@@ -2,6 +2,21 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — Code review + deploy health check (pre-redeploy)
+
+- **Deployment health check: PASS** — no hardcoded secrets, envs externalized, /api prefixing + 0.0.0.0:8001
+  correct, CORS ok, backend compiles. No blockers.
+- **Code review — fixed 1 MEDIUM (robustness):** `_drop_stale_lead_indexes()` did `int(d)` on index
+  directions OUTSIDE its try/except, so a legacy non-b-tree `leads` index (text/hashed/geo) would crash the
+  cleanup AND skip the one-time backfills (create_dt / name_lc / pipeline). Fixed with `_norm_dir()` (tolerates
+  'text'/'hashed'/'2dsphere'), normalization moved inside the per-index try/except, and the drop call wrapped so
+  a failure can never block backfills. Proven: a seeded legacy text index is now dropped on startup with no crash.
+- **Minor review items fixed:** caller default index → `{user_id, create_dt, id}` (adds the id tiebreaker so a
+  caller's list is fully index-covered, no residual blocking sort); corrected the stale `/api/version` doc
+  comment (expected count is 16). Leads index count stays 16.
+- Verified: iteration_82 regression 22/22 PASS (admin+caller lists, count resolution, sorts/filters/search,
+  group_counts, same-day merge, Ozonetel CDR, /api/version=16).
+
 ## 2026-06 — Leads-page API audit (answered) + gated the /calls/active poll
 
 - **User asked** why `/api/reports/dashboard?section=kpis` and `/api/leads?follow_up=today` fire on the
