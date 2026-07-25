@@ -1,5 +1,22 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-07-25c) — "Again STUCK": /auth/me pending → blank app; clicking Leads fires dozens of calls piling up 3-4 min then Server Error — FIXED (frontend), bug_testing_agent-verified (iter78), needs REDEPLOY
+- **User/Nishu report (production):** app freezes on blank spinner (/api/auth/me stays "pending"); /api/leads pending ~3 min then Server Error; "why so many API calls when a caller clicks one side-menu (Leads)?"; "Data failed - API Error - No data response". System Health earlier showed everything at ~180s (pool exhaustion).
+- **Root causes (frontend request storm amplifying the slow prod backend):**
+  1. **4 global pollers** (calls/active 8s, whatsapp unread 30s, followups reminders 60s, agent status 45s) used raw setInterval that fired AGAIN even while the previous request was still in-flight → on the slow backend they stacked dozens of pending XHRs and exhausted the browser's ~6 connections-per-host, so /auth/me & /leads couldn't even start.
+  2. **No client-side timeout** on GETs → a hung read sat "pending" for minutes holding a connection.
+  3. **/auth/me could hang the whole app** forever on a blank spinner (bootstrap had no bounded fallback; and an axios-timeout-with-abort-signal surfaced as ERR_CANCELED which the interceptor swallows into a never-settling promise → deadlock).
+  4. React **StrictMode** dev double-mount made pollers/leads/auth fire twice.
+- **Fixes (all frontend):**
+  - NEW `hooks/usePoll.js`: MODULE-LEVEL in-flight Set keyed by a stable poll key → no-overlap across StrictMode remounts & instances (max 1 in-flight per poll); pauses when tab hidden; resumes on refocus. 4 pollers refactored to it and pass `{ noCancel:true }`.
+  - `lib/api.js`: 60s client timeout on GET reads (converts an infinite "pending" into a clean retryable error); timeouts (ECONNABORTED/ETIMEDOUT) are NOT auto-retried; `noCancel` GETs are exempt from the route-abort registry (so a poll can't be aborted into a never-settling promise).
+  - `context/AuthContext.jsx`: bounded bootstrap = `Promise.race([API.get('/auth/me',{noCancel:true}), 10s timer])` + one-time didBootstrap ref, no `alive` gating → the app can NEVER stay on a blank spinner; falls back to login within ~10s; fires /auth/me once.
+  - `pages/Leads.jsx`: inFlightKeyRef dedupe so one navigation fires exactly one /api/leads (no duplicate busy toast).
+- **Verified:** bug_testing_agent iter78 = frontend 8/8, retest not needed. Stalled /auth/me → login in ~12.5s (1 request); delayed /calls/active → max 1 in-flight; each poller fires once on mount; one Leads click → one /api/leads; hidden-tab pause/resume; stalled /leads → one 'Server is busy' at ~60s; navigation doesn't deadlock pollers; widgets + real lead open work. (iter76/77 were not_fixed on the StrictMode overlap + stalled-auth; both now resolved.)
+- **Known minor (dev-only):** /api/filters?page=leads still double-fires under StrictMode — zero production impact (StrictMode is dev-only; endpoint is tiny/cached). Left as-is.
+- **⚠️ NEEDS PRODUCTION REDEPLOY.** Combined with the deployed backend fixes (leads tag/lead_stage index, count decoupling, db.py pool timeouts, WhatsApp caps), this ends the request pile-up / STUCK behavior.
+
+
 ## P1 (2026-07-25b) — WhatsApp APIs "have issues" (/channels, /channels/{id}/messages, /unread-summary all ~180s + 503) — DIAGNOSED (victims of the cascade) + HARDENED, testing_agent-verified (iter75), needs REDEPLOY
 - **User report (production System Health):** GET /api/whatsapp/channels, /channels/{id}/messages, /unread-summary showing ~180.10s durations + 503. Circled these as broken.
 - **DIAGNOSIS (not a WhatsApp bug):** the log shows EVERY endpoint (whatsapp, /calls/active, lead detail, /followups/reminders) at ~180s, all resolving in the same 5s window = a **connection-pool-exhaustion cascade**. Proof it's not the query: /unread-summary already has a 4s maxTimeMS + fail-fast, yet showed 180s — so the 180s is time spent WAITING FOR A POOLED CONNECTION, not running the query. Root trigger = the slow filtered /api/leads queries (fixed iter74). Also, `db.py` already has waitQueueTimeoutMS=5000 + socketTimeoutMS=15000 (a 180s hang is impossible with these), so PRODUCTION IS RUNNING OLDER CODE WITHOUT THESE TIMEOUTS → redeploy resolves the 180s hangs.
