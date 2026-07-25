@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pymongo.errors import PyMongoError
+from pymongo.errors import PyMongoError, OperationFailure
 
 IST = timezone(timedelta(hours=5, minutes=30))
 from pydantic import BaseModel
@@ -293,12 +293,25 @@ async def list_leads(
     # request 504'd → CONSTANT "Server is busy" on the Leads page after the deploy that added the
     # hint. A key-pattern hint resolves to whatever index has these keys, regardless of its name.
     hint_keys = None
-    if sort == "create_date" and set(q.keys()) <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
-        # Direction-AWARE: pin the create_date index whose direction matches the requested order
-        # (desc -> {active,create_date:-1,id:-1}, asc -> {active,create_date:1,id:-1}). Previously
-        # this always hinted the desc index, so the ascending toggle was forced onto a
-        # wrong-direction index -> blocking SORT over ~120k docs -> 16s/504 on prod.
-        hint_keys = [("active", 1), ("create_date", sort_dir), ("id", -1)]
+    if sort == "create_date" and q.get("active") is True:
+        base_keys = set(q.keys())
+        single_stage = isinstance(q.get("lead_stage"), str) and q.get("lead_stage")
+        if base_keys <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
+            # Unscoped "Leads in Pipeline (All)" default. Direction-AWARE: pin the create_date
+            # index whose direction matches the requested order so the ascending toggle isn't
+            # forced onto a wrong-direction index -> blocking SORT over ~120k docs -> 504.
+            hint_keys = [("active", 1), ("create_date", sort_dir), ("id", -1)]
+        elif single_stage and "user_id" not in q and "tags" in q:
+            # Lead-stage + TAGS filter (the user's "Contacted + OPD Booked" view). Scan the
+            # active+lead_stage+tags index in create_date order -> NO blocking sort, ~limit keys.
+            # Without this the planner picks the multikey `tags` index and BLOCKING-SORTS the whole
+            # tag set by create_date -> 18s -> 504 -> the /api/leads pool-exhaustion cascade.
+            # Only for the unscoped (admin/all) view: a caller-scoped query has a far more selective
+            # user_id and the planner's user_id index serves its small ~5k book better.
+            hint_keys = [("active", 1), ("lead_stage", 1), ("tags", 1), ("create_date", sort_dir), ("id", -1)]
+        elif single_stage and "user_id" not in q:
+            # Lead-stage filter alone -> walk the active+lead_stage+create_date index in sort order.
+            hint_keys = [("active", 1), ("lead_stage", 1), ("create_date", sort_dir), ("id", -1)]
 
     async def _run(with_hint: bool):
         cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
@@ -318,13 +331,18 @@ async def list_leads(
         # Not index-backed (e.g. an API-only sort column) — fail fast rather than hang. Retrying
         # without the hint would just wait again, so go straight to a clean 504.
         raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
-    except PyMongoError:
-        # A hint can fail if the index isn't present yet (still building right after a deploy) or
-        # differs across environments. NEVER let that 504 the whole Leads page — retry once WITHOUT
-        # the hint (let the planner pick an index) before giving up.
-        try:
-            items = await _run(with_hint=False)
-        except (PyMongoError, asyncio.TimeoutError):
+    except PyMongoError as e:
+        # Retry WITHOUT the hint ONLY if the hint itself was the problem (index not present yet /
+        # still building right after a deploy, or a wrong-direction key pattern). A Mongo maxTimeMS
+        # timeout (OperationFailure code 50) is a GENUINE slow query — never retry it, or we run the
+        # slow query twice and double the DB load during the exact moment it's already struggling.
+        is_timeout = isinstance(e, OperationFailure) and getattr(e, "code", None) == 50
+        if hint_keys and not is_timeout:
+            try:
+                items = await _run(with_hint=False)
+            except (PyMongoError, asyncio.TimeoutError):
+                raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
+        else:
             raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
     total = await _cached_count(q)
     return {"items": items, "total": total, "page": page, "limit": limit}

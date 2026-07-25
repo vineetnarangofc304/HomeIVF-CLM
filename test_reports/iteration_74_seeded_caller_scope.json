@@ -1,0 +1,26 @@
+{
+  "created_ids": [
+    500215,
+    500216
+  ],
+  "duration_ms": 104,
+  "first_user_ids": [
+    8
+  ],
+  "items_len": 1,
+  "other_id": 500216,
+  "own_id": 500215,
+  "params": {
+    "bucket": "pipeline",
+    "lead_stage": "Contacted",
+    "limit": 200,
+    "order": "desc",
+    "sort": "create_date",
+    "tags": "32"
+  },
+  "returned_created_ids": [
+    500215
+  ],
+  "scope_ok": true,
+  "status": 200
+}

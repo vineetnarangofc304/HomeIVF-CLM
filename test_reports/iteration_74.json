@@ -1,0 +1,47 @@
+{
+  "verdict": "fixed",
+  "user_reported_bug": "On the Leads page (Leads in Pipeline (All) tab), I add 2 filters — Tag = 'OPD Booked' and Lead stage = 'Contacted'. The data loads for ~30 seconds and then shows 'Server is busy right now — please try again in a moment.' The System Health / error log shows GET /api/leads returning 504 at ~18s repeatedly (for multiple callers), and behind it /api/whatsapp/unread-summary and /api/calls/active hang ~180s and /api/reports/dashboard returns 503 — i.e. a connection-pool-exhaustion cascade triggered by the slow filtered /api/leads query.",
+  "summary": "No relevant testing skill found. Verified the exact Leads Pipeline (All) Tag=OPD Booked + Lead Stage=Contacted flow via API and real UI. /api/leads returned 200 quickly for the admin filter/sort/pagination matrix, including the exact repro and follow-up-tag variant; the compound index exists and explain uses IXSCAN/SORT_MERGE with no blocking SORT. A 34-request bounded concurrency probe (24 exact /api/leads calls plus whatsapp unread, calls active, dashboard kpis/panels) returned all HTTP 200 in ~1.9s, with no new /api/leads 5xx in System Health logs. UI rendered an empty state/no busy toast for the sparse exact filter, pagination worked on a populated filtered view, and a lead row opened detail. Caller-scoped seeded regression returned only caller16's own matching lead.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/tests/bug_verification/iteration_74_api_matrix.py",
+    "/app/tests/bug_verification/iteration_74_ui_flow.py",
+    "/app/tests/bug_verification/iteration_74_seeded_caller_scope.py",
+    "/app/test_reports/iteration_74_api_results.json",
+    "/app/test_reports/iteration_74_seeded_caller_scope.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Inspected /app/backend/routes/leads.py: admin/all-scope lead_stage+tags create_date sort now chooses a key-pattern hint [('active',1),('lead_stage',1),('tags',1),('create_date',sort_dir),('id',-1)] only when user_id is absent; caller-scoped queries therefore avoid this hint and stay scoped by user_id.",
+    "Inspected /app/backend/server.py: compound desc index [('active',1),('lead_stage',1),('tags',1),('create_date',-1),('id',-1)] is present in INDEX_SPECS and confirmed present in preview DB. Explain for single tag is LIMIT/FETCH/IXSCAN and multi-tag is SORT_MERGE over IXSCANs; no blocking SORT stage.",
+    "Ascending tag+stage sort was verified HTTP 200 as fallback safety. The 'do not double-run genuine timeout' path was code-reviewed via OperationFailure code 50 handling but was not force-simulated against Mongo because inducing a real maxTimeMS timeout would be destructive/noisy in preview."
+  ],
+  "updated_files": [
+    "/app/tests/bug_verification/iteration_74_api_matrix.py",
+    "/app/tests/bug_verification/iteration_74_ui_flow.py",
+    "/app/tests/bug_verification/iteration_74_caller_positive_scope.py",
+    "/app/tests/bug_verification/iteration_74_seeded_caller_scope.py",
+    "/app/test_reports/iteration_74_api_results.json",
+    "/app/test_reports/iteration_74_caller_positive_scope.json",
+    "/app/test_reports/iteration_74_seeded_caller_scope.json",
+    "/app/test_reports/bug_verification_74.json",
+    "/app/test_reports/iteration_74.json"
+  ],
+  "success_rate": {
+    "backend": "100%",
+    "frontend": "100%"
+  },
+  "seed_data_creation": "Created two temporary leads for caller-scope regression (ids 500215 and 500216) with lead_stage=Contacted and tag=32, assigned to caller16 and another caller respectively; archived both after verification via /api/leads/bulk.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 74 is a focused bug-verification report. API evidence is in /app/test_reports/iteration_74_api_results.json. UI browser automation passed on the second valid run; earlier UI attempts failed only due test-script issues and generated screenshots, not product failures. Forced secondary LeadDetail 504s were MOCKED via Playwright route interception only for the decoupling regression; all other API/UI checks used real preview APIs.",
+  "rca_of_the_issue": "Original RCA: tags is multikey and the planner could pick the plain tags index, then blocking-sort the whole tag set by create_date, leading to /api/leads 504 and DB pool exhaustion. Verification shows the new compound lead_stage+tags+create_date index and key-pattern hint avoid blocking sort for the exact admin/all query. Preview data is sparse for OPD Booked+Contacted, so the user-visible contract was verified as HTTP 200 + empty state/table + no persistent 'Server is busy', not row count."
+}

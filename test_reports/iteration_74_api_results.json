@@ -1,0 +1,1364 @@
+{
+  "admin_matrix": [
+    {
+      "case": "default_pipeline_all_desc",
+      "duration_ms": 106,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          500210,
+          500204,
+          500203,
+          500202,
+          500201
+        ],
+        "first_user_ids": [
+          5,
+          1001,
+          1001,
+          1001,
+          1001
+        ],
+        "items_len": 50,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&sort=create_date&order=desc"
+    },
+    {
+      "case": "lead_stage_contacted_desc",
+      "duration_ms": 108,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          500178,
+          608323,
+          619153,
+          645366,
+          611829
+        ],
+        "first_user_ids": [
+          null,
+          18,
+          24,
+          24,
+          26
+        ],
+        "items_len": 50,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&sort=create_date&order=desc"
+    },
+    {
+      "case": "lead_stage_converted_desc",
+      "duration_ms": 108,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Converted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          679687,
+          672283,
+          678997,
+          707478,
+          697044
+        ],
+        "first_user_ids": [
+          24,
+          18,
+          10,
+          18,
+          31
+        ],
+        "items_len": 50,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Converted&sort=create_date&order=desc"
+    },
+    {
+      "case": "lead_stage_contact_attempt_desc",
+      "duration_ms": 99,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contact Attempt",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          615721,
+          717550,
+          688475,
+          668854,
+          716856
+        ],
+        "first_user_ids": [
+          22,
+          11,
+          8,
+          26,
+          34
+        ],
+        "items_len": 50,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contact+Attempt&sort=create_date&order=desc"
+    },
+    {
+      "case": "tags_32_alone",
+      "duration_ms": 96,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&tags=32&sort=create_date&order=desc"
+    },
+    {
+      "case": "exact_repro_contacted_tag32_desc_p1",
+      "duration_ms": 110,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "page": 1,
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc&page=1"
+    },
+    {
+      "case": "exact_repro_contacted_tag32_desc_p2",
+      "duration_ms": 108,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "page": 2,
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 2,
+        "total": 0
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc&page=2"
+    },
+    {
+      "case": "exact_repro_contacted_tag32_desc_p3",
+      "duration_ms": 132,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "page": 3,
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 3,
+        "total": 0
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc&page=3"
+    },
+    {
+      "case": "fallback_contacted_tag32_asc",
+      "duration_ms": 98,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "asc",
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": 0
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=asc"
+    },
+    {
+      "case": "multi_tag_contacted_desc",
+      "duration_ms": 93,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32,33,26"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          500178
+        ],
+        "first_user_ids": [
+          null
+        ],
+        "items_len": 1,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32%2C33%2C26&sort=create_date&order=desc"
+    },
+    {
+      "case": "stage_tag_followup_reported_case",
+      "duration_ms": 93,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "follow_up_tag": "Follow UP 1",
+        "lead_stage": "Contact Attempt",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "26"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contact+Attempt&tags=26&follow_up_tag=Follow+UP+1&sort=create_date&order=desc"
+    },
+    {
+      "case": "stage_tag_followup_contacted",
+      "duration_ms": 103,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "follow_up_tag": "Follow UP 1",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&follow_up_tag=Follow+UP+1&sort=create_date&order=desc"
+    },
+    {
+      "case": "stage_source_filter",
+      "duration_ms": 170,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date",
+        "source_lead": "Website AI Agent"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&source_lead=Website+AI+Agent&sort=create_date&order=desc"
+    },
+    {
+      "case": "stage_date_range",
+      "duration_ms": 93,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "date_from": "2020-01-01",
+        "date_to": "2026-12-31",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "scope": "all",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          500178,
+          608323,
+          619153,
+          645366,
+          611829
+        ],
+        "first_user_ids": [
+          null,
+          18,
+          24,
+          24,
+          26
+        ],
+        "items_len": 50,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&date_from=2020-01-01&date_to=2026-12-31&sort=create_date&order=desc"
+    }
+  ],
+  "auth": {
+    "admin": {
+      "id": 1,
+      "login_ms": 408,
+      "role": "admin"
+    },
+    "caller": {
+      "id": 8,
+      "login_ms": 335,
+      "role": "caller"
+    }
+  },
+  "base_url": "https://ivf-lead-ops.preview.emergentagent.com",
+  "caller_scope": {
+    "caller_user_id": 8,
+    "default": {
+      "duration_ms": 119,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "limit": 200,
+        "order": "desc",
+        "sort": "create_date"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [
+          688475,
+          644735,
+          626599,
+          650961,
+          686523
+        ],
+        "first_user_ids": [
+          8,
+          8,
+          8,
+          8,
+          8
+        ],
+        "items_len": 200,
+        "limit": 200,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&limit=200&sort=create_date&order=desc"
+    },
+    "positive_scoped_params": null,
+    "positive_scoped_result": null,
+    "required_contacted_tag32": {
+      "duration_ms": 96,
+      "error": null,
+      "ok": true,
+      "params": {
+        "bucket": "pipeline",
+        "lead_stage": "Contacted",
+        "order": "desc",
+        "sort": "create_date",
+        "tags": "32"
+      },
+      "path": "/leads",
+      "payload_summary": {
+        "first_ids": [],
+        "first_user_ids": [],
+        "items_len": 0,
+        "limit": 50,
+        "page": 1,
+        "total": -1
+      },
+      "status": 200,
+      "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+    }
+  },
+  "concurrency_cascade": {
+    "results": [
+      {
+        "case": "calls_active_1",
+        "duration_ms": 799,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/calls/active",
+        "payload_summary": {
+          "active": null
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/calls/active"
+      },
+      {
+        "case": "calls_active_2",
+        "duration_ms": 839,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/calls/active",
+        "payload_summary": {
+          "active": null
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/calls/active"
+      },
+      {
+        "case": "calls_active_3",
+        "duration_ms": 792,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/calls/active",
+        "payload_summary": {
+          "active": null
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/calls/active"
+      },
+      {
+        "case": "calls_active_4",
+        "duration_ms": 654,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/calls/active",
+        "payload_summary": {
+          "active": null
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/calls/active"
+      },
+      {
+        "case": "leads_exact_1",
+        "duration_ms": 824,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_10",
+        "duration_ms": 990,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_11",
+        "duration_ms": 690,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_12",
+        "duration_ms": 1091,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_13",
+        "duration_ms": 988,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_14",
+        "duration_ms": 815,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_15",
+        "duration_ms": 813,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_16",
+        "duration_ms": 943,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_17",
+        "duration_ms": 327,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_18",
+        "duration_ms": 404,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_19",
+        "duration_ms": 573,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_2",
+        "duration_ms": 827,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_20",
+        "duration_ms": 576,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_21",
+        "duration_ms": 671,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_22",
+        "duration_ms": 666,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_23",
+        "duration_ms": 881,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_24",
+        "duration_ms": 821,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_3",
+        "duration_ms": 626,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_4",
+        "duration_ms": 1000,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_5",
+        "duration_ms": 830,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_6",
+        "duration_ms": 1020,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_7",
+        "duration_ms": 1095,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_8",
+        "duration_ms": 1100,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "leads_exact_9",
+        "duration_ms": 1013,
+        "error": null,
+        "ok": true,
+        "params": {
+          "bucket": "pipeline",
+          "lead_stage": "Contacted",
+          "order": "desc",
+          "scope": "all",
+          "sort": "create_date",
+          "tags": "32"
+        },
+        "path": "/leads",
+        "payload_summary": {
+          "first_ids": [],
+          "first_user_ids": [],
+          "items_len": 0,
+          "limit": 50,
+          "page": 1,
+          "total": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/leads?bucket=pipeline&scope=all&lead_stage=Contacted&tags=32&sort=create_date&order=desc"
+      },
+      {
+        "case": "reports_dashboard_kpis",
+        "duration_ms": 799,
+        "error": null,
+        "ok": true,
+        "params": {
+          "section": "kpis"
+        },
+        "path": "/reports/dashboard",
+        "payload_summary": {
+          "converted_mtd": 0,
+          "leads_mtd": 12,
+          "leads_today": 0,
+          "month_start": "2026-07-01",
+          "range_end": "2026-07-25",
+          "range_start": "2026-07-01",
+          "today": "2026-07-25",
+          "total_leads": 119813
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/reports/dashboard?section=kpis"
+      },
+      {
+        "case": "reports_dashboard_panels",
+        "duration_ms": 812,
+        "error": null,
+        "ok": true,
+        "params": {
+          "section": "panels"
+        },
+        "path": "/reports/dashboard",
+        "payload_summary": {
+          "by_day": [
+            {
+              "_id": "2026-07-11",
+              "count": 7
+            },
+            {
+              "_id": "2026-07-19",
+              "count": 4
+            },
+            {
+              "_id": "2026-07-21",
+              "count": 1
+            }
+          ],
+          "by_stage": [
+            {
+              "_id": "Contacted",
+              "count": 24020
+            },
+            {
+              "_id": "Converted",
+              "count": 24017
+            },
+            {
+              "_id": "Contact Attempt",
+              "count": 23977
+            },
+            {
+              "_id": "Closed",
+              "count": 23931
+            },
+            {
+              "_id": "New / Unassigned",
+              "count": 23868
+            }
+          ],
+          "leaderboard": [
+            {
+              "_id": 1001,
+              "converted": 0,
+              "count": 4,
+              "name": "Test Agent"
+            },
+            {
+              "_id": 2,
+              "converted": 0,
+              "count": 4,
+              "name": "Homeivf"
+            },
+            {
+              "_id": 14,
+              "converted": 0,
+              "count": 1,
+              "name": "Sahil"
+            },
+            {
+              "_id": 5,
+              "converted": 0,
+              "count": 1,
+              "name": "Anamika Suman"
+            },
+            {
+              "_id": 10,
+              "converted": 0,
+              "count": 1,
+              "name": "Mansi Binjola"
+            },
+            {
+              "_id": 11,
+              "converted": 0,
+              "count": 1,
+              "name": "Vaishali Sethi"
+            }
+          ],
+          "month_start": "2026-07-01",
+          "range_end": "2026-07-25",
+          "range_start": "2026-07-01",
+          "today": "2026-07-25",
+          "top_tags": []
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/reports/dashboard?section=panels"
+      },
+      {
+        "case": "whatsapp_unread_1",
+        "duration_ms": 867,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/whatsapp/unread-summary",
+        "payload_summary": {
+          "recent": [],
+          "total_unread": 0,
+          "unread_chats": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/whatsapp/unread-summary"
+      },
+      {
+        "case": "whatsapp_unread_2",
+        "duration_ms": 716,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/whatsapp/unread-summary",
+        "payload_summary": {
+          "recent": [],
+          "total_unread": 0,
+          "unread_chats": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/whatsapp/unread-summary"
+      },
+      {
+        "case": "whatsapp_unread_3",
+        "duration_ms": 795,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/whatsapp/unread-summary",
+        "payload_summary": {
+          "recent": [],
+          "total_unread": 0,
+          "unread_chats": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/whatsapp/unread-summary"
+      },
+      {
+        "case": "whatsapp_unread_4",
+        "duration_ms": 717,
+        "error": null,
+        "ok": true,
+        "params": {},
+        "path": "/whatsapp/unread-summary",
+        "payload_summary": {
+          "recent": [],
+          "total_unread": 0,
+          "unread_chats": 0
+        },
+        "status": 200,
+        "url": "https://ivf-lead-ops.preview.emergentagent.com/api/whatsapp/unread-summary"
+      }
+    ],
+    "status_counts": {
+      "200": 34
+    },
+    "total_duration_ms": 1922
+  },
+  "error_logs_after": {
+    "query_status": 200,
+    "recent_bad_leads_5xx": []
+  },
+  "index_and_explain": {
+    "checked": true,
+    "error": null,
+    "explain": {
+      "multi_tag_contacted_32_33_26_desc": {
+        "has_blocking_sort_stage": false,
+        "has_ixscan": true,
+        "stages": [
+          "LIMIT",
+          "PROJECTION_SIMPLE",
+          "FETCH",
+          "SORT_MERGE",
+          "IXSCAN",
+          "IXSCAN",
+          "IXSCAN"
+        ]
+      },
+      "single_tag_contacted_32_desc": {
+        "has_blocking_sort_stage": false,
+        "has_ixscan": true,
+        "stages": [
+          "LIMIT",
+          "PROJECTION_SIMPLE",
+          "FETCH",
+          "IXSCAN"
+        ]
+      }
+    },
+    "index_present": true
+  },
+  "overall_pass": true,
+  "started_utc": "2026-07-25 10:45:35"
+}

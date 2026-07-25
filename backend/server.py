@@ -261,6 +261,13 @@ INDEX_SPECS = [
     # Common list FILTERS that otherwise scan the collection before sorting.
     ("leads", [("active", 1), ("source_lead", 1), ("create_date", -1), ("id", -1)], {}),
     ("leads", [("active", 1), ("lead_stage", 1), ("create_date", -1), ("id", -1)], {}),
+    # Lead-stage + TAGS filter (e.g. the "Contacted + OPD Booked" view). `tags` is MULTIKEY;
+    # without an index that carries tags BEFORE create_date the planner picks the plain `tags`
+    # index and does a BLOCKING in-memory SORT of the whole tag set by create_date → 18s → 504
+    # → the /api/leads connection-pool-exhaustion cascade. With this index a single-tag $in
+    # scans in create_date order (no sort) and a multi-tag $in uses an efficient SORT_MERGE,
+    # examining ~limit keys instead of fetching the entire ~24k lead_stage bucket.
+    ("leads", [("active", 1), ("lead_stage", 1), ("tags", 1), ("create_date", -1), ("id", -1)], {}),
     ("leads", [("active", 1), ("follow_up_tag", 1)], {}),
     ("leads", [("active", 1), ("priority", 1)], {}),
     # Prefix ('starts with') search on name fields uses these single-field indexes
