@@ -1,0 +1,34 @@
+{
+  "summary": "Backend-only regression for the MongoDB index consolidation (57 -> 15 indexes), pipeline-filter removal, create_dt sort/date migration, and same-day lead merge. Built /app/backend/tests/test_iter79_leads_perf_and_merge.py (35 pytest cases). Result: 35/35 PASS on the preview backend. Original P0 'Leads don't open / server is busy' is fixed: default /api/leads returns 200 with items in ~1-3s; /api/leads?scope=all returns real total (~120031) and items; all index-backed sorts (create_date/lead_stage/user_id/follow_up_date/phone) return fast in both asc & desc; rare heavy sorts (contact_name, city) either 200 fast or a clean 504 fail-fast; date range on create_dt works; all filters (lead_stage, follow_up today/overdue/upcoming, search by phone/name), and bucket tabs (pipeline default, ozonetel small set) work. Caller scoping preserved for caller11 & caller16. group_counts for lead_stage/source_lead/user_id return non-empty. /api/reports/dashboard returns for admin (total_leads=120031, confirming pipeline exclusion was removed) and caller. /api/reports/kpi-overview (note: actual path is kpi-overview, not /kpi) returns 200. Lead detail + PATCH update via {\"updates\": {..}} persists and reads back in <10s. Same-day merge on POST /api/webhook/lead/{token}: 1st post creates, 2nd post with SAME phone returns duplicate=true & merged_same_day=true & merged_into=<same lead_id>, 3rd post with DIFFERENT phone creates a new lead; the merge chatter note '\ud83d\udd01 Repeat web enquiry ... same-day duplicate merged' is present on the merged lead. Facebook admin test endpoint (POST /api/admin/facebook/test) creates a distinct lead on every call (dedupe_today=False confirmed).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter79_leads_perf_and_merge.py",
+    "/app/test_reports/pytest/iter79.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Review request document said kpi endpoint is 'GET /api/reports/kpi', but the implementation exposes it as '/api/reports/kpi-overview' (reports.py line 425). Non-blocking, but worth aligning docs/frontend.",
+    "The review request said 'send SAME-DAY MERGE via POST /api/facebook/test-lead' but the actual admin path is '/api/admin/facebook/test' with a Meta-shaped FbTestBody (field_data list) - documented for clarity."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iter79_leads_perf_and_merge.py"
+  ],
+  "success_rate": {
+    "backend": "100% (35/35)",
+    "frontend": "not tested (backend-only request)"
+  },
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026; caller11@homeivf.com / TestPass@2026; caller16@homeivf.com / TestPass@2026 — login field is access_token.",
+  "seed_data_creation": "Test webhook (name TEST_iter79_*), 2 same-day-merge webhook leads (auto-cleaned via DELETE /api/leads/{id} and DELETE /api/webhooks/{id}), and 2 fb admin test leads (auto-cleaned).",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "test_iter79_leads_perf_and_merge.py is a good regression harness for leads-list perf + same-day-merge. Actual endpoints observed: PATCH /api/leads/{id} takes body {'updates': {...}}; KPI overview is /api/reports/kpi-overview; Facebook admin test is POST /api/admin/facebook/test with body {field_data:[{name,values:[]}], form_name, ...}. Ozonetel bucket total was small (well under 5000). Dashboard total_leads=120031 confirms the pipeline:{$ne:false} filter was successfully removed from reports.",
+  "rca_of_the_issue": "No new bugs. The 5-point Emergent Support plan (index consolidation, pipeline filter removal, tight maxTimeMS, sort/date migration to create_dt, same-day merge on webhook + facebook) is functionally verified end-to-end. Original 'Leads don't open / server busy' regression is closed."
+}

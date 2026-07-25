@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 from core.db import db, db_analytics
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, ensure_catalog, search_norm, pick_available_caller, pick_any_caller, queue_lead_for_assignment
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, check_duplicate_today, ensure_catalog, search_norm, pick_available_caller, pick_any_caller, queue_lead_for_assignment
 
 router = APIRouter(tags=["facebook"])
 
@@ -75,7 +75,7 @@ def _verify_signature(app_secret: str, body: bytes, header: Optional[str]) -> bo
     return hmac.compare_digest(expected, sig)
 
 
-async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None, run_autos=True):
+async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None, run_autos=True, dedupe_today=True):
     mapping = settings.get("field_mapping") or {}
     custom_defs = await db.custom_fields.find({"active": True}, {"_id": 0}).to_list(300)
     custom_keys = {d["key"] for d in custom_defs}
@@ -143,6 +143,23 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
         if derived:
             data["contact_name"] = derived
             data["name"] = derived
+    # SAME-DAY de-dupe (client requirement): if an ACTIVE lead for this number was already
+    # captured TODAY (e.g. the prospect submitted the same Meta form twice), merge the repeat
+    # onto today's lead instead of creating a duplicate + consuming another caller assignment.
+    # A same-phone lead from a PREVIOUS day is a genuinely new enquiry (not merged). Skipped for
+    # backfill/test paths (dedupe_today=False).
+    pd_now = re.sub(r"\D", "", data.get("phone") or "")[-10:]
+    if dedupe_today and pd_now:
+        same_day = await check_duplicate_today(pd_now)
+        if same_day:
+            await db.leads.update_one({"id": same_day}, {"$set": {"write_date": now_utc_str()}})
+            await log_message(same_day,
+                              f"🔁 Repeat {source_label} submission — same-day duplicate merged into this lead, no new lead created",
+                              subtype="comment")
+            existing = await db.leads.find_one({"id": same_day}, {"_id": 0})
+            if existing:
+                existing["merged_same_day"] = True
+                return existing
     # Presence-based round-robin: prefer Available/On Call callers; if none are available,
     # fall back to ALL active callers so a Meta lead is never left invisible/unassigned.
     assign = await db.settings.find_one({"key": "assignment"})
@@ -287,10 +304,15 @@ async def fb_webhook(request: Request):
                         continue
                     new_lead = await _map_and_create_lead(lead["field_data"], s, lead)
                     fkeys = [f.get("name") for f in lead.get("field_data", [])]
-                    await _log_webhook("created",
-                                       f"Lead created in CRM (#{new_lead['id']}) — name '{new_lead.get('name')}'. Form fields: {fkeys}",
-                                       leadgen_id, extra={"crm_lead_id": new_lead["id"], "field_keys": fkeys})
-                    created += 1
+                    if new_lead.get("merged_same_day"):
+                        await _log_webhook("merged",
+                                           f"Same-day duplicate — merged into existing lead #{new_lead['id']} (no new lead created).",
+                                           leadgen_id, extra={"crm_lead_id": new_lead["id"]})
+                    else:
+                        await _log_webhook("created",
+                                           f"Lead created in CRM (#{new_lead['id']}) — name '{new_lead.get('name')}'. Form fields: {fkeys}",
+                                           leadgen_id, extra={"crm_lead_id": new_lead["id"], "field_keys": fkeys})
+                        created += 1
                 else:
                     await _log_webhook("skipped", "Graph response had no field_data (nothing to import)", leadgen_id)
     return {"status": "ok", "created": created}
@@ -338,6 +360,7 @@ async def fb_test_lead(body: FbTestBody, user: dict = Depends(require_roles("adm
          "campaign_name": body.campaign_name, "adset_name": body.adset_name,
          "ad_name": body.ad_name, "form_name": body.form_name},
         source_label="Facebook Lead Ads (test)",
+        dedupe_today=False,
     )
     return {"ok": True, "lead_id": lead["id"], "lead": lead}
 
@@ -457,7 +480,7 @@ async def _run_backfill(job_id: str, s: dict, since_days: int, form_id, max_lead
                             # not blast welcome WhatsApp/email to (possibly old) recovered contacts.
                             await _map_and_create_lead(lead["field_data"], s, raw,
                                                        source_label="Meta backfill (recovered)",
-                                                       created_at=ct, run_autos=False)
+                                                       created_at=ct, run_autos=False, dedupe_today=False)
                             r["recovered"] += 1
                         except Exception as e:
                             r["errors"].append(f"lead {lgid}: {str(e)[:120]}")

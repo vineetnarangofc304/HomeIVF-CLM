@@ -94,6 +94,22 @@ async def check_duplicate(phone_digits: str, exclude_id: int = None) -> dict:
             "duplicate_count": count}
 
 
+async def check_duplicate_today(phone_digits: str, exclude_id: int = None):
+    """SAME-DAY dedup (client requirement): return the id of an ACTIVE lead with this phone
+    that was created TODAY (IST), else None. A same-phone lead from a PREVIOUS day is a genuinely
+    new enquiry and is NOT merged. Uses the selective phone_digits index + a create_date_ist
+    residual. Returns the most recent same-day lead so its activity/notes stay together."""
+    if not phone_digits or len(phone_digits) < 8:
+        return None
+    today = today_ist()  # "YYYY-MM-DD" (IST)
+    q = {"phone_digits": phone_digits, "active": True,
+         "create_date_ist": {"$gte": today + " 00:00:00", "$lte": today + " 23:59:59"}}
+    if exclude_id is not None:
+        q["id"] = {"$ne": exclude_id}
+    doc = await db.leads.find_one(q, {"_id": 0, "id": 1}, sort=[("id", -1)], max_time_ms=5000)
+    return doc["id"] if doc else None
+
+
 def today_ist() -> str:
     return (datetime.now(timezone.utc) + IST_OFFSET).strftime("%Y-%m-%d")
 

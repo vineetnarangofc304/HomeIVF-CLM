@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from core.db import db
 from core.security import require_roles
-from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, search_norm, ensure_catalog, pick_available_caller, pick_any_caller, queue_lead_for_assignment
+from core.utils import log_message, next_id, now_utc_str, run_automations, to_ist_str, ist_date_parts, check_duplicate, check_duplicate_today, search_norm, ensure_catalog, pick_available_caller, pick_any_caller, queue_lead_for_assignment
 from routes.catalogs import bust_catalogs
 
 router = APIRouter(tags=["webhooks"])
@@ -67,13 +67,13 @@ async def webhook_lead(token: str, request: Request):
     now = now_utc_str()
     phone_digits = re.sub(r"\D", "", data.get("phone") or "")[-10:]
 
-    # De-dupe web leads by phone: if an ACTIVE lead already exists for this number, do
-    # NOT create another lead or consume a caller assignment (that floods several callers
-    # with the same person — the AI agent re-posts the same enquiry). Log the repeat
-    # enquiry on the existing lead and return its id instead.
-    dup = await check_duplicate(phone_digits)
-    if dup["is_duplicate"]:
-        existing_id = dup["duplicate_of"]
+    # SAME-DAY de-dupe (client requirement): if an ACTIVE lead for this number was already
+    # created TODAY, do NOT create another lead or consume a caller assignment (the Website AI
+    # Agent re-posts the same enquiry repeatedly). Merge the repeat onto today's lead and return
+    # its id. A same-phone lead from a PREVIOUS day is treated as a genuinely NEW enquiry.
+    existing_today = await check_duplicate_today(phone_digits)
+    if existing_today:
+        existing_id = existing_today
         src = data.get("source_lead") or hook.get("source_default") or "website"
         bits = [f"source: {src}"]
         if data.get("query"):
@@ -82,13 +82,17 @@ async def webhook_lead(token: str, request: Request):
             bits.append(f"page: {data['conversion_page']}")
         await db.leads.update_one({"id": existing_id}, {"$set": {"write_date": now}})
         await log_message(existing_id,
-                          f"🔁 Repeat web enquiry via '{hook['name']}' ({'; '.join(bits)}) — merged into this lead, no duplicate created",
+                          f"🔁 Repeat web enquiry via '{hook['name']}' ({'; '.join(bits)}) — same-day duplicate merged into this lead, no new lead created",
                           subtype="comment")
         await db.webhooks.update_one({"id": hook["id"]}, {"$inc": {"hits": 1}})
         if src:
             await ensure_catalog("source_lead", src)
             bust_catalogs()
-        return {"ok": True, "lead_id": existing_id, "duplicate": True, "merged_into": existing_id}
+        return {"ok": True, "lead_id": existing_id, "duplicate": True, "merged_into": existing_id, "merged_same_day": True}
+
+    # Not a same-day repeat → create a new lead. Still FLAG it if an older same-phone lead
+    # exists (visibility only, no merge) so callers can see the prior history.
+    dup = await check_duplicate(phone_digits)
 
     lid = await next_id("lead")
     user_id = None
@@ -115,7 +119,7 @@ async def webhook_lead(token: str, request: Request):
         "create_date": now, "create_date_ist": to_ist_str(now), "write_date": now,
         "custom": extras, "webhook_id": hook["id"],
         "phone_digits": phone_digits,
-        "is_duplicate": False, "duplicate_of": None,
+        "is_duplicate": dup["is_duplicate"], "duplicate_of": dup["duplicate_of"],
         **{k: v for k, v in data.items() if k not in ("name", "source_lead")},
     }
     doc.update(ist_date_parts(doc["create_date_ist"]))
@@ -130,6 +134,8 @@ async def webhook_lead(token: str, request: Request):
         await ensure_catalog("source_lead", doc["source_lead"])
         bust_catalogs()
     await log_message(lid, f"Lead captured via webhook '{hook['name']}'")
+    if dup["is_duplicate"]:
+        await log_message(lid, f"⚠️ Same number as an earlier lead #{dup['duplicate_of']} (different day — kept as a new enquiry)", subtype="comment")
     await run_automations("on_create", doc)
     return {"ok": True, "lead_id": lid}
 

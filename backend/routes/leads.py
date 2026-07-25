@@ -43,6 +43,16 @@ TRACKED = ["stage_id", "lead_stage", "user_id", "tags", "follow_up_date", "follo
            "name", "contact_name", "phone", "alternate_number", "email_from", "city", "state_name", "priority"]
 
 
+def _parse_day(s, end=False):
+    """Parse a 'YYYY-MM-DD' filter value into a naive datetime matching how create_dt is
+    stored (IST wall-clock). Returns None on bad input so the filter is simply skipped."""
+    try:
+        d = datetime.strptime(str(s)[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None
+    return d.replace(hour=23, minute=59, second=59) if end else d
+
+
 def build_query(
     search=None, stage_id=None, lead_stage=None, tags=None, user_id=None,
     source_lead=None, campaign_name=None, ads_platform=None, city=None, state_name=None,
@@ -56,16 +66,13 @@ def build_query(
     # raw (un-promoted) Ozonetel lead. The bucket tabs only scope the DEFAULT (non-search) list.
     if not search:
         if bucket == "ozonetel":
-            # Raw (un-promoted) Ozonetel leads carry pipeline=False — uses the same indexed
-            # {active,pipeline,create_date,id} plan as the pipeline tab (was an unindexed scan).
+            # Raw (un-promoted) Ozonetel call-leads carry pipeline=False — a POSITIVE, highly
+            # selective match (~200 docs) served by the {pipeline, create_dt} index.
             q["pipeline"] = False
-        elif bucket == "pipeline":
-            # Indexed & sort-friendly: everything EXCEPT raw (un-promoted) Ozonetel leads,
-            # which carry pipeline=False. Leads without the field (pre-backfill) still match
-            # via $ne, so nothing vanishes during the one-time backfill window. This replaces
-            # the old $or/$ne filter that couldn't use the sort-covering index → blocking
-            # in-memory SORT over ~100k docs → slow / 500 ("Sort exceeded memory limit").
-            q["pipeline"] = {"$ne": False}
+        # The default "Leads in Pipeline" tab applies NO pipeline filter (2026-06 Support DB
+        # review): `pipeline` exists on only ~200 docs, so the old `pipeline:{$ne:false}` matched
+        # nearly every record while BLOCKING efficient index use and confusing the planner. The
+        # ~200 raw Ozonetel leads now also appear in the default list (0.16% of the collection).
     if active == "true":
         q["active"] = True
     elif active == "false":
@@ -123,9 +130,13 @@ def build_query(
     if priority:
         q["priority"] = priority
     if date_from:
-        q.setdefault("create_date_ist", {})["$gte"] = date_from
+        v = _parse_day(date_from)
+        if v:
+            q.setdefault("create_dt", {})["$gte"] = v
     if date_to:
-        q.setdefault("create_date_ist", {})["$lte"] = date_to + " 23:59:59"
+        v = _parse_day(date_to, end=True)
+        if v:
+            q.setdefault("create_dt", {})["$lte"] = v
     today = today_ist()
     if follow_up == "today":
         q["follow_up_date"] = today
@@ -185,8 +196,9 @@ ALLOWED_SORT = {"create_date", "create_date_ist", "contact_name", "name", "phone
                 "user_id", "lead_stage", "follow_up_date", "source_lead", "id", "write_date"}
 
 # Cap every list query so a slow scan on a big filtered set aborts and RELEASES its pooled
-# connection (fast error) instead of hanging until the ingress gateway 503s.
-LIST_FIND_MS = 15000
+# connection (fast error) instead of hanging until the ingress gateway 503s. Support DB
+# review: keep these in the 5-10s range so one slow query never blocks the pool for minutes.
+LIST_FIND_MS = 10000
 LIST_COUNT_MS = 8000
 
 # count_documents on a big filtered set (e.g. ~120k pipeline leads) scans that many index
@@ -282,68 +294,28 @@ async def list_leads(
     if sort not in ALLOWED_SORT:
         sort = "create_date"
     sort_dir = -1 if order == "desc" else 1
-    # PIN the sort-covering index for the unscoped "all pipeline" list. Without this the planner
-    # can do a BLOCKING SORT over all ~120k docs (only ~0.1s in preview, but 15-30s on a
-    # load-saturated prod DB). Walking [active, create_date, id] in create_date order and applying
-    # pipeline!=false as a cheap residual examines ~limit keys.
-    # ⚠️ HINT BY KEY PATTERN, NOT BY INDEX NAME: this index is AUTO-named
-    # ('active_1_create_date_-1_id_-1') on a fresh/production DB but has a historical CUSTOM name
-    # ('active_createdate_id') in preview. Hinting by the name worked in preview but threw
-    # "hint provided does not correspond to an existing index" on production → EVERY Leads-list
-    # request 504'd → CONSTANT "Server is busy" on the Leads page after the deploy that added the
-    # hint. A key-pattern hint resolves to whatever index has these keys, regardless of its name.
-    hint_keys = None
-    if sort == "create_date" and q.get("active") is True:
-        base_keys = set(q.keys())
-        single_stage = isinstance(q.get("lead_stage"), str) and q.get("lead_stage")
-        if base_keys <= {"active", "pipeline"} and q.get("pipeline") == {"$ne": False}:
-            # Unscoped "Leads in Pipeline (All)" default. Direction-AWARE: pin the create_date
-            # index whose direction matches the requested order so the ascending toggle isn't
-            # forced onto a wrong-direction index -> blocking SORT over ~120k docs -> 504.
-            hint_keys = [("active", 1), ("create_date", sort_dir), ("id", -1)]
-        elif single_stage and "user_id" not in q and "tags" in q:
-            # Lead-stage + TAGS filter (the user's "Contacted + OPD Booked" view). Scan the
-            # active+lead_stage+tags index in create_date order -> NO blocking sort, ~limit keys.
-            # Without this the planner picks the multikey `tags` index and BLOCKING-SORTS the whole
-            # tag set by create_date -> 18s -> 504 -> the /api/leads pool-exhaustion cascade.
-            # Only for the unscoped (admin/all) view: a caller-scoped query has a far more selective
-            # user_id and the planner's user_id index serves its small ~5k book better.
-            hint_keys = [("active", 1), ("lead_stage", 1), ("tags", 1), ("create_date", sort_dir), ("id", -1)]
-        elif single_stage and "user_id" not in q:
-            # Lead-stage filter alone -> walk the active+lead_stage+create_date index in sort order.
-            hint_keys = [("active", 1), ("lead_stage", 1), ("create_date", sort_dir), ("id", -1)]
+    # Sort by create_dt (a real Date) — the lean 2026-06 index set is built on create_dt, not
+    # the create_date/create_date_ist STRINGS (Support DB review: smaller, more reliable keys).
+    # create_dt is populated on every lead, so the visual order is identical.
+    sort_field = "create_dt" if sort in ("create_date", "create_date_ist") else sort
 
-    async def _run(with_hint: bool):
-        cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort, sort_dir), ("id", -1)])
+    # No hint. The over-indexed collection (57 indexes) forced the planner to weigh dozens of
+    # candidates → the 60s planning stalls Support flagged, and an earlier hint-by-name even
+    # took the Leads page down on prod. With the lean set the planner picks the right index
+    # fast and correctly, so we let it — and cap wall time as the only safety net.
+    async def _run():
+        cur = (db.leads.find(q, LIST_PROJECTION).sort([(sort_field, sort_dir), ("id", -1)])
                .skip((page - 1) * limit).limit(limit).allow_disk_use(True).max_time_ms(LIST_FIND_MS))
-        if with_hint and hint_keys:
-            cur = cur.hint(hint_keys)
         # Hard wall-clock stop. maxTimeMS does NOT reliably interrupt a large in-memory/disk
-        # blocking SORT, so a sort/filter that is not index-backed could otherwise hang for
-        # minutes while holding a pooled connection (the historical 504 / pool-exhaustion
-        # cascade). This guarantees the request returns promptly; an un-indexed view degrades to
-        # a clean 504 instead of an outage. Transparent to normal queries (they return in ms).
+        # blocking SORT (e.g. a rare unfiltered column sort that isn't index-backed), so cap the
+        # wall time too → the request returns promptly and RELEASES its pooled connection instead
+        # of hanging. Transparent to normal (index-covered) queries, which return in ms.
         return await asyncio.wait_for(cur.to_list(limit), timeout=LIST_FIND_MS / 1000 + 3)
 
     try:
-        items = await _run(with_hint=True)
-    except asyncio.TimeoutError:
-        # Not index-backed (e.g. an API-only sort column) — fail fast rather than hang. Retrying
-        # without the hint would just wait again, so go straight to a clean 504.
+        items = await _run()
+    except (asyncio.TimeoutError, PyMongoError):
         raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
-    except PyMongoError as e:
-        # Retry WITHOUT the hint ONLY if the hint itself was the problem (index not present yet /
-        # still building right after a deploy, or a wrong-direction key pattern). A Mongo maxTimeMS
-        # timeout (OperationFailure code 50) is a GENUINE slow query — never retry it, or we run the
-        # slow query twice and double the DB load during the exact moment it's already struggling.
-        is_timeout = isinstance(e, OperationFailure) and getattr(e, "code", None) == 50
-        if hint_keys and not is_timeout:
-            try:
-                items = await _run(with_hint=False)
-            except (PyMongoError, asyncio.TimeoutError):
-                raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
-        else:
-            raise HTTPException(status_code=504, detail="This view is taking too long — please narrow the filters.")
     total = await _cached_count(q)
     return {"items": items, "total": total, "page": page, "limit": limit}
 
@@ -383,7 +355,7 @@ async def group_counts(
 
 @router.get("/{lead_id}")
 async def get_lead(lead_id: int, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=8000)
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
@@ -497,7 +469,7 @@ async def _track_changes(lead, updates, user):
 
 @router.patch("/{lead_id}")
 async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=8000)
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     updates = {k: v for k, v in body.updates.items() if k in EDITABLE_FIELDS}
@@ -524,7 +496,7 @@ async def update_lead(lead_id: int, body: LeadUpdate, user: dict = Depends(get_c
     updates["write_date"] = now_utc_str()
     updates["write_uid"] = user["id"]
     await db.leads.update_one({"id": lead_id}, {"$set": updates})
-    new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=8000)
+    new_lead = await db.leads.find_one({"id": lead_id}, {"_id": 0}, max_time_ms=5000)
     if "user_id" in updates:
         await sync_channel_owner(new_lead.get("phone_digits"), updates["user_id"])
     stage_changed = ("stage_id" in updates and updates["stage_id"] != lead.get("stage_id")) or \

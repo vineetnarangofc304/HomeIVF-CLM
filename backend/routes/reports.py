@@ -264,10 +264,10 @@ async def dashboard(date_from: str = None, date_to: str = None, section: str = "
 
 async def _compute_dashboard(date_from: str = None, date_to: str = None, user: dict = None,
                              section: str = "all"):
-    # Scope to the "Lead in Pipeline" working set (exclude raw, un-promoted Ozonetel
-    # call-leads which carry pipeline=False) so the dashboard Today count + Funnel
-    # match the "Lead in Pipeline" export for the same date range (Case 4 mismatch fix).
-    base = {"active": True, "pipeline": {"$ne": False}}
+    # Base working set. The old `pipeline:{$ne:false}` exclusion of ~200 raw Ozonetel
+    # call-leads was dropped (2026-06 Support DB review — it was a non-selective filter that
+    # blocked efficient index use). Dashboard totals now match the Leads list exactly.
+    base = {"active": True}
     if user["role"] == "caller":
         base["user_id"] = user["id"]
     today = today_ist()
@@ -454,7 +454,7 @@ async def kpi_overview(month: Optional[str] = None, user: dict = Depends(require
     tags = await db.catalogs.find({"type": "tag"}, {"_id": 0, "id": 1, "name": 1}).to_list(500)
     id_to_name = {t["id"]: t["name"] for t in tags}
 
-    base = {"active": True, "pipeline": {"$ne": False}}
+    base = {"active": True}
     if user.get("role") == "caller":
         base["user_id"] = user["id"]
 

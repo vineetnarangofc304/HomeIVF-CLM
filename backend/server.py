@@ -210,108 +210,47 @@ INDEX_SPECS = [
     ("users", "email", {"unique": True}),
     ("users", "id", {"unique": True}),
     ("login_attempts", "identifier", {}),
+    # -----------------------------------------------------------------------------------
+    # LEADS — LEAN, CONSOLIDATED INDEX SET (2026-06, per Emergent Support DB review).
+    # The collection was OVER-INDEXED (57 indexes, ~34 leading with `active`). Because
+    # `active` is a boolean (non-selective), those 34 all looked like candidates on every
+    # query, so Mongo spent nearly all its time PLANNING (choosing an index) rather than
+    # executing → some /api/leads calls took 60s+ and exhausted the pool. Fix (Support):
+    #   • the SELECTIVE field leads (user_id / lead_stage / tags / phone_digits),
+    #   • `active` becomes a partialFilterExpression (removed from the key) so an index
+    #     stops being a candidate for unrelated queries,
+    #   • the sort field goes LAST and is `create_dt` (a real Date — smaller, reliable keys).
+    # Stale/legacy indexes are removed on startup by _drop_stale_lead_indexes().
     ("leads", "id", {"unique": True}),
-    ("leads", [("create_date", -1)], {}),
-    ("leads", [("create_date_ist", -1)], {}),
-    ("leads", [("write_date", -1)], {}),
-    ("leads", "user_id", {}),
-    ("leads", "tags", {}),
-    ("leads", "lead_stage", {}),
+    # Primary list sort (admin default list + archived/lost views). NON-partial so it serves
+    # BOTH active:true and active:false lists (active is a cheap residual filter).
+    ("leads", [("create_dt", -1), ("id", -1)], {}),
+    # Caller default list / colleague filter (user_id is genuinely selective → it leads).
+    ("leads", [("user_id", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
+    # Caller + lead-stage.
+    ("leads", [("user_id", 1), ("lead_stage", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
+    # Admin lead-stage filter + sort.
+    ("leads", [("lead_stage", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
+    # Tags filter ("Contacted + OPD Booked"): single-tag $in scans in create_dt order (no
+    # blocking sort); multi-tag $in uses SORT_MERGE.
+    ("leads", [("tags", 1), ("create_dt", -1)], {"partialFilterExpression": {"active": True}}),
+    # Follow-up filters (today / overdue / upcoming) + dashboard follow-up counts.
+    ("leads", [("follow_up_date", 1)], {"partialFilterExpression": {"active": True}}),
+    # "Ozonetel Lead" tab — a POSITIVE, selective match (only ~200 docs carry pipeline=False),
+    # which is Support's recommended replacement for the old non-selective pipeline!=False filter.
+    ("leads", [("pipeline", 1), ("create_dt", -1)], {}),
+    # Phone search / duplicate check / promote / WhatsApp number lookup / channel-owner sync.
     ("leads", "phone_digits", {}),
-    # Meta backfill de-dupes by facebook_leadgen_id (find_one per fetched lead). Without an
-    # index that is a full ~120k collscan PER lead → holds DB connections / pool-exhaustion
-    # risk during a recovery run. Sparse: only Facebook leads carry this field.
-    ("leads", "facebook_leadgen_id", {"sparse": True}),
-    ("leads", "follow_up_date", {}),
-    ("leads", "active", {}),
-    ("leads", [("active", 1), ("create_date", -1)], {}),
-    ("leads", [("active", 1), ("create_date_ist", -1)], {}),
-    ("leads", [("active", 1), ("lead_stage", 1)], {}),
-    ("leads", [("active", 1), ("follow_up_date", 1)], {}),
-    ("leads", [("active", 1), ("user_id", 1)], {}),
-    ("leads", "source_lead", {}),
-    ("leads", "stage_id", {}),
-    # Sort-covering compound indexes for the /leads list. The list sorts by
-    # [(sort_field, dir), ("id", -1)]; without "id" in the index Mongo does a BLOCKING
-    # in-memory SORT of every matching doc (~100k for admin) which is slow and, past the
-    # 32MB sort limit, errors with "Sort exceeded memory limit" → the page timed out /
-    # "Request failed". These cover the default (create_date) list for admin & callers.
-    ("leads", [("active", 1), ("create_date", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("user_id", 1), ("create_date", -1), ("id", -1)], {}),
-    # "Lead in Pipeline" tab (default) filters pipeline!=False. This index covers that
-    # filter + the [create_date,id] sort so the tab never blocking-sorts / 500s at scale.
-    ("leads", [("active", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
-    # Caller-scoped "Lead in Pipeline" tab (user_id + pipeline + sort) — keeps a caller's
-    # default view index-covered even when they have thousands of raw Ozonetel leads mixed
-    # in (was a possible blocking fetch → the caller-side 500 under concurrent load).
-    ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date", -1), ("id", -1)], {}),
-    # The list sorts by [(sort_field, dir), ("id", -1)]. For non-create_date sorts
-    # (Name / City / Phone / Updated column headers) without a matching compound index,
-    # Mongo does a BLOCKING in-memory sort of the whole filtered set (up to 100k+ docs) →
-    # the request hangs long enough for the ingress gateway to return 503. These make
-    # every sortable column index-backed so it can't hang.
-    ("leads", [("active", 1), ("write_date", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("contact_name", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("name", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("city", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("phone", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("lead_stage", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("follow_up_date", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("source_lead", 1), ("id", -1)], {}),
-    # Common list FILTERS that otherwise scan the collection before sorting.
-    ("leads", [("active", 1), ("source_lead", 1), ("create_date", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("lead_stage", 1), ("create_date", -1), ("id", -1)], {}),
-    # Lead-stage + TAGS filter (e.g. the "Contacted + OPD Booked" view). `tags` is MULTIKEY;
-    # without an index that carries tags BEFORE create_date the planner picks the plain `tags`
-    # index and does a BLOCKING in-memory SORT of the whole tag set by create_date → 18s → 504
-    # → the /api/leads connection-pool-exhaustion cascade. With this index a single-tag $in
-    # scans in create_date order (no sort) and a multi-tag $in uses an efficient SORT_MERGE,
-    # examining ~limit keys instead of fetching the entire ~24k lead_stage bucket.
-    ("leads", [("active", 1), ("lead_stage", 1), ("tags", 1), ("create_date", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("follow_up_tag", 1)], {}),
-    ("leads", [("active", 1), ("priority", 1)], {}),
-    # Prefix ('starts with') search on name fields uses these single-field indexes
-    # instead of a full collection scan (the "search is slow" fix).
-    ("leads", "name", {}),
-    ("leads", "contact_name", {}),
-    ("leads", "email_from", {}),
-    # Lowercased search fields — a CASE-SENSITIVE '^prefix' regex on these uses tight
-    # index bounds (case-insensitive regex on the raw fields could not, so every search
-    # scanned all ~120k docs → connection-pool exhaustion → intermittent 500s on login).
+    # Case-SENSITIVE '^prefix' text search on lowercased fields → tight index bounds.
     ("leads", "name_lc", {}),
     ("leads", "contact_name_lc", {}),
     ("leads", "email_lc", {}),
-    # Covering indexes so the report aggregations run index-only (docs=0) instead of
-    # paging the whole ~240MB collection off disk: trends (period+stage), dashboard
-    # date-range panels, and the dow/hour heatmap.
+    # Meta leadgen de-dup (sparse — only Facebook leads carry this field).
+    ("leads", "facebook_leadgen_id", {"sparse": True}),
+    # Reports / Dashboard / KPI / trends / export: create_date_ist range + group by lead_stage.
+    # Deliberately NOT active-prefixed, so it is never a candidate for the hot /api/leads
+    # (create_dt) query. Reports run on the isolated analytics pool and are cached.
     ("leads", [("create_date_ist", -1), ("lead_stage", 1)], {}),
-    ("leads", [("active", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
-    ("leads", [("create_date_ist", -1), ("create_dow", 1), ("create_hour", 1)], {}),
-    # Dashboard/KPI scope (base = active + pipeline!=False, grouped by lead_stage over a
-    # create_date_ist range): index-first so cold (uncached) report loads never page the
-    # whole ~240MB collection. Admin scope + caller (user_id) scope.
-    ("leads", [("active", 1), ("pipeline", 1), ("create_date_ist", -1), ("lead_stage", 1)], {}),
-    ("leads", [("active", 1), ("user_id", 1), ("pipeline", 1), ("create_date_ist", -1)], {}),
-    # Sort-by-column coverage for the Leads grid. Without these, clicking the "Assigned To"
-    # (user_id) or "Follow-up date" column headers does a BLOCKING SORT over the ~120k pipeline
-    # docs. maxTimeMS does NOT reliably interrupt a large blocking sort, so on production those
-    # sorts ran 2-6 minutes and 504'd (holding connections). With these, the sort is served by
-    # an index walk (IXSCAN+LIMIT, ~4ms). Mirrors the existing per-column sort indexes above.
-    ("leads", [("active", 1), ("user_id", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("user_id", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("user_id", 1), ("create_date", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("follow_up_date", -1), ("id", -1)], {}),
-    # Reverse-direction coverage for the remaining UI-sortable Leads columns. Each grid column
-    # header toggles asc<->desc; the existing indexes above only covered ONE direction, so the
-    # other direction did a blocking sort over ~120k docs (the user_id/follow_up_date 504s). These
-    # make BOTH directions of every clickable column an index walk (~4ms). (Non-UI, API-only sort
-    # columns are intentionally not indexed here to stay well under Mongo's 64-index cap; the
-    # list_leads wall-clock guard below makes those fail fast instead of hanging.)
-    ("leads", [("active", 1), ("create_date", 1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("contact_name", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("phone", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("lead_stage", -1), ("id", -1)], {}),
-    ("leads", [("active", 1), ("source_lead", -1), ("id", -1)], {}),
     ("follow_ups", [("lead_id", 1), ("follow_up_date", -1)], {}),
     ("follow_ups", [("follow_up_date", 1)], {}),
     ("follow_ups", [("source", 1), ("lead_id", 1)], {}),
@@ -360,6 +299,42 @@ INDEX_SPECS = [
 ]
 
 
+def _spec_key_tuple(keys):
+    """Normalize an INDEX_SPECS key ('id' or [('user_id',1),...]) to a comparable tuple."""
+    if isinstance(keys, str):
+        return ((keys, 1),)
+    return tuple((k, int(d)) for k, d in keys)
+
+
+async def _drop_stale_lead_indexes():
+    """Drop legacy/redundant `leads` indexes that are NOT in the lean INDEX_SPECS set
+    (2026-06 Support consolidation). The collection had 57 indexes (~34 active-prefixed)
+    which made Mongo evaluate dozens of candidate plans per query. Keeping only the lean
+    set removes that planning overhead. Safe: dropping an index is a fast metadata op, and
+    the new set is created FIRST (above) so coverage never has a gap. Never drops _id_."""
+    keep = {_spec_key_tuple(keys) for coll, keys, _ in INDEX_SPECS if coll == "leads"}
+    try:
+        info = await db_analytics.leads.index_information()
+    except Exception as e:
+        logger.warning(f"could not read leads indexes for cleanup: {str(e)[:120]}")
+        return
+    dropped = 0
+    for name, meta in info.items():
+        if name == "_id_":
+            continue
+        key_t = tuple((k, int(d)) for k, d in meta.get("key", []))
+        if key_t in keep:
+            continue
+        try:
+            await db_analytics.leads.drop_index(name)
+            dropped += 1
+        except Exception as e:
+            logger.warning(f"drop stale index leads.{name} skipped: {str(e)[:120]}")
+    if dropped:
+        logger.info(f"Dropped {dropped} stale/redundant leads index(es)")
+
+
+
 async def _ensure_indexes():
     """Build indexes in the background so a slow/large-collection build never blocks
     startup (which previously stalled the whole app on production). Each build is
@@ -372,6 +347,9 @@ async def _ensure_indexes():
             await db[coll].create_index(keys, **kwargs)
         except Exception as e:
             logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
+    # Remove the legacy/redundant leads indexes (Support consolidation) AFTER the lean set
+    # is in place, so query coverage is never left with a gap during the transition.
+    await _drop_stale_lead_indexes()
     # One-time (idempotent) backfill of precomputed date-parts so the heatmap / trends
     # aggregations are index-COVERED. Only touches leads still missing the field, so it
     # is a no-op on every later startup. Runs in this background task (never blocks
