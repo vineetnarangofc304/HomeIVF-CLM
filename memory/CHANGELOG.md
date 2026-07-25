@@ -2,6 +2,29 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — Prod 504 on /api/leads: COLLSCAN-storm root cause + CDR hardening
+
+- **Reported (prod):** a `GET /api/leads` 504 (13s), cascading 503/500s, and `POST /api/calls/ozonetel/cdr`
+  requests taking **150-168s**.
+- **Root cause:** the earlier 57->15 consolidation dropped the old single-field `{active:1}` index, so the
+  unfiltered `count({active:true})` AND the `group_counts` aggregations fell back to full **COLLSCANs**. With
+  24 callers each firing a background count + group_counts on every Leads-list load, that COLLSCAN storm
+  saturated the MongoDB server — even the Ozonetel CDR webhook's own indexed queries then queued for 150s,
+  exhausting the interactive connection pool → `/api/leads` waited >13s for a connection → 504.
+- **Fixes (preview, verified 30/30 in iteration_80):**
+  1. Re-added a single count-only **`{active:1}`** index → `count({active:true})` = 30ms COUNT_SCAN,
+     `group_counts` (lead_stage/user_id/source_lead) = 137ms IXSCAN (were COLLSCANs). Leads index count 15→**16**.
+     (The find planner still never picks `{active:1}` for the create_dt-sorted list, so it's not the anti-pattern
+     Support flagged — that was 34 active-*leading compound* indexes.)
+  2. Raised the non-blocking analytics-pool background-count cap `LIST_COUNT_MS` 8000→20000 so the total
+     always resolves (fixes the "-1 forever" total on the loaded prod DB).
+  3. Hardened `routes/calls.py ozonetel_cdr`: all its lookups (`_match_lead`, `_match_agent`, settings,
+     call_events) now use `max_time_ms=5000` (fail-fast, never hang), and auto-created call leads run their
+     automations in the **background** via new `core/utils.schedule_automations()` (fire-and-forget) so the CDR
+     webhook returns in ~0.6s and releases its DB connection instead of blocking on a WhatsApp/email send.
+- ⚠️ Preview cannot reproduce the prod load, so the load fix is confirmed by code/plan (explain shows IXSCAN
+  everywhere) + functional tests; **needs a prod REDEPLOY** to take effect on the live DB.
+
 ## 2026-06 — Prod verification follow-up: /api/version marker + Leads total-count fix
 
 - Added a read-only **`GET /api/version`** endpoint (server.py) that reports the LIVE deploy
