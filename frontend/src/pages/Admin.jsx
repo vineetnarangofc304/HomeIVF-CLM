@@ -54,6 +54,7 @@ function SystemHealthTab() {
   const [logs, setLogs] = useState(null);
   const [kind, setKind] = useState("");
   const [expanded, setExpanded] = useState(null);
+  const [dbHealth, setDbHealth] = useState(null);
 
   const load = () => {
     Promise.all([
@@ -62,7 +63,18 @@ function SystemHealthTab() {
     ]).then(([s, l]) => { setSummary(s.data); setLogs(l.data.logs); })
       .catch((e) => toast.error(apiErr(e)));
   };
-  useEffect(() => { load(); const t = setInterval(load, 15000); return () => clearInterval(t); /* eslint-disable-next-line */ }, [kind]);
+  // Fetched INDEPENDENTLY of the log endpoints: during an Atlas outage the log queries 503,
+  // but this bounded probe must still render so the admin can see the DB is the culprit.
+  const loadDbHealth = () => {
+    API.get("/admin/db-health")
+      .then(({ data }) => setDbHealth(data))
+      .catch(() => setDbHealth({ reachable: false, latency_ms: null, detail: "Could not reach the server" }));
+  };
+  useEffect(() => {
+    load(); loadDbHealth();
+    const t = setInterval(() => { load(); loadDbHealth(); }, 15000);
+    return () => clearInterval(t); /* eslint-disable-next-line */
+  }, [kind]);
 
   const clearLogs = async () => {
     if (!window.confirm("Clear all captured error/slow logs? This cannot be undone.")) return;
@@ -90,6 +102,28 @@ function SystemHealthTab() {
           <button onClick={load} className="hivf-btn-secondary !py-1.5 text-xs" data-testid="health-refresh"><ArrowsClockwise size={14} className="mr-1 inline" />Refresh</button>
           <button onClick={clearLogs} className="hivf-btn-secondary !py-1.5 text-xs text-rose-600" data-testid="health-clear"><Trash size={14} className="mr-1 inline" />Clear</button>
         </div>
+      </div>
+
+      <div className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5 ${dbHealth ? (dbHealth.reachable ? "border-emerald-200 bg-emerald-50" : "border-rose-200 bg-rose-50") : "border-slate-200 bg-slate-50"}`} data-testid="db-health-banner">
+        <div className="flex items-center gap-3">
+          <span className={`relative flex h-3 w-3 ${dbHealth && !dbHealth.reachable ? "" : ""}`}>
+            {dbHealth?.reachable && <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />}
+            <span className={`relative inline-flex h-3 w-3 rounded-full ${dbHealth ? (dbHealth.reachable ? "bg-emerald-500" : "bg-rose-500") : "bg-slate-300"}`} data-testid="db-health-dot" />
+          </span>
+          <div>
+            <p className={`font-display text-sm font-extrabold ${dbHealth ? (dbHealth.reachable ? "text-emerald-700" : "text-rose-700") : "text-slate-500"}`} data-testid="db-health-status">
+              {dbHealth ? (dbHealth.reachable ? "Database reachable" : "Database unreachable") : "Checking database…"}
+              {dbHealth?.reachable && dbHealth.latency_ms != null && <span className="ml-2 font-semibold text-emerald-600">· {dbHealth.latency_ms} ms</span>}
+            </p>
+            <p className="text-xs text-slate-500" data-testid="db-health-detail">
+              {dbHealth ? dbHealth.detail : "Bounded live ping to MongoDB"}
+              {dbHealth && !dbHealth.reachable && " — if the app is up but this is red, the issue is the database (Atlas), not the app."}
+            </p>
+          </div>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-bold ${dbHealth ? (dbHealth.reachable ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700") : "bg-slate-100 text-slate-500"}`} data-testid="db-health-pill">
+          {dbHealth ? (dbHealth.reachable ? "● LIVE" : "● DOWN") : "…"}
+        </span>
       </div>
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">

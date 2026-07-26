@@ -3,6 +3,7 @@ import os
 import re
 import sys
 import threading
+import time
 import traceback
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -147,6 +148,24 @@ async def error_logs(limit: int = 100, kind: Optional[str] = None,
 async def clear_error_logs(user: dict = Depends(require_roles("admin"))):
     res = await db.error_logs.delete_many({})
     return {"deleted": res.deleted_count}
+
+
+@router.get("/db-health")
+async def db_health(user: dict = Depends(require_roles("admin", "manager"))):
+    """Live DB reachability probe for Admin → System Health. Runs a BOUNDED ping (3s) so a
+    down/degraded Atlas returns fast as reachable:false instead of hanging — lets an admin tell
+    at a glance whether an incident is the DATABASE (Atlas) or the APP. Always returns HTTP 200
+    with a status payload (never bubbles the Mongo error to the global 503 handler) so the
+    indicator still renders while the DB is unreachable."""
+    start = time.monotonic()
+    try:
+        await asyncio.wait_for(db.command("ping"), timeout=3.0)
+        latency = int((time.monotonic() - start) * 1000)
+        return {"reachable": True, "latency_ms": latency, "detail": "Database is responding"}
+    except Exception as e:
+        latency = int((time.monotonic() - start) * 1000)
+        return {"reachable": False, "latency_ms": latency,
+                "detail": f"{type(e).__name__}: {str(e)[:160]}"}
 
 
 # ---------- Case 1: Duplicate lead cleanup (scan preview + confirm delete) ----------

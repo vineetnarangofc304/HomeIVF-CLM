@@ -2,6 +2,24 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — Feature: "Database reachable?" live indicator on Admin → System Health — DONE (self-verified)
+
+- **Why:** during an Atlas wobble, admins couldn't quickly tell "is it the DB or the app?". This gives an
+  at-a-glance answer.
+- **Backend (`routes/admin.py`):** `GET /api/admin/db-health` (admin/manager) runs a BOUNDED `db.command("ping")`
+  wrapped in `asyncio.wait_for(timeout=3s)`. ALWAYS returns HTTP 200 with `{reachable, latency_ms, detail}` —
+  it catches the Mongo error itself (never bubbles to the global 503 handler) so the indicator still renders
+  while the DB is down.
+- **Frontend (`Admin.jsx` SystemHealthTab):** a status banner at the top — green pulsing dot + "Database reachable
+  · N ms" + "● LIVE" pill when healthy; red dot + "Database unreachable" + "● DOWN" + a hint ("if the app is up
+  but this is red, the issue is the database (Atlas), not the app") when not. Fetched INDEPENDENTLY of the
+  error-log endpoints (via its own `.then/.catch`), so during an outage — when the log queries 503 — the banner
+  still updates. Polls every 15s alongside the existing refresh.
+  testids: `db-health-banner`, `db-health-dot`, `db-health-status`, `db-health-detail`, `db-health-pill`.
+- **Verified:** curl → `{"reachable":true,"latency_ms":0,...}`; screenshot shows the green LIVE banner rendering
+  correctly on the System Health tab.
+
+
 ## 2026-06 — DEPLOYMENT FAILURE fixed: /health 404 + startup crash-risk + .gitignore + OAuth redirect — deployment_agent PASS
 
 - **Reported:** Emergent K8s deploy failing. Logs showed `GET /health → 404` (repeated from 127.0.0.1 = the
