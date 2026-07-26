@@ -2,6 +2,30 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06-XX — P0 COMPLETE: max_time_ms bound on ALL remaining interactive-pool queries (pool-exhaustion final guard)
+
+- **Why:** recurring prod 504/5xx under load = the interactive Mongo pool getting hogged by slow, UNBOUNDED
+  `db.` queries. Hot pollers + the main `/api/leads` list were already bounded (max_time_ms + asyncio wall-clock);
+  this closed the remaining gaps so NO single query can stall and exhaust the pool.
+- **Bounded this session (reads 5000ms; heavier admin/aggregation 8000–10000ms):**
+  - `routes/facebook.py` (had ZERO bounds): `_fb_settings`, `_log_webhook` count/find, `_map_and_create_lead`
+    custom_fields + same-day dedup find_one + assignment settings, the Meta webhook `facebook_leadgen_id`
+    idempotency find_one (~650×/day path), webhook-log list, recent-leads find+count+users, backfill
+    running/status find_ones, and all three `leads.count_documents({facebook_lead:True}, maxTimeMS=8000)`.
+  - `routes/whatsapp.py`: set_category channel + leads phone_digits find_one, star/pin/react message +
+    channel find_ones, send_message channel + reply find_one, channels_for_lead lead + wa_channels regex find.
+  - `routes/leads.py`: lead_audit find, `_track_changes` catalogs/users finds, mark_lost/restore/promote
+    find_ones, send_whatsapp template + wa_channels find, bulk-automation `async for db.leads.find(..., max_time_ms=10000)`,
+    `_sync_lead_followup` latest find, list_followups, follow-up find_ones, caller-activities list+add,
+    followups_analytics `aggregate(pipeline, maxTimeMS=8000)`.
+- **Also fixed:** a pre-existing syntax-corruption fragment at EOF of `leads.py` (stray `reminders": out}`)
+  left by the previous agent's turn cut-off — it was crashing the backend on reload. Backend now boots clean.
+- **Verified:** testing_agent iter84 = backend 100% (34/34) across auth, leads list/detail/update, follow-ups CRUD,
+  caller-activity, lost/restore, promote-to-pipeline, send_whatsapp, all Facebook admin endpoints, WhatsApp inbox
+  + message actions. No invalid-kwarg 500s. Reusable suite: `backend/tests/test_iter84_max_time_ms_bounded_queries.py`.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** to take effect live.
+
+
 ## 2026-06 — PROD OUTAGE (every endpoint 150-256s): missing active_1 recovered + count can't storm
 
 - **Symptom:** at ~10:28 every prod endpoint — even trivial ones (/api/auth/me, /api/agent/me) — took

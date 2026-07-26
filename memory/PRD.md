@@ -1,5 +1,9 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-06) — max_time_ms bound on ALL remaining interactive-pool queries — DONE, testing_agent-verified (iter84 backend 34/34), needs REDEPLOY
+- Final pool-exhaustion guard: added `max_time_ms` (5000ms reads / 8000–10000ms admin+aggregation) to every remaining unbounded `db.` query in `routes/leads.py`, `routes/facebook.py` (previously ZERO bounds), and `routes/whatsapp.py` — so no slow query can hog a Mongo connection and cascade into 504s. Hot pollers + main `/api/leads` list were already bounded. Also fixed a pre-existing EOF syntax-corruption in `leads.py` that was crashing the backend on reload. Full detail in CHANGELOG.md.
+
+
 ## P0 (2026-07-25c) — "Again STUCK": /auth/me pending → blank app; clicking Leads fires dozens of calls piling up 3-4 min then Server Error — FIXED (frontend), bug_testing_agent-verified (iter78), needs REDEPLOY
 - **User/Nishu report (production):** app freezes on blank spinner (/api/auth/me stays "pending"); /api/leads pending ~3 min then Server Error; "why so many API calls when a caller clicks one side-menu (Leads)?"; "Data failed - API Error - No data response". System Health earlier showed everything at ~180s (pool exhaustion).
 - **Root causes (frontend request storm amplifying the slow prod backend):**
