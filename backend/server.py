@@ -387,18 +387,28 @@ async def _ensure_indexes():
     # Run this entire heavy startup routine (index builds + one-time 120k backfills) on the
     # ANALYTICS pool so it never consumes the interactive connections callers/login need.
     db = db_analytics
-    for coll, keys, kwargs in INDEX_SPECS:
-        try:
-            await db[coll].create_index(keys, **kwargs)
-        except Exception as e:
-            logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
-    # Remove the legacy/redundant leads indexes (Support consolidation) AFTER the lean set
-    # is in place, so query coverage is never left with a gap during the transition. Guarded
-    # so a cleanup hiccup can never block the one-time backfills that run below.
+
+    async def _create_all():
+        for coll, keys, kwargs in INDEX_SPECS:
+            try:
+                await db[coll].create_index(keys, **kwargs)
+            except Exception as e:
+                logger.warning(f"index {coll}.{keys} skipped: {str(e)[:120]}")
+
+    # PASS 1 — create the lean set. On a collection that still holds the old ~57 indexes this
+    # can transiently exceed MongoDB's hard 64-index cap, so some NEW indexes silently fail here
+    # (this is exactly why `active_1` was missing on prod → the count-storm 503 outage).
+    await _create_all()
+    # Drop the legacy/redundant leads indexes (Support consolidation). Done AFTER pass 1 so query
+    # coverage is never left with a gap; guarded so a cleanup hiccup can't block the backfills.
     try:
         await _drop_stale_lead_indexes()
     except Exception as e:
         logger.warning(f"leads index cleanup skipped: {str(e)[:120]}")
+    # PASS 2 — re-create the lean set now that the drop has freed index slots. create_index is a
+    # no-op when the index already exists, so this ONLY builds the ones that failed the 64-cap in
+    # pass 1 (e.g. active_1). This guarantees the full lean set exists on every deploy.
+    await _create_all()
     # One-time (idempotent) backfill of precomputed date-parts so the heatmap / trends
     # aggregations are index-COVERED. Only touches leads still missing the field, so it
     # is a no-op on every later startup. Runs in this background task (never blocks

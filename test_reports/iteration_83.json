@@ -1,0 +1,31 @@
+{
+  "summary": "Iteration 83 regression after emergency prod-saturation fix: (a) _ensure_indexes now runs _create_all() in 2 passes to recover any index that hit the 64-cap during pass1 (notably active_1), (b) _cached_count uses estimated_document_count() for empty/{active:True} queries to prevent COLLSCAN storms on the admin unfiltered total. Ran 22 pytest tests against preview URL covering /api/version marker, admin default+scope=all (estimate path) + scope=all filtered (exact count_documents path), sorts/filters/phone-search/bucket=ozonetel, caller default (own-book exact count on user_id partial index) with desc-sorted verification, group_counts (lead_stage & user_id), same-day merge (create/merge/new phone), and Ozonetel CDR (create + repeat ucid dedupe). ALL 22 PASSED in 9.39s. No 500/504s.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "TestVersion (1)": "PASS — build=2026-06-db-consolidation+same-day-merge, leads_index_count=16 == expected 16, indexes_consolidated=true (confirms 2-pass build recovered active_1).",
+    "TestAdminLeads (8)": "PASS — default list fast (<20s), scope=all total via estimated_document_count resolved to sensible ~120k+, scope=all&lead_stage=Contacted (filtered) also resolved to a real non-negative int via count_documents (not stuck at -1), sorts (create_date/-create_date/lead_stage) OK, lead_stage filter OK, date range filter OK, phone search OK, bucket=ozonetel OK.",
+    "TestCallerLeads (3)": "PASS — caller11 default list <20s, own-book total resolved to exact int, items desc-sorted by create_dt.",
+    "TestGroupCounts (2)": "PASS — group_by=lead_stage and user_id both under 15s with non-empty response.",
+    "TestSameDayMerge (4)": "PASS — TEST_iter83_* webhook created, 1st POST creates leadA (merged_same_day=false), 2nd same-phone returns merged_same_day=true / merged_into=leadA, different phone creates leadB. Cleaned up.",
+    "TestOzonetelCDR (2)": "PASS — new NotAnswered CDR returned 200 in <6s and auto-created lead; repeat with same ucid updated same call_event and lead_id (no duplicate). Cleaned up."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter83_2pass_index_and_est_count.py",
+    "/app/test_reports/pytest/iter83_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "2-pass _ensure_indexes is a solid mitigation for the 64-index-cap race — pass1 creates lean set, drop stale frees slots, pass2 re-creates any cap-skipped index. Confirmed empirically: leads_index_count=16/16 and indexes_consolidated=true.",
+    "estimated_document_count() branch in _cached_count is correctly gated to {active:True} and empty queries only — filtered path (verified with lead_stage=Contacted) still uses count_documents on partial indexes, so exact counts are preserved where they matter.",
+    "Minor: consider logging pass1-vs-pass2 index-creation results at INFO so ops can detect the cap-race in future without needing /api/version deltas.",
+    "estimate can be ~0.02% higher than active-only in prod (includes inactive) — as documented in the request. Callers/consumers should not treat unfiltered total as exact."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter83_2pass_index_and_est_count.py"],
+  "success_rate": {"backend": "100% (22/22)", "frontend": "N/A (skip frontend per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026; caller11@homeivf.com / TestPass@2026",
+  "seed_data_creation": "1 TEST_iter83_* webhook, 2 leads via webhook, 1 Ozonetel CDR lead — all deleted in module-scoped cleanup fixture. Uses random phone numbers not in DB.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "iter83 regression file at /app/backend/tests/test_iter83_2pass_index_and_est_count.py is self-contained: version marker, admin/caller leads (estimate + exact paths), group_counts, same-day merge, Ozonetel CDR. All 22 passed in 9.39s. Preview data is small/cached — absolute timings are not prod-representative; asserts prioritize correctness + no 500/504 + total resolves (not -1 forever). The 2-pass index build and estimated_document_count changes did not regress any leads/counts/merge/CDR flow."
+}

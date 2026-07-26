@@ -232,7 +232,16 @@ async def _cached_count(q: dict) -> int:
 
     async def _do():
         try:
-            val = await db_analytics.leads.count_documents(q, maxTimeMS=LIST_COUNT_MS)
+            # The unfiltered active set (admin default list / scope=all) is the ONE count that
+            # is a full ~120k scan. estimated_document_count() reads collection metadata →
+            # instant, no scan, and needs no index — so it can never fall back to a COLLSCAN and
+            # hammer a loaded DB (the count-storm that saturated prod). The ~0.02% inactive-lead
+            # difference is irrelevant for the list header. Every FILTERED count is selective and
+            # served by a partial index, so those stay on count_documents.
+            if q == {"active": True} or not q:
+                val = await db_analytics.leads.estimated_document_count(maxTimeMS=LIST_COUNT_MS)
+            else:
+                val = await db_analytics.leads.count_documents(q, maxTimeMS=LIST_COUNT_MS)
             if len(_count_cache) > 1000:
                 _count_cache.clear()
             _count_cache[key] = (time.time() + _COUNT_TTL, val)
