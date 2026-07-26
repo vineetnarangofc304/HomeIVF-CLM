@@ -29,12 +29,21 @@ the app. Please treat this as an active production incident.
 - System Health (last 24h): **~779 errors, ~8,400 slow requests**; top failing endpoint `/api/leads`.
 - Incident window observed: **~13:58–16:37 IST, 26 Jul 2026**, and ongoing.
 
-**What we need — two things**
+**We need — three things**
 1. **Restore the cluster primary / complete failover NOW.** Two of three replica-set members are
    down (one refusing connections, one failing SSL handshake). Please bring them back so an election
    can promote a primary. This is the immediate outage fix.
-2. **Upgrade the production tier to M30** (with auto-scaling M30→M40). M10/M20 are burstable and
-   undersized for our sustained workload; MongoDB recommends M30+ for production.
+2. **This app is confirmed STILL on the shared cluster** (`customer-apps.o9d3cj.mongodb.net`, no
+   dedicated migration has gone through). Please **migrate it to a dedicated cluster at M30**
+   (auto-scaling M30→M40). A shared cluster cannot serve 120k+ leads + 24 concurrent callers +
+   ~650 writes/day.
+3. **Please review the injected `timeoutMS=120000` in our connection string.** That platform-set
+   Client-Side Operation Timeout (120s) was overriding our application's fast-fail timeouts and
+   per-query limits, so a slow op held its pooled connection for 2 minutes → pool exhaustion. We
+   have worked around it in code (we strip `timeoutMS` before building the client), but please
+   confirm whether a 120s CSOT is intended for shared-cluster apps — a much lower value (or none)
+   is far safer.
+
 
 **Our workload (why M30)**
 - **120,000+ leads** and growing (~**650 new Meta leads/day** + continuous call/activity/status writes).

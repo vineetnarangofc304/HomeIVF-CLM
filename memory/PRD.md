@@ -1,5 +1,9 @@
 # HomeIVF CRM — PRD
 
+## P0 (2026-06) — ROOT CAUSE of recurring prod 120–180s hangs FOUND & FIXED: injected `timeoutMS=120000` (CSOT) overrode all our fast-fail timeouts — needs REDEPLOY
+- Prod connection string had `timeoutMS=120000` (Client-Side Operation Timeout). CSOT supersedes socketTimeoutMS/waitQueueTimeoutMS AND per-query maxTimeMS → slow ops held pooled connections 120s → pool-exhaustion cascade DESPITE our hardening. Fix: `core/db.py._strip_csot()` removes the timeoutMS param from MONGO_URL so our own 8s/15s/5s + per-query maxTimeMS govern (fail in ≤15s, release connection). No-op in preview; active on prod after redeploy. App is confirmed STILL on the SHARED Atlas cluster + had a ReplicaSetNoPrimary event → still needs Emergent Support for primary restore + dedicated-tier (M30) migration. Detail in CHANGELOG.md + DB_SIZING_FOR_SUPPORT.md.
+
+
 ## P0 (2026-06) — DEPLOYMENT FAILURE fixed (/health 404 + startup crash-risk + .gitignore + OAuth redirect) — deployment_agent PASS
 - Emergent K8s deploy was failing. Fixed 4 code-level blockers: (1) added root `@app.get("/health")` (no DB) — the platform probes `/health` not `/api/health` → was 404 → pod never Ready; (2) moved un-guarded startup seeding into a background retry task so a DB-down-at-boot can't crash-loop the container; (3) un-ignored `.env` in `.gitignore` (Emergent needs it committed); (4) Gmail OAuth redirect uses `window.location.origin`. Atlas "no primary/SSL handshake" is INFRA (already handled as 503s). deployment_agent = PASS/0 blockers. Detail in CHANGELOG.md. ⚠️ Redeploy to apply.
 

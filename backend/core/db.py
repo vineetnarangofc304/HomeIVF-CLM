@@ -1,5 +1,6 @@
 import asyncio as _asyncio
 import os
+from urllib.parse import urlsplit, urlunsplit, parse_qsl, urlencode
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo.errors import (AutoReconnect, ConnectionFailure, ExecutionTimeout,
@@ -24,6 +25,31 @@ from pymongo.errors import (AutoReconnect, ConnectionFailure, ExecutionTimeout,
 # and releases its connection.
 _MONGO_URL = os.environ["MONGO_URL"]
 _DB_NAME = os.environ["DB_NAME"]
+
+
+def _strip_csot(url: str) -> str:
+    """Remove `timeoutMS` (Client-Side Operation Timeout / CSOT) from the connection URL.
+
+    The platform-managed production connection string injects `timeoutMS=120000`. CSOT is the
+    HIGHEST-precedence driver timeout — when present it SUPERSEDES socketTimeoutMS,
+    waitQueueTimeoutMS AND every per-query .max_time_ms() we set. So a slow/no-primary op would
+    hold its pooled connection for the full 120s instead of aborting in 5–15s → the pool
+    exhausts → the 5xx cascade we kept seeing on prod despite all the fast-fail hardening.
+    Stripping it lets our explicit timeouts + per-query maxTimeMS actually govern. Credentials
+    and every other URL option (appName, retryWrites, w, etc.) are preserved unchanged.
+    """
+    try:
+        p = urlsplit(url)
+        if not p.query:
+            return url
+        kept = [(k, v) for k, v in parse_qsl(p.query, keep_blank_values=True)
+                if k.lower() != "timeoutms"]
+        return urlunsplit((p.scheme, p.netloc, p.path, urlencode(kept), p.fragment))
+    except Exception:
+        return url
+
+
+_MONGO_URL = _strip_csot(_MONGO_URL)
 
 client = AsyncIOMotorClient(
     _MONGO_URL,

@@ -2,6 +2,30 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — ROOT CAUSE of the recurring prod 120–180s hangs: injected `timeoutMS=120000` (CSOT) — FIXED in code, needs REDEPLOY
+
+- **Breakthrough:** the user shared the production connection string — it contains
+  `...&maxPoolSize=100&retryWrites=true&timeoutMS=120000&w=majority`. `timeoutMS` is the driver's
+  **Client-Side Operation Timeout (CSOT)** and is the HIGHEST-precedence timeout: when set it
+  **supersedes `socketTimeoutMS`, `waitQueueTimeoutMS`, AND every per-query `.max_time_ms()`** we set.
+  So on prod, a slow/no-primary op held its pooled connection for the full **120s** instead of aborting
+  in 5–15s → pool exhaustion → the 5xx cascade that persisted DESPITE all our fast-fail hardening. This
+  is why our timeouts "didn't work" in production — they were being overridden by the injected URL.
+  (Confirmed via PyMongo docs + CSOT spec.)
+- **Fix (`core/db.py`):** new `_strip_csot(url)` removes ONLY the `timeoutMS` query param from `MONGO_URL`
+  before building both clients (credentials + appName/retryWrites/w/etc. preserved). Now our explicit
+  `serverSelectionTimeoutMS=8000` / `socketTimeoutMS=15000` / `waitQueueTimeoutMS=5000` + per-query
+  `maxTimeMS` actually govern → a bad op fails in ≤15s and RELEASES its connection. No-op in preview
+  (local URL has no timeoutMS); active on prod after redeploy.
+- **Verified (preview):** backend boots clean with the sanitized URL; /health, db-health, /api/leads all 200.
+  `_strip_csot` proven on the real prod URL (timeoutMS removed, everything else intact).
+- **Still infra (Emergent Support):** the app is confirmed STILL on the SHARED cluster (no dedicated
+  migration happened) and had a **ReplicaSetNoPrimary** failover event. The timeoutMS fix stops the
+  *code-amplified* cascade, but a shared cluster + no-primary still needs Support to (a) restore the
+  primary and (b) migrate to a dedicated tier (M30). See DB_SIZING_FOR_SUPPORT.md.
+- **⚠️ NEEDS PRODUCTION REDEPLOY** for the timeoutMS strip to take effect.
+
+
 ## 2026-06 — Feature: "Database reachable?" live indicator on Admin → System Health — DONE (self-verified)
 
 - **Why:** during an Atlas wobble, admins couldn't quickly tell "is it the DB or the app?". This gives an
