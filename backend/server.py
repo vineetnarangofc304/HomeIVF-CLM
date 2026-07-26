@@ -48,6 +48,15 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="HomeIVF CRM API")
 
 
+@app.get("/health")
+async def root_health():
+    """Root liveness/readiness probe. The deployment platform (Kubernetes) probes GET /health
+    directly on the container port WITHOUT the /api prefix, so it MUST exist at the root and
+    return 200 with NO database access — otherwise a transient Atlas blip fails the probe and
+    the pod never becomes ready → the deploy fails / crash-loops."""
+    return {"status": "ok"}
+
+
 @app.exception_handler(PyMongoError)
 async def _db_error_handler(request: Request, exc: PyMongoError):
     """App-wide safety net for Mongo failures. When the (shared) Atlas cluster is briefly
@@ -523,6 +532,27 @@ async def startup():
     asyncio.create_task(_ensure_indexes())
     # Daily Offline reset (Case 2) — background loop.
     asyncio.create_task(_status_reset_loop())
+    # Seed admin + catalog defaults in the BACKGROUND with retry so a transiently-unreachable
+    # Atlas at boot can NEVER crash the startup event (a crash there crash-loops the container
+    # and fails the deploy). The app binds + serves /health 200 immediately; seeding self-heals
+    # once the DB is reachable.
+    asyncio.create_task(_seed_defaults_safe())
+    logger.info("Startup scheduled")
+
+
+async def _seed_defaults_safe():
+    """Run the one-time seeding, retrying transient DB failures. NEVER raises to the caller, so
+    a DB outage at deploy-time can't crash the app / block readiness."""
+    for _attempt in range(30):
+        try:
+            await _seed_defaults()
+            return
+        except Exception as e:
+            logger.error(f"Seed defaults attempt {_attempt + 1} failed: {str(e)[:150]}")
+            await asyncio.sleep(10)
+
+
+async def _seed_defaults():
     # Seed admin
     admin_email = os.environ["ADMIN_EMAIL"].lower()
     admin_password = os.environ["ADMIN_PASSWORD"]
@@ -614,4 +644,4 @@ async def startup():
                 await ensure_catalog("tag", t)
         await db.settings.update_one({"key": "disposition_map"}, {"$set": {"map": disp_map}}, upsert=True)
         logger.info("Seeded disposition tag→stage mapping")
-    logger.info("Startup complete")
+    logger.info("Seed defaults complete")
