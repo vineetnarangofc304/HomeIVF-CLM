@@ -2,6 +2,29 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — PROD OUTAGE (every endpoint 150-256s): missing active_1 recovered + count can't storm
+
+- **Symptom:** at ~10:28 every prod endpoint — even trivial ones (/api/auth/me, /api/agent/me) — took
+  150-256s → total DB saturation → "not working for any caller".
+- **Root cause (found via /api/version):** prod had only **15** leads indexes; the count-only `{active:1}`
+  was MISSING (code expects 16). During the old→new index transition the leads collection briefly exceeded
+  MongoDB's hard **64-index cap**, so `create_index(active_1)` failed with "too many indexes" and was never
+  retried. Without active_1, `count({active:true})` and `group_counts` COLLSCAN; ×24 callers that scan-storm
+  pegged the DB → everything queued for minutes. (Reproduced locally: seeded 64 indexes with active_1 gone.)
+- **Fixes (verified iteration_83, 22/22; local 64-cap sim recovered active_1 → 16 indexes, 0 leftovers):**
+  1. `server.py _ensure_indexes` now runs the create loop in **2 passes**: create lean set → drop stale
+     (frees index slots) → create lean set AGAIN. Any index that failed the 64-cap in pass 1 (active_1) is
+     built in pass 2. Guarantees the full lean set on every deploy.
+  2. `leads.py _cached_count` uses **estimated_document_count()** for the unfiltered `{active:true}`/empty
+     query (instant metadata read, no scan, no index dependency) → the admin/scope=all total can NEVER
+     COLLSCAN-storm the DB again. Filtered + caller (own-book) counts stay exact via count_documents on
+     selective partial indexes. (Admin unfiltered total is now ~0.02% higher as it includes inactive leads.)
+- ⚠️ **Needs a prod REDEPLOY** — the fresh-pod startup runs the 2-pass build and creates active_1 on the live
+  DB. After deploying, confirm `https://crm.homeivfmarketing.com/api/version` shows `leads_index_count: 16`.
+- ⚠️ **Capacity:** this class of saturation has recurred 15+ times. If prod still saturates AFTER active_1
+  is confirmed present, the production MongoDB is under-provisioned for peak load → contact Emergent Support
+  to scale the production database (infra, not code).
+
 ## 2026-06 — Code review + deploy health check (pre-redeploy)
 
 - **Deployment health check: PASS** — no hardcoded secrets, envs externalized, /api prefixing + 0.0.0.0:8001
