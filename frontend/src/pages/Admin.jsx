@@ -1617,7 +1617,7 @@ function EmailTab({ isAdmin }) {
 
   const connect = async () => {
     try {
-      const origin = process.env.REACT_APP_BACKEND_URL;
+      const origin = window.location.origin;
       const { data } = await API.get("/admin/gmail/auth-url", { params: { origin } });
       window.location.href = data.url;
     }
@@ -1633,7 +1633,7 @@ function EmailTab({ isAdmin }) {
     catch (e) { toast.error(apiErr(e)); }
   };
 
-  const redirectUri = `${process.env.REACT_APP_BACKEND_URL}/api/oauth/gmail/callback`;
+  const redirectUri = `${window.location.origin}/api/oauth/gmail/callback`;
 
   if (!status) return <Spinner />;
   return (
