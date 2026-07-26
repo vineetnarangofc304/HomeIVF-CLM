@@ -2,6 +2,30 @@
 
 (Newest first. PRD.md holds the static problem statement / architecture; this file grows over time.)
 
+## 2026-06 — DEPLOYMENT FAILURE fixed: /health 404 + startup crash-risk + .gitignore + OAuth redirect — deployment_agent PASS
+
+- **Reported:** Emergent K8s deploy failing. Logs showed `GET /health → 404` (repeated from 127.0.0.1 = the
+  kubelet probe) plus Atlas `ReplicaSetNoPrimary` / `SSL handshake timed out` (no primary) causing 180s
+  ServerSelection/WaitQueue timeouts on every endpoint.
+- **Root causes (code-fixable):**
+  1. App only exposed `/api/health`; the platform probes `/health` at the container root → 404 → pod never
+     Ready → deploy fails.
+  2. `@app.on_event("startup")` ran ALL admin/catalog seeding as un-guarded `await` DB calls → if Atlas is
+     unreachable at boot (it currently is), the startup event raises → uvicorn aborts → container crash-loops
+     → deploy fails.
+- **Fixes (code only, no Docker changes):**
+  - `server.py`: added root `@app.get("/health")` → `{"status":"ok"}` with NO DB access (verified 200 on the
+    container port). Moved seeding into background task `_seed_defaults_safe()` (retries transient DB errors,
+    never raises) so the app binds + serves /health instantly and seeding self-heals when the DB returns.
+  - `.gitignore`: removed `.env` / `.env.*` / `*.env` (Emergent requires .env committed for deploy).
+  - `Admin.jsx`: Gmail OAuth redirect origin now `window.location.origin` (was `REACT_APP_BACKEND_URL`) so it
+    works across preview/prod/custom-domain — backend `routes/gmail.py` builds redirect_uri from the passed origin.
+- **The Atlas "no primary / SSL handshake" errors themselves are INFRA** (cluster health), not code — the app
+  already maps transient PyMongo errors to graceful 503s via the global exception handler.
+- **Verified:** deployment_agent = **PASS, 0 blockers**; root /health 200; backend + frontend RUNNING; frontend
+  compiles. Ready to redeploy.
+
+
 ## 2026-06-XX — P0 COMPLETE: max_time_ms bound on ALL remaining interactive-pool queries (pool-exhaustion final guard)
 
 - **Why:** recurring prod 504/5xx under load = the interactive Mongo pool getting hogged by slow, UNBOUNDED
