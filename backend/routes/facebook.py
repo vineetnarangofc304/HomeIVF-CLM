@@ -41,7 +41,7 @@ DEFAULT_MAP = {
 
 
 async def _fb_settings():
-    return await db.settings.find_one({"key": "facebook"}, {"_id": 0}) or {}
+    return await db.settings.find_one({"key": "facebook"}, {"_id": 0}, max_time_ms=5000) or {}
 
 
 async def _log_webhook(status: str, detail: str, leadgen_id: str = None, extra: dict = None):
@@ -53,9 +53,9 @@ async def _log_webhook(status: str, detail: str, leadgen_id: str = None, extra: 
     try:
         await db.fb_webhook_log.insert_one(doc)
         # keep only the most recent 200 entries
-        count = await db.fb_webhook_log.count_documents({})
+        count = await db.fb_webhook_log.count_documents({}, maxTimeMS=5000)
         if count > 200:
-            old = await db.fb_webhook_log.find({}, {"_id": 1}).sort("_id", 1).limit(count - 200).to_list(count)
+            old = await db.fb_webhook_log.find({}, {"_id": 1}).sort("_id", 1).limit(count - 200).max_time_ms(5000).to_list(count)
             if old:
                 await db.fb_webhook_log.delete_many({"_id": {"$in": [o["_id"] for o in old]}})
     except Exception:
@@ -77,7 +77,7 @@ def _verify_signature(app_secret: str, body: bytes, header: Optional[str]) -> bo
 
 async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, source_label="Facebook Lead Ads", created_at=None, run_autos=True, dedupe_today=True):
     mapping = settings.get("field_mapping") or {}
-    custom_defs = await db.custom_fields.find({"active": True}, {"_id": 0}).to_list(300)
+    custom_defs = await db.custom_fields.find({"active": True}, {"_id": 0}).max_time_ms(5000).to_list(300)
     custom_keys = {d["key"] for d in custom_defs}
 
     data, extras = {}, {}
@@ -162,7 +162,7 @@ async def _map_and_create_lead(field_data: list, settings: dict, raw: dict, sour
                 return existing
     # Presence-based round-robin: prefer Available/On Call callers; if none are available,
     # fall back to ALL active callers so a Meta lead is never left invisible/unassigned.
-    assign = await db.settings.find_one({"key": "assignment"})
+    assign = await db.settings.find_one({"key": "assignment"}, max_time_ms=5000)
     prefer = assign["user_ids"] if (assign and assign.get("enabled") and assign.get("user_ids")) else None
     user_id = await pick_available_caller(prefer)
     if user_id is None:
@@ -297,7 +297,7 @@ async def fb_webhook(request: Request):
                     # lead (dedupe by facebook_leadgen_id) — otherwise the prospect is inserted
                     # repeatedly, re-assigned, and re-fires on-create automations.
                     lgid = lead.get("id") or leadgen_id
-                    if lgid and await db.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}):
+                    if lgid and await db.leads.find_one({"facebook_leadgen_id": lgid}, {"_id": 1}, max_time_ms=5000):
                         await _log_webhook("skipped",
                                            f"Duplicate delivery — a lead for leadgen_id {lgid} already exists; ignored.",
                                            leadgen_id, extra={"facebook_leadgen_id": lgid})
@@ -321,7 +321,7 @@ async def fb_webhook(request: Request):
 @router.get("/admin/facebook/webhook-log")
 async def fb_webhook_log(user: dict = Depends(require_roles("admin", "manager"))):
     """Recent inbound Meta webhook deliveries + outcomes (created / rejected / error / skipped)."""
-    logs = await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).to_list(50)
+    logs = await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).max_time_ms(5000).to_list(50)
     return {"count": len(logs), "logs": logs}
 
 
@@ -332,9 +332,9 @@ async def fb_recent_leads(user: dict = Depends(require_roles("admin", "manager")
     proj = {"_id": 0, "id": 1, "name": 1, "contact_name": 1, "phone": 1, "email_from": 1,
             "source_lead": 1, "fb_form_name": 1, "user_id": 1, "create_date": 1,
             "create_date_ist": 1, "active": 1}
-    leads = await db.leads.find({"facebook_lead": True}, proj).sort("id", -1).to_list(25)
-    total = await db.leads.count_documents({"facebook_lead": True})
-    users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+    leads = await db.leads.find({"facebook_lead": True}, proj).sort("id", -1).max_time_ms(8000).to_list(25)
+    total = await db.leads.count_documents({"facebook_lead": True}, maxTimeMS=8000)
+    users = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).max_time_ms(5000).to_list(500)}
     for l in leads:
         l["assigned_to"] = users.get(l.get("user_id")) if l.get("user_id") else "Unassigned"
     return {"total": total, "leads": leads}
@@ -512,7 +512,7 @@ async def fb_backfill(body: FbBackfillBody, user: dict = Depends(require_roles("
     # between find_one and insert_one would otherwise interleave). Task registry lets us
     # cancel a stale worker before relabeling its job.
     async with _backfill_lock:
-        running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1, "updated_at": 1})
+        running = await db.fb_backfill_jobs.find_one({"status": "running"}, {"_id": 0, "job_id": 1, "updated_at": 1}, max_time_ms=5000)
         if running:
             # A run that hasn't reported progress in >3 min is stale — the worker died mid-run
             # (e.g. a deploy/restart). The live worker heartbeats every page (a few seconds), so
@@ -548,7 +548,7 @@ async def fb_backfill(body: FbBackfillBody, user: dict = Depends(require_roles("
 
 @router.get("/admin/facebook/backfill/status")
 async def fb_backfill_status(user: dict = Depends(require_roles("admin", "manager"))):
-    job = await db.fb_backfill_jobs.find_one({}, {"_id": 0}, sort=[("started_at", -1)])
+    job = await db.fb_backfill_jobs.find_one({}, {"_id": 0}, sort=[("started_at", -1)], max_time_ms=5000)
     return job or {"status": "idle"}
 
 
@@ -621,10 +621,10 @@ async def fb_diagnose(user: dict = Depends(require_roles("admin", "manager"))):
         "configured": bool(s.get("app_secret") and s.get("page_access_token")),
         "verify_token_set": bool(s.get("verify_token")),
         "page_id_set": bool(s.get("page_id")),
-        "leads_captured": await db.leads.count_documents({"facebook_lead": True}),
+        "leads_captured": await db.leads.count_documents({"facebook_lead": True}, maxTimeMS=8000),
         "checks": [],
         "next_step": None,
-        "recent_webhook_deliveries": await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).to_list(10),
+        "recent_webhook_deliveries": await db.fb_webhook_log.find({}, {"_id": 0}).sort("at", -1).max_time_ms(5000).to_list(10),
     }
     token = s.get("page_access_token")
     if not token:
@@ -748,7 +748,7 @@ async def fb_status(user: dict = Depends(require_roles("admin", "manager"))):
         "configured": bool(s.get("app_secret") and s.get("page_access_token")),
         "has_verify_token": bool(s.get("verify_token")),
         "page_id": s.get("page_id"),
-        "leads_captured": await db.leads.count_documents({"facebook_lead": True}),
+        "leads_captured": await db.leads.count_documents({"facebook_lead": True}, maxTimeMS=8000),
         "field_mapping": s.get("field_mapping") or {},
         "graph_api_version": s.get("graph_api_version") or GRAPH_VERSION,
     }

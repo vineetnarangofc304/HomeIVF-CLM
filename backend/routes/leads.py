@@ -376,7 +376,7 @@ async def get_lead(lead_id: int, user: dict = Depends(get_current_user)):
 @router.get("/{lead_id}/audit")
 async def lead_audit(lead_id: int, user: dict = Depends(get_current_user)):
     """Case change 1 — visible per-lead audit trail (who / what / old→new / when)."""
-    return await db.audit_logs.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).to_list(500)
+    return await db.audit_logs.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).max_time_ms(5000).to_list(500)
 
 
 class LeadCreate(BaseModel):
@@ -444,7 +444,7 @@ async def _track_changes(lead, updates, user):
         old, new = lead.get(f), updates[f]
         if f == "tags":
             if tag_names is None:
-                tag_names = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0}).to_list(500)}
+                tag_names = {t["id"]: t["name"] for t in await db.catalogs.find({"type": "tag"}, {"_id": 0}).max_time_ms(5000).to_list(500)}
             old_set, new_set = set(old or []), set(new or [])
             added, removed = new_set - old_set, old_set - new_set
             det = []
@@ -459,13 +459,13 @@ async def _track_changes(lead, updates, user):
                                 new=(", ".join(tag_names.get(t, str(t)) for t in new_set) or "None"))
         elif f == "user_id":
             if user_names is None:
-                user_names = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).to_list(500)}
+                user_names = {u["id"]: u["name"] for u in await db.users.find({}, {"_id": 0, "id": 1, "name": 1}).max_time_ms(5000).to_list(500)}
             ol, nl = user_names.get(old, old or "None"), user_names.get(new, new or "None")
             parts.append(f"Assigned: {ol} → {nl}")
             await log_audit(lead["id"], user, "reassigned", field="Assigned caller", old=ol, new=nl)
         elif f == "stage_id":
             if stage_names is None:
-                stage_names = {s["id"]: s["name"] for s in await db.catalogs.find({"type": "stage"}, {"_id": 0}).to_list(50)}
+                stage_names = {s["id"]: s["name"] for s in await db.catalogs.find({"type": "stage"}, {"_id": 0}).max_time_ms(5000).to_list(50)}
             ol, nl = stage_names.get(old, old or "None"), stage_names.get(new, new or "None")
             parts.append(f"Pipeline stage: {ol} → {nl}")
             await log_audit(lead["id"], user, "stage_changed", field="Pipeline stage", old=ol, new=nl)
@@ -529,7 +529,7 @@ class LostBody(BaseModel):
 
 @router.post("/{lead_id}/lost")
 async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     await db.leads.update_one({"id": lead_id}, {"$set": {
@@ -538,7 +538,7 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
     }})
     reason = ""
     if body.lost_reason_id:
-        r = await db.catalogs.find_one({"type": "lost_reason", "id": body.lost_reason_id})
+        r = await db.catalogs.find_one({"type": "lost_reason", "id": body.lost_reason_id}, max_time_ms=5000)
         reason = f" — Reason: {r['name']}" if r else ""
     await log_message(lead_id, f"Lead marked as Lost{reason}{('<br/>' + body.note) if body.note else ''}", author=user)
     await log_audit(lead_id, user, "lead_lost", field="Status", new="Lost", detail=(reason.strip(" —") or None))
@@ -547,7 +547,7 @@ async def mark_lost(lead_id: int, body: LostBody, user: dict = Depends(get_curre
 
 @router.post("/{lead_id}/restore")
 async def restore_lead(lead_id: int, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "user_id": 1}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     await db.leads.update_one({"id": lead_id}, {"$set": {"active": True, "lost_reason_id": None}})
@@ -569,7 +569,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
     """Case 2 — validate a raw Ozonetel lead and move it into 'Lead in Pipeline'.
     Dedup: if a pipeline lead already exists with the verified phone, merge this
     lead's call activity into it instead of creating a duplicate."""
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     phone = (body.phone or lead.get("phone") or "").strip()
@@ -582,7 +582,7 @@ async def promote_to_pipeline(lead_id: int, body: PromoteBody, user: dict = Depe
         existing = await db.leads.find_one({
             "phone_digits": pdig, "id": {"$ne": lead_id},
             "$or": [{"ozonetel_lead": {"$ne": True}}, {"in_pipeline": True}],
-        }, {"_id": 0, "id": 1, "name": 1, "contact_name": 1}, sort=[("id", 1)])
+        }, {"_id": 0, "id": 1, "name": 1, "contact_name": 1}, sort=[("id", 1)], max_time_ms=5000)
 
     if existing:
         # map this lead's call activity to the existing pipeline record, archive the raw one
@@ -618,10 +618,10 @@ class SendWhatsAppBody(BaseModel):
 
 @router.post("/{lead_id}/send_whatsapp")
 async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
-    template = await db.templates_whatsapp.find_one({"id": body.template_id}, {"_id": 0})
+    template = await db.templates_whatsapp.find_one({"id": body.template_id}, {"_id": 0}, max_time_ms=5000)
     if not template:
         raise HTTPException(status_code=404, detail="Template not found")
     phone = body.phone or lead.get("phone") or lead.get("mobile")
@@ -656,7 +656,7 @@ async def send_whatsapp(lead_id: int, body: SendWhatsAppBody, user: dict = Depen
     # mirror into the lead's WhatsApp thread if one exists
     digits = re.sub(r"\D", "", phone)[-10:]
     if len(digits) >= 8:
-        ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}})
+        ch = await db.wa_channels.find_one({"phone_digits": {"$regex": digits + "$"}}, max_time_ms=5000)
         if ch:
             mid = await next_id("wa_message")
             await db.wa_messages.insert_one({
@@ -686,7 +686,7 @@ class SendEmailBody(BaseModel):
 
 @router.post("/{lead_id}/send_email")
 async def send_email(lead_id: int, body: SendEmailBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     to = (body.to or lead.get("email_from") or "").strip()
@@ -757,7 +757,7 @@ async def bulk_action(body: BulkBody, user: dict = Depends(require_roles("admin"
         raise HTTPException(status_code=400, detail="Unknown action")
     # Case 8: bulk tag/stage updates also fire automation triggers
     if body.action in ("add_tags", "set_stage", "set_lead_stage"):
-        async for l in db.leads.find(q, {"_id": 0}):
+        async for l in db.leads.find(q, {"_id": 0}, max_time_ms=10000):
             if body.action == "add_tags":
                 await run_automations("on_tag_set", l, {"added_tags": [int(t) for t in p["tags"]]})
             else:
@@ -770,7 +770,7 @@ async def _sync_lead_followup(lead_id: int):
     """Keep the lead's follow_up_* fields pointed at the latest scheduled entry."""
     latest = await db.follow_ups.find(
         {"lead_id": lead_id, "follow_up_date": {"$gt": ""}}, {"_id": 0}
-    ).sort("follow_up_date", -1).limit(1).to_list(1)
+    ).sort("follow_up_date", -1).limit(1).max_time_ms(5000).to_list(1)
     if latest:
         f = latest[0]
         await db.leads.update_one({"id": lead_id}, {"$set": {
@@ -791,12 +791,12 @@ class FollowUpBody(BaseModel):
 
 @router.get("/{lead_id}/followups")
 async def list_followups(lead_id: int, user: dict = Depends(get_current_user)):
-    return await db.follow_ups.find({"lead_id": lead_id}, {"_id": 0}).sort([("follow_up_date", -1), ("id", -1)]).to_list(200)
+    return await db.follow_ups.find({"lead_id": lead_id}, {"_id": 0}).sort([("follow_up_date", -1), ("id", -1)]).max_time_ms(5000).to_list(200)
 
 
 @router.post("/{lead_id}/followups")
 async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id})
+    lead = await db.leads.find_one({"id": lead_id}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     note = (body.note or "").strip()
@@ -819,7 +819,7 @@ async def add_followup(lead_id: int, body: FollowUpBody, user: dict = Depends(ge
 
 @router.patch("/{lead_id}/followups/{fid}")
 async def update_followup(lead_id: int, fid: int, body: FollowUpBody, user: dict = Depends(get_current_user)):
-    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
+    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id}, max_time_ms=5000)
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
     note = (body.note or "").strip()
@@ -840,7 +840,7 @@ class FollowUpStatusBody(BaseModel):
 
 @router.post("/{lead_id}/followups/{fid}/status")
 async def set_followup_status(lead_id: int, fid: int, body: FollowUpStatusBody, user: dict = Depends(get_current_user)):
-    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id})
+    fu = await db.follow_ups.find_one({"id": fid, "lead_id": lead_id}, max_time_ms=5000)
     if not fu:
         raise HTTPException(status_code=404, detail="Follow-up not found")
     status = (body.status or "").strip() or None
@@ -868,12 +868,12 @@ class CallerActivityBody(BaseModel):
 
 @router.get("/{lead_id}/caller-activities")
 async def list_caller_activities(lead_id: int, user: dict = Depends(get_current_user)):
-    return await db.caller_activities.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).to_list(500)
+    return await db.caller_activities.find({"lead_id": lead_id}, {"_id": 0}).sort("id", -1).max_time_ms(5000).to_list(500)
 
 
 @router.post("/{lead_id}/caller-activities")
 async def add_caller_activity(lead_id: int, body: CallerActivityBody, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "id": 1, "user_id": 1}, max_time_ms=5000)
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
     fb = (body.feedback or "").strip()
@@ -957,4 +957,3 @@ async def followups_reminders(user: dict = Depends(get_current_user)):
                 "follow_up_date": it["follow_up_date"], "note": it.get("note"), "status": it.get("status"),
             })
     return {"now": now.strftime("%H:%M"), "reminders": out}
-

@@ -161,7 +161,7 @@ class CategoryBody(BaseModel):
 
 @router.post("/channels/{channel_id}/category")
 async def set_category(channel_id: int, body: CategoryBody, user: dict = Depends(get_current_user)):
-    ch = await db.wa_channels.find_one({"id": channel_id})
+    ch = await db.wa_channels.find_one({"id": channel_id}, max_time_ms=5000)
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
     cat = (body.category or "").strip() or None
@@ -170,7 +170,7 @@ async def set_category(channel_id: int, body: CategoryBody, user: dict = Depends
     if cat == "interested":
         digits = re.sub(r"\D", "", ch.get("phone_digits") or "")[-10:]
         if len(digits) >= 8:
-            lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)])
+            lead = await db.leads.find_one({"phone_digits": digits}, sort=[("write_date", -1)], max_time_ms=5000)
             if lead:
                 tag = await ensure_catalog("tag", "Interested")
                 tags = set(lead.get("tags") or [])
@@ -190,7 +190,7 @@ class MsgAction(BaseModel):
 
 @router.post("/messages/{message_id}/star")
 async def toggle_star(message_id: int, user: dict = Depends(get_current_user)):
-    m = await db.wa_messages.find_one({"id": message_id}, {"_id": 0, "starred": 1})
+    m = await db.wa_messages.find_one({"id": message_id}, {"_id": 0, "starred": 1}, max_time_ms=5000)
     if m is None:
         raise HTTPException(status_code=404, detail="Message not found")
     new_val = not m.get("starred")
@@ -200,7 +200,7 @@ async def toggle_star(message_id: int, user: dict = Depends(get_current_user)):
 
 @router.post("/messages/{message_id}/pin")
 async def toggle_pin(message_id: int, user: dict = Depends(get_current_user)):
-    m = await db.wa_messages.find_one({"id": message_id}, {"_id": 0, "pinned": 1, "channel_id": 1})
+    m = await db.wa_messages.find_one({"id": message_id}, {"_id": 0, "pinned": 1, "channel_id": 1}, max_time_ms=5000)
     if m is None:
         raise HTTPException(status_code=404, detail="Message not found")
     new_val = not m.get("pinned")
@@ -210,7 +210,7 @@ async def toggle_pin(message_id: int, user: dict = Depends(get_current_user)):
 
 @router.post("/messages/{message_id}/react")
 async def react_message(message_id: int, body: MsgAction, user: dict = Depends(get_current_user)):
-    m = await db.wa_messages.find_one({"id": message_id})
+    m = await db.wa_messages.find_one({"id": message_id}, max_time_ms=5000)
     if not m:
         raise HTTPException(status_code=404, detail="Message not found")
     emoji = (body.emoji or "").strip()
@@ -236,7 +236,7 @@ class SendBody(BaseModel):
 
 @router.post("/channels/{channel_id}/send")
 async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get_current_user)):
-    ch = await db.wa_channels.find_one({"id": channel_id})
+    ch = await db.wa_channels.find_one({"id": channel_id}, max_time_ms=5000)
     if not ch:
         raise HTTPException(status_code=404, detail="Channel not found")
     mid = await next_id("wa_message")
@@ -246,7 +246,7 @@ async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get
     err = None
     reply_snip = None
     if body.reply_to:
-        r = await db.wa_messages.find_one({"id": body.reply_to}, {"_id": 0, "body": 1, "author_name": 1})
+        r = await db.wa_messages.find_one({"id": body.reply_to}, {"_id": 0, "body": 1, "author_name": 1}, max_time_ms=5000)
         if r:
             reply_snip = {"author": r.get("author_name"), "body": (r.get("body") or "")[:120]}
     if await wac.is_configured() and ch.get("phone_digits"):
@@ -282,11 +282,11 @@ async def send_message(channel_id: int, body: SendBody, user: dict = Depends(get
 
 @router.get("/lead/{lead_id}")
 async def channels_for_lead(lead_id: int, user: dict = Depends(get_current_user)):
-    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "phone_digits": 1})
+    lead = await db.leads.find_one({"id": lead_id}, {"_id": 0, "phone_digits": 1}, max_time_ms=5000)
     if not lead or not lead.get("phone_digits"):
         return []
     digits = lead["phone_digits"]
     if len(digits) < 8:
         return []
-    items = await db.wa_channels.find({"phone_digits": {"$regex": digits + "$"}}, {"_id": 0}).limit(5).to_list(5)
+    items = await db.wa_channels.find({"phone_digits": {"$regex": digits + "$"}}, {"_id": 0}).limit(5).max_time_ms(5000).to_list(5)
     return items

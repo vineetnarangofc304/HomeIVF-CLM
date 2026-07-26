@@ -1,0 +1,36 @@
+{
+  "summary": "Iteration 84 regression after adding max_time_ms/maxTimeMS to ALL remaining interactive-pool queries in leads.py, facebook.py, whatsapp.py plus fix of the stray syntax fragment at EOF of leads.py. Wrote 34-test pytest suite exercising every endpoint that received a newly-bounded query. ALL 34 PASSED in 7.02s. No 500s, no timeouts — confirms every added max_time_ms kwarg is syntactically valid for the operation it decorates (find / find_one / count_documents / aggregate maxTimeMS / async-for cursor).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_results": {
+    "TestAuth (2)": "PASS — admin + caller login return access_token.",
+    "TestLeadsList (5)": "PASS — admin default, admin scope=all + sort=-create_date, admin scope=all page 2, caller default, caller scope=mine — all 200 with items+total.",
+    "TestLeadDetail (4)": "PASS — GET /api/leads/{id}, /audit, /followups, /caller-activities — all 200.",
+    "TestLeadUpdate (1)": "PASS — PATCH /api/leads/{id} with {updates:{city,tags}} updates and persists on subsequent GET; audit endpoint returns 200; state restored after.",
+    "TestFollowups (3)": "PASS — /followups/reminders and /followups/analytics 200; CRUD flow POST→PATCH→POST /status→GET→DELETE all 2xx.",
+    "TestCallerActivity (2)": "PASS — POST with feedback returns activity; missing-feedback returns 422 (validation intact).",
+    "TestLostRestore (1)": "PASS — /lost then /restore both 2xx.",
+    "TestPromote (1)": "PASS — POST /promote-to-pipeline against an ozonetel raw lead returned 2xx (promote or merge path).",
+    "TestWhatsAppSend (1)": "PASS — POST /send_whatsapp with template_id returns non-500 (200/202/400/404 acceptable when template not configured).",
+    "TestFacebookAdmin (5)": "PASS — /status, /recent-leads, /webhook-log, /diagnose, /backfill/status all 200.",
+    "TestWhatsAppInbox (9)": "PASS — /channels (list+search+pagination), /unread-summary, /channels/{id}/messages, POST /channels/{id}/category, POST /channels/{id}/send (queued), POST /messages/{id}/star & /pin toggle, /whatsapp/lead/{lead_id} — all 2xx."
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iter84_max_time_ms_bounded_queries.py",
+    "/app/test_reports/pytest/iter84_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "max_time_ms hardening is safe: 34 endpoints across the 3 hardened modules all still 2xx with expected shape — no invalid-kwarg 500s were surfaced.",
+    "PyMongo/Motor accepts max_time_ms as a keyword on find/find_one/count_documents cursor-configuring calls, and $maxTimeMS in aggregate pipelines — both usages verified live via analytics + followups aggregate and count_documents on the facebook diagnose route.",
+    "Suggestion (non-blocking): expose a single constant DEFAULT_INTERACTIVE_MAX_TIME_MS=5000 and heavier ADMIN_MAX_TIME_MS=8000/10000 in a shared module so future queries inherit the timeout by import rather than repeated literals — reduces the chance of an unbounded regression."
+  ],
+  "updated_files": ["/app/backend/tests/test_iter84_max_time_ms_bounded_queries.py"],
+  "success_rate": {"backend": "100% (34/34)", "frontend": "N/A (skipped per request)"},
+  "test_credentials": "admin@homeivf.com / HomeIVF@2026 ; caller16@homeivf.com / TestPass@2026 ; caller11@homeivf.com / TestPass@2026",
+  "seed_data_creation": "Transient: 1 followup (created & deleted in same test); 1 caller-activity feedback entry (not cleaned — feedback is append-only per API); patch of city/tags is restored to pre-values. No stray TEST_ leads created.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Regression suite at /app/backend/tests/test_iter84_max_time_ms_bounded_queries.py is self-contained and hits every endpoint from the iter84 request. Reuse it as a fast (<10s) smoke test for future changes to leads/facebook/whatsapp routes. It samples a real lead via GET /api/leads?scope=mine (admin) so it works against any environment with at least one admin-owned lead.",
+  "rca of the issue": "N/A — no bug reproduced. The initial 2 script-side failures (patch payload must be wrapped in {updates:{...}}; send_whatsapp requires template_id not template) were test-fixture issues in my first script, corrected before final run."
+}
