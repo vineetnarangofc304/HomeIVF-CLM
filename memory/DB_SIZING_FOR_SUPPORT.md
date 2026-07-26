@@ -1,37 +1,65 @@
-# HomeIVF CRM — Production Database Sizing Request (for Emergent Support)
+# HomeIVF CRM — URGENT Production DB Incident + Tier Upgrade (copy-paste email for Emergent Support)
 
-## Context
-- App: HomeIVF CRM (FastAPI + MongoDB + React), live on production.
-- Data: **120,000+ leads** and growing (~650 new Meta leads/day + call/activity/status writes).
-- Concurrency: **24 callers working continuously** + admins/managers running dashboards & reports.
-- Symptom we hit: frequent HTTP 500s and one **total outage** (Cloudflare 520 – origin returned empty responses) under load. Root cause was **connection-pool / database saturation** — interactive caller queries had to wait for DB connections held by heavy analytical queries, cascading into worker collapse.
+> Send to: support@emergent.sh — Subject: "URGENT: HomeIVF CRM production DB — ReplicaSetNoPrimary + capacity upgrade to M30"
 
-## What we already did in the application code
-- Split into **two connection pools** (interactive 80 / analytics 20) so heavy reporting/backfill can never starve caller/login connections.
-- Added fast-fail (`waitQueueTimeoutMS`) + per-query time limits so a slow query aborts instead of hanging.
-- Optimized dashboards (progressive load), de-duplicated Meta webhook writes, and hardened the error logger so it cannot amplify an incident.
+---
 
-## What we need from the database tier
-Please confirm the current production MongoDB tier and, if it is a **shared/low tier (e.g. M0/M2/M5)**, upgrade it. Shared tiers cap connections (~500) and throttle CPU/IOPS — that is the classic cause of the pool-exhaustion 500s under our concurrent load.
+Hi Emergent Support,
 
-### Recommended spec (dedicated cluster)
-| Metric | Recommended | Minimum |
-|---|---|---|
-| Tier | **Atlas M20 (or equivalent dedicated)** | M10 |
-| RAM | **4 GB** (keeps the ~120k dataset + ~45 indexes resident in memory → avoids slow disk reads under load) | 2 GB |
-| vCPU | 2 | 2 |
-| Max connections | 3,000 (M20) | 1,500 (M10) |
-| Storage | 10 GB+ with provisioned IOPS | — |
-| Region | **Same region as the app deployment** (minimise per-query network latency) | — |
+Our production CRM is currently degraded/unusable because the managed MongoDB Atlas cluster
+has **no healthy primary** (replica-set failover event), causing request pile-up and 5xx across
+the app. Please treat this as an active production incident.
 
-### Why M20 over M10
-- 24 concurrent callers + admins + ~650 writes/day is a **write- and connection-heavy** workload.
-- 4 GB RAM keeps the full working set (leads + indexes ≈ 0.7–1 GB today) in memory with headroom to grow to 200k+ leads.
-- Avoids the CPU/IOPS throttling that shared tiers impose.
+**App details**
+- App name: **HomeIVF CRM**
+- Production URL: **https://hi-connect-1687.emergent.host** (custom domain: crm.homeivfmarketing.com)
+- Job ID: <PASTE YOUR JOB ID HERE>
+- DB cluster (managed): **customer-apps-*.o9d3cj.mongodb.net**
 
-### Also please confirm
-1. Current tier name + connection limit of the production database.
-2. That the app and DB are in the **same region**.
-3. Whether the deployment runs **multiple backend replicas** — if so, total connections = (80 + 20) × replicas; the tier must allow that comfortably.
+**What we're seeing (with evidence)**
+- Our in-app DB health probe flaps: on manual refresh it succeeds in **~2 ms** ("Database reachable"),
+  then within seconds returns **"Database unreachable"** again. The intermittent 2 ms success proves
+  the nodes are network-reachable and credentials are correct — the problem is a **missing/flapping primary**.
+- MongoDB topology in our logs: **ReplicaSetNoPrimary**
+  - `customer-apps-shard-00-00` → RSSecondary (up)
+  - `customer-apps-shard-00-01` → **SSL handshake timed out** (Unknown)
+  - `customer-apps-shard-00-02` → **connection refused [Errno 111]** (Unknown)
+- Because there is no primary, all primary-requiring ops wait, exhausting the connection pool
+  (`WaitQueueTimeoutError ... maxPoolSize: 80`), and every endpoint eventually 5xx's.
+- System Health (last 24h): **~779 errors, ~8,400 slow requests**; top failing endpoint `/api/leads`.
+- Incident window observed: **~13:58–16:37 IST, 26 Jul 2026**, and ongoing.
 
-Thank you.
+**What we need — two things**
+1. **Restore the cluster primary / complete failover NOW.** Two of three replica-set members are
+   down (one refusing connections, one failing SSL handshake). Please bring them back so an election
+   can promote a primary. This is the immediate outage fix.
+2. **Upgrade the production tier to M30** (with auto-scaling M30→M40). M10/M20 are burstable and
+   undersized for our sustained workload; MongoDB recommends M30+ for production.
+
+**Our workload (why M30)**
+- **120,000+ leads** and growing (~**650 new Meta leads/day** + continuous call/activity/status writes).
+- **24 callers working concurrently** + admins/managers running dashboards & reports.
+- This is a connection- and write-heavy workload; M30 (~8 GB RAM) keeps the working set + indexes
+  resident and avoids the CPU/IOPS throttling of burstable tiers.
+
+**What we've already done in application code (so you can rule the app out)**
+- Single Mongo client per process; **two bounded pools** (interactive 80 / analytics 20) — no
+  per-request client creation.
+- Fast-fail everywhere: `serverSelectionTimeoutMS=8000`, `waitQueueTimeoutMS=5000`,
+  `socketTimeoutMS=15000`, `connectTimeoutMS=10000`, plus per-query `max_time_ms` on all routes.
+- `/api/leads` is paginated with a lean projection; the row count is decoupled onto the analytics pool.
+- Lean, consolidated index set (**16 indexes** on `leads`, deliberately reduced from 57 to avoid
+  planner stalls and the 64-index cap).
+- Frontend does not retry 503/504 and pauses polling when hidden — it is not the source of load.
+- Transient Mongo errors are already mapped to graceful 503s (so the app degrades cleanly, but it
+  cannot function while there is no reachable primary).
+
+**Please confirm**
+1. Current production tier name + connection limit.
+2. That app and DB are in the **same region**.
+3. Number of backend replicas (total connections = (80 + 20) × replicas must fit the tier).
+4. Root cause of the primary loss at the timestamp above (so we can prevent recurrence).
+
+Thank you — this is impacting live clinic operations, so a fast turnaround is appreciated.
+
+— HomeIVF CRM team
