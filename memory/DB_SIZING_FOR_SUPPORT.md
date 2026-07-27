@@ -26,8 +26,8 @@ the app. Please treat this as an active production incident.
   - `customer-apps-shard-00-02` → **connection refused [Errno 111]** (Unknown)
 - Because there is no primary, all primary-requiring ops wait, exhausting the connection pool
   (`WaitQueueTimeoutError ... maxPoolSize: 80`), and every endpoint eventually 5xx's.
-- System Health (last 24h): **~779 errors, ~8,400 slow requests**; top failing endpoint `/api/leads`.
-- Incident window observed: **~13:58–16:37 IST, 26 Jul 2026**, and ongoing.
+- System Health (last 24h, as of 27 Jul 2026 ~12:16 IST): **59 errors in the last 1h, 859 errors in the last 24h, 6,626 slow (>8s) requests in the last 24h**; top failing endpoint `/api/leads` (504 @ ~16s, 206x), followed by 503s on `/api/calls/active` (@ ~8s), `/api/whatsapp/unread-summary`, `/api/agent/me`, `/api/reports/dashboard` (@ ~20s), `/api/reports/kpi-overview` (@ ~38s), and **500s on `/api/webhooks/facebook` and `/api/webhooks/whatsapp` — i.e. incoming leads are being dropped.**
+- Incident window: first observed **~13:58 IST, 26 Jul 2026** and **STILL ongoing on 27 Jul 2026** — this is the **16th+ recurrence**.
 
 **We need — three things**
 1. **Restore the cluster primary / complete failover NOW.** Two of three replica-set members are
