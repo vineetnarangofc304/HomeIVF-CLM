@@ -29,7 +29,7 @@ def env_value(path: Path, key: str, default: str = "") -> str:
     return default
 
 
-BASE = env_value(FRONTEND_ENV, "REACT_APP_BACKEND_URL", "https://ivf-lead-ops.preview.emergentagent.com")
+BASE = env_value(FRONTEND_ENV, "REACT_APP_BACKEND_URL", "https://homeivf-crm-2.preview.emergentagent.com")
 API = BASE.rstrip("/") + "/api"
 
 

@@ -7,7 +7,7 @@ from pymongo import MongoClient
 
 ROOT=Path('/app')
 load_dotenv(ROOT/'backend/.env')
-base='https://ivf-lead-ops.preview.emergentagent.com/api'
+base='https://homeivf-crm-2.preview.emergentagent.com/api'
 client=MongoClient(os.environ['MONGO_URL'], serverSelectionTimeoutMS=5000)
 coll=client[os.environ['DB_NAME']].leads
 lead=coll.find_one({'active': True, 'pipeline': {'$ne': False}, 'user_id': 8, 'lead_stage': {'$type': 'string', '$nin':['']}, 'tags.0': {'$exists': True}}, {'_id':0,'id':1,'user_id':1,'lead_stage':1,'tags':1})

@@ -5,7 +5,7 @@
 TEST PLAN
 - Mandatory skill lookup: search_skills('pending API calls pollers auth me leads timeout') returned no relevant testing skill.
 - Inspect changed frontend files: usePoll.js, api.js, AuthContext.jsx, IncomingCallBanner.jsx, WaNotifier.jsx, FollowUpReminder.jsx, AgentStatusSwitcher.jsx.
-- Use preview origin https://ivf-lead-ops.preview.emergentagent.com with admin@homeivf.com / HomeIVF@2026.
+- Use preview origin https://homeivf-crm-2.preview.emergentagent.com with admin@homeivf.com / HomeIVF@2026.
 
 EXECUTED CHECKS
 1) NO-OVERLAP POLLING

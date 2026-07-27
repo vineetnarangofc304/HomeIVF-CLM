@@ -2,7 +2,7 @@
 Focused Playwright verification notes for iteration 78 (HomeIVF CRM pending auth/leads/API pile-up bug).
 
 Executed via MCP browser automation against:
-https://ivf-lead-ops.preview.emergentagent.com
+https://homeivf-crm-2.preview.emergentagent.com
 
 Coverage:
 - Stalled GET /api/auth/me using a Playwright route that never responded: verified protected /leads left the spinner and showed login within ~12.5s; /auth/me request count was exactly 1 on a single page load.

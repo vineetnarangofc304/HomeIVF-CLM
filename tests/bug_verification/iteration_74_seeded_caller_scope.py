@@ -14,7 +14,7 @@ from pathlib import Path
 
 import requests
 
-BASE = "https://ivf-lead-ops.preview.emergentagent.com/api"
+BASE = "https://homeivf-crm-2.preview.emergentagent.com/api"
 OUT = Path("/app/test_reports/iteration_74_seeded_caller_scope.json")
 
 

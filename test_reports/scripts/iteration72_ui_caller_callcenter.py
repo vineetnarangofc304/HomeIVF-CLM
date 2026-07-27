@@ -1,7 +1,7 @@
 import re
 
 async def login(email, password):
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/login')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/login')
     await page.get_by_test_id('login-email-input').fill(email)
     await page.get_by_test_id('login-password-input').fill(password)
     await page.get_by_test_id('login-submit-button').click()
@@ -38,7 +38,7 @@ try:
 
     # Reconfirm Call Center page with corrected selector.
     await login('admin@homeivf.com', 'HomeIVF@2026')
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/call-center')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/call-center')
     await page.wait_for_selector('[data-testid="call-center-page"]', timeout=20000)
     table_count = await page.get_by_test_id('call-list-table').count()
     empty_count = await page.get_by_text('No calls logged yet.').count()
@@ -50,7 +50,7 @@ try:
     await page.get_by_test_id('logout-button').click()
     await page.wait_for_timeout(1000)
     await login('caller16@homeivf.com', 'TestPass@2026')
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/leads')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/leads')
     await wait_leads_loaded('caller default my leads')
     scope_hint_my = await page.get_by_test_id('scope-hint').inner_text(timeout=10000)
     assert 'Viewing your leads' in scope_hint_my, f'wrong default scope hint: {scope_hint_my}'

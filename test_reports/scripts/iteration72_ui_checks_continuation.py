@@ -1,7 +1,7 @@
 import re, time
 
 async def login(email, password):
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/login')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/login')
     await page.get_by_test_id('login-email-input').fill(email)
     await page.get_by_test_id('login-password-input').fill(password)
     await page.get_by_test_id('login-submit-button').click()
@@ -39,7 +39,7 @@ try:
     await login('admin@homeivf.com', 'HomeIVF@2026')
 
     # UI edit regression: use Case Details / Remark (no mandatory city/state validation).
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/leads/500210')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/leads/500210')
     await page.wait_for_selector('[data-testid="lead-detail-page"]', timeout=20000)
     await page.wait_for_selector('[data-testid="field-value-remark"]', timeout=10000)
     original_remark_visible = await page.get_by_test_id('field-value-remark').inner_text(timeout=10000)
@@ -74,7 +74,7 @@ try:
     ]
     for pat in secondary_patterns_600:
         await page.route(pat, fail_secondary)
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/leads/600027')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/leads/600027')
     await page.wait_for_selector('[data-testid="lead-detail-page"]', timeout=20000)
     name600 = await page.get_by_test_id('lead-name').inner_text(timeout=10000)
     await page.wait_for_selector('[data-testid="assignee-select"]', timeout=10000)
@@ -85,11 +85,11 @@ try:
         await page.unroute(pat, fail_secondary)
 
     # Non-lead sections still open.
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/followups')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/followups')
     await page.wait_for_selector('[data-testid="followups-page"]', timeout=20000)
     await page.wait_for_selector('[data-testid="followup-analytics"]', timeout=15000)
     print('PASS Follow-ups page opened')
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/call-center')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/call-center')
     await page.wait_for_selector('[data-testid="call-center-page"]', timeout=20000)
     await page.wait_for_selector('[data-testid="call-list-table"], text=No calls logged yet.', timeout=20000)
     print('PASS Call Center page opened')
@@ -98,7 +98,7 @@ try:
     await page.get_by_test_id('logout-button').click()
     await page.wait_for_timeout(1000)
     await login('caller16@homeivf.com', 'TestPass@2026')
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/leads')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/leads')
     await wait_leads_loaded('caller default my leads')
     scope_hint_my = await page.get_by_test_id('scope-hint').inner_text(timeout=10000)
     assert 'Viewing your leads' in scope_hint_my

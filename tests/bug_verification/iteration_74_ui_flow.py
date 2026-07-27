@@ -5,7 +5,7 @@ It focuses only on the reported Leads filter timeout flow.
 """
 
 await page.set_viewport_size({"width": 1920, "height": 1080})
-BASE_URL = "https://ivf-lead-ops.preview.emergentagent.com"
+BASE_URL = "https://homeivf-crm-2.preview.emergentagent.com"
 responses = []
 
 def on_response(resp):

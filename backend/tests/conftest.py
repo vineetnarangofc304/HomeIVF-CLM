@@ -2,7 +2,7 @@ import os
 import pytest
 import requests
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-lead-ops.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://homeivf-crm-2.preview.emergentagent.com").rstrip("/")
 ADMIN_EMAIL = "admin@homeivf.com"
 ADMIN_PASS = "HomeIVF@2026"
 CALLER_EMAIL = "caller1@homeivf.com"

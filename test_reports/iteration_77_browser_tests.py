@@ -2,7 +2,7 @@
 Focused Playwright verification plan for iteration 77 (HomeIVF CRM request pile-up bug).
 
 These snippets were executed with the MCP browser runner against:
-https://ivf-lead-ops.preview.emergentagent.com
+https://homeivf-crm-2.preview.emergentagent.com
 
 Covered:
 - StrictMode auth bootstrap count and normal admin login

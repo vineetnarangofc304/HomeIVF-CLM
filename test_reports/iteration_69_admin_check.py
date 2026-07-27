@@ -3,7 +3,7 @@
 
 async def run(page):
     await page.set_viewport_size({"width": 1920, "height": 1080})
-    await page.goto('https://ivf-lead-ops.preview.emergentagent.com/login')
+    await page.goto('https://homeivf-crm-2.preview.emergentagent.com/login')
     await page.locator('[data-testid="login-email-input"]').fill('admin@homeivf.com')
     await page.locator('[data-testid="login-password-input"]').fill('HomeIVF@2026')
     await page.locator('[data-testid="login-submit-button"]').click()

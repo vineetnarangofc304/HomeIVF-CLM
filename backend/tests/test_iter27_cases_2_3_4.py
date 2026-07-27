@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 # Load backend/.env for MONGO_URL etc.
 load_dotenv("/app/backend/.env")
 
-BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://ivf-lead-ops.preview.emergentagent.com").rstrip("/")
+BASE_URL = os.environ.get("REACT_APP_BACKEND_URL", "https://homeivf-crm-2.preview.emergentagent.com").rstrip("/")
 API = f"{BASE_URL}/api"
 
 ADMIN = {"email": "admin@homeivf.com", "password": "HomeIVF@2026"}
